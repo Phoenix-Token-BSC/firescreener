@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Chart from 'chart.js/auto';
 
-type SupportedChain = "bsc" | "sol" | "rwa";
+type SupportedChain = "bsc" | "sol" | "eth" | "rwa";
 
 interface PriceActionChartProps {
   chain: SupportedChain;
@@ -56,12 +56,16 @@ const TIMEFRAMES = [
 // type DataSource = "coingecko" | "cryptocompare" | "rwa" | null;
 
 function getPlatformId(chain: SupportedChain): string {
-  return chain === "bsc" ? "binance-smart-chain" : "solana";
+  if (chain === "bsc") return "binance-smart-chain";
+  if (chain === "eth") return "ethereum";
+  return "solana";
 }
 
 function getSymbolFromChain(chain: SupportedChain): string {
-  // This is a simplified approach - in production you'd want to map contract addresses to symbols
-  return chain === "bsc" ? "BNB" : "SOL";
+  // Simplified mapping - adjust as needed
+  if (chain === "bsc") return "BNB";
+  if (chain === "eth") return "ETH";
+  return "SOL";
 }
 
 function getHistoEndpoint(days: number): string {
@@ -85,6 +89,7 @@ export default function PriceActionChart({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<any>(null);
   const cacheRef = useRef<Map<string, { prices: number[]; labels: string[]; ts: number }>>(new Map());
+  const dataMaxRef = useRef<number>(0);
   const [data, setData] = useState<{ prices: number[]; labels: string[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const isChartReady = true;
@@ -93,11 +98,11 @@ export default function PriceActionChart({
   // const [dataSource, setDataSource] = useState<DataSource>(null);
 
   // Get CryptoCompare API key from environment variable
-  const cryptocompareApiKey = process.env.CRYPTOCOMPARE_API_KEY || "a2908b51095ddf69552f5dd2caabe3f9a12d2507f8ed32987008c936c1caff61";
+  // const cryptocompareApiKey = process.env.CRYPTOCOMPARE_API_KEY || "a2908b51095ddf69552f5dd2caabe3f9a12d2507f8ed32987008c936c1caff61";
 
-  const coingeckoUrl = `https://api.coingecko.com/api/v3/coins/${getPlatformId(chain)}/contract/${encodeURIComponent(
-    contractAddress
-  )}/market_chart?vs_currency=usd&days=${selectedTimeframe}`;
+  // const coingeckoUrl = `https://api.coingecko.com/api/v3/coins/${getPlatformId(chain)}/contract/${encodeURIComponent(
+  //   contractAddress
+  // )}/market_chart?vs_currency=usd&days=${selectedTimeframe}`;
 
   // Chart.js is available via ESM import
 
@@ -207,10 +212,17 @@ export default function PriceActionChart({
       else if (selectedTimeframe <= 30) timeframeParam = '30d';
       else if (selectedTimeframe <= 90) timeframeParam = '3m';
 
-      const url = `https://enpdzndcjxlzupmxpmms.supabase.co/functions/v1/token-analysis-api?chain=${chain}&token=${contractAddress}&timeframe=${timeframeParam}`;
-      console.log('Fetching from Supabase:', url);
+  // Use the explicit Supabase Functions host directly (no env variables)
+  const supabaseBase = 'https://enpdzndcjxlzupmxpmms.supabase.co';
 
-      const resp = await fetch(url, { signal });
+  // Construct the function URL and encode parameters
+  const url = `${supabaseBase}/functions/v1/token-analysis-api?chain=${encodeURIComponent(
+    chain
+  )}&token=${encodeURIComponent(contractAddress)}&timeframe=${encodeURIComponent(timeframeParam)}`;
+  console.log('Fetching from Supabase (direct):', url);
+
+  // Fetch directly from the hardcoded function URL. Do not include env-based headers here.
+  const resp = await fetch(url, { signal, cache: 'no-store' });
       if (!resp.ok) {
         throw new Error(`Supabase API failed: ${resp.status}`);
       }
@@ -223,9 +235,36 @@ export default function PriceActionChart({
       const prices: number[] = [];
       const labels: string[] = [];
 
-      json.priceChart.candles.forEach((candle) => {
+      // Normalize, validate, sort and deduplicate candles
+      const raw = json.priceChart.candles || [];
+      const normalized = raw
+        .map((candle) => {
+          const time = Number(candle.time);
+          // convert seconds -> ms if value looks like seconds
+          const timeMs = time > 1e12 ? time : time * 1000;
+          const close = Number((candle as any).close ?? (candle as any).price ?? (candle as any).close);
+          return { timeMs, close };
+        })
+        .filter((c) => Number.isFinite(c.timeMs) && Number.isFinite(c.close));
+
+      // sort by time ascending
+      normalized.sort((a, b) => a.timeMs - b.timeMs);
+
+      // dedupe by time (keep last value for duplicate timestamps)
+      const deduped: { timeMs: number; close: number }[] = [];
+      for (const p of normalized) {
+        const last = deduped[deduped.length - 1];
+        if (last && last.timeMs === p.timeMs) {
+          // replace
+          deduped[deduped.length - 1] = p;
+        } else {
+          deduped.push(p);
+        }
+      }
+
+      deduped.forEach((candle) => {
         prices.push(candle.close);
-        const date = new Date(candle.time * 1000); // Standardize to ms
+        const date = new Date(candle.timeMs);
         let timeLabel: string;
         if (selectedTimeframe <= 1) {
           timeLabel = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -234,125 +273,128 @@ export default function PriceActionChart({
         }
         labels.push(timeLabel);
       });
+
+      // store max for formatting
+      dataMaxRef.current = prices.length ? Math.max(...prices) : 0;
 
       return { prices, labels };
     }
 
     // Fetch from CoinGecko
-    async function fetchFromCoinGecko(signal: AbortSignal): Promise<{ prices: number[]; labels: string[] }> {
-      console.log('Fetching from CoinGecko:', coingeckoUrl);
+    // async function fetchFromCoinGecko(signal: AbortSignal): Promise<{ prices: number[]; labels: string[] }> {
+    //   console.log('Fetching from CoinGecko:', coingeckoUrl);
 
-      // Retry with simple backoff for 429/5xx
-      const maxAttempts = 3;
-      let lastErr: any = null;
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-          const resp = await fetch(coingeckoUrl, { cache: 'no-store', signal });
-          if (!resp.ok) {
-            if ([429, 500, 502, 503, 504].includes(resp.status) && attempt < maxAttempts) {
-              const delay = 300 * attempt;
-              await new Promise((r) => setTimeout(r, delay));
-              continue;
-            }
-            throw new Error(`CoinGecko API failed: ${resp.status}`);
-          }
-          const json = (await resp.json()) as MarketChartResponse;
-          if (!json.prices || json.prices.length === 0) {
-            throw new Error('No price data from CoinGecko');
-          }
+    //   // Retry with simple backoff for 429/5xx
+    //   const maxAttempts = 3;
+    //   let lastErr: any = null;
+    //   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    //     try {
+    //       const resp = await fetch(coingeckoUrl, { cache: 'no-store', signal });
+    //       if (!resp.ok) {
+    //         if ([429, 500, 502, 503, 504].includes(resp.status) && attempt < maxAttempts) {
+    //           const delay = 300 * attempt;
+    //           await new Promise((r) => setTimeout(r, delay));
+    //           continue;
+    //         }
+    //         throw new Error(`CoinGecko API failed: ${resp.status}`);
+    //       }
+    //       const json = (await resp.json()) as MarketChartResponse;
+    //       if (!json.prices || json.prices.length === 0) {
+    //         throw new Error('No price data from CoinGecko');
+    //       }
 
-          const prices: number[] = [];
-          const labels: string[] = [];
+    //       const prices: number[] = [];
+    //       const labels: string[] = [];
 
-          json.prices.forEach(([timestamp, price]) => {
-            prices.push(price);
-            const date = new Date(timestamp);
-            let timeLabel: string;
-            if (selectedTimeframe <= 1) {
-              timeLabel = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            } else {
-              timeLabel = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-            }
-            labels.push(timeLabel);
-          });
-          return { prices, labels };
-        } catch (err: any) {
-          if (signal.aborted) throw err;
-          lastErr = err;
-          if (attempt === maxAttempts) throw err;
-        }
-      }
-      throw lastErr || new Error('CoinGecko failed');
-    }
+    //       json.prices.forEach(([timestamp, price]) => {
+    //         prices.push(price);
+    //         const date = new Date(timestamp);
+    //         let timeLabel: string;
+    //         if (selectedTimeframe <= 1) {
+    //           timeLabel = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    //         } else {
+    //           timeLabel = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    //         }
+    //         labels.push(timeLabel);
+    //       });
+    //       return { prices, labels };
+    //     } catch (err: any) {
+    //       if (signal.aborted) throw err;
+    //       lastErr = err;
+    //       if (attempt === maxAttempts) throw err;
+    //     }
+    //   }
+    //   throw lastErr || new Error('CoinGecko failed');
+    // }
 
     // Fetch from CryptoCompare as fallback
-    async function fetchFromCryptoCompare(signal: AbortSignal): Promise<{ prices: number[]; labels: string[] }> {
-      const symbol = getSymbolFromChain(chain);
-      const endpoint = getHistoEndpoint(selectedTimeframe);
-      const limit = getHistoLimit(selectedTimeframe);
+    // async function fetchFromCryptoCompare(signal: AbortSignal): Promise<{ prices: number[]; labels: string[] }> {
+    //   const symbol = getSymbolFromChain(chain);
+    //   const endpoint = getHistoEndpoint(selectedTimeframe);
+    //   const limit = getHistoLimit(selectedTimeframe);
 
-      // Build URL with API key if provided
-      let url = `https://min-api.cryptocompare.com/data/v2/${endpoint}?fsym=${symbol}&tsym=USD&limit=${limit}`;
+    //   // Build URL with API key if provided
+    //   let url = `https://min-api.cryptocompare.com/data/v2/${endpoint}?fsym=${symbol}&tsym=USD&limit=${limit}`;
 
-      if (cryptocompareApiKey) {
-        url += `&api_key=${cryptocompareApiKey}`;
-      }
+    //   if (cryptocompareApiKey) {
+    //     url += `&api_key=${cryptocompareApiKey}`;
+    //   }
 
-      console.log('Fetching from CryptoCompare:', url.replace(cryptocompareApiKey || '', '***'));
-      // Retry with backoff for 429/5xx
-      const maxAttempts = 2;
-      let resp: Response | null = null;
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-          resp = await fetch(url, { signal });
-          if (!resp.ok) {
-            if ([429, 500, 502, 503, 504].includes(resp.status) && attempt < maxAttempts) {
-              const delay = 300 * attempt;
-              await new Promise((r) => setTimeout(r, delay));
-              continue;
-            }
-            throw new Error(`CryptoCompare API failed: ${resp.status}`);
-          }
-          break;
-        } catch (err) {
-          if (signal.aborted) throw err;
-          if (attempt === maxAttempts) throw err;
-        }
-      }
-      if (!resp) throw new Error('CryptoCompare: no response');
-      const json = (await resp.json()) as CryptoCompareResponse;
+    //   console.log('Fetching from CryptoCompare:', url.replace(cryptocompareApiKey || '', '***'));
+    //   // Retry with backoff for 429/5xx
+    //   const maxAttempts = 2;
+    //   let resp: Response | null = null;
+    //   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    //     try {
+    //       resp = await fetch(url, { signal });
+    //       if (!resp.ok) {
+    //         if ([429, 500, 502, 503, 504].includes(resp.status) && attempt < maxAttempts) {
+    //           const delay = 300 * attempt;
+    //           await new Promise((r) => setTimeout(r, delay));
+    //           continue;
+    //         }
+    //         throw new Error(`CryptoCompare API failed: ${resp.status}`);
+    //       }
+    //       break;
+    //     } catch (err) {
+    //       if (signal.aborted) throw err;
+    //       if (attempt === maxAttempts) throw err;
+    //     }
+    //   }
+    //   if (!resp) throw new Error('CryptoCompare: no response');
+    //   const json = (await resp.json()) as CryptoCompareResponse;
 
-      // Check for API error response
-      if (json.Response === 'Error') {
-        throw new Error(json.Message || 'CryptoCompare API error');
-      }
+    //   // Check for API error response
+    //   if (json.Response === 'Error') {
+    //     throw new Error(json.Message || 'CryptoCompare API error');
+    //   }
 
-      if (!json.Data?.Data || json.Data.Data.length === 0) {
-        throw new Error('No data from CryptoCompare');
-      }
+    //   if (!json.Data?.Data || json.Data.Data.length === 0) {
+    //     throw new Error('No data from CryptoCompare');
+    //   }
 
-      const prices: number[] = [];
-      const labels: string[] = [];
+    //   const prices: number[] = [];
+    //   const labels: string[] = [];
 
-      json.Data.Data.forEach((dataPoint) => {
-        prices.push(dataPoint.close);
+    //   json.Data.Data.forEach((dataPoint) => {
+    //     prices.push(dataPoint.close);
 
-        const date = new Date(dataPoint.time * 1000); // Convert seconds to milliseconds
-        let timeLabel: string;
+    //     const date = new Date(dataPoint.time * 1000); // Convert seconds to milliseconds
+    //     let timeLabel: string;
 
-        if (selectedTimeframe <= 1) {
-          timeLabel = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        } else if (selectedTimeframe <= 7) {
-          timeLabel = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-        } else {
-          timeLabel = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-        }
+    //     if (selectedTimeframe <= 1) {
+    //       timeLabel = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    //     } else if (selectedTimeframe <= 7) {
+    //       timeLabel = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    //     } else {
+    //       timeLabel = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    //     }
 
-        labels.push(timeLabel);
-      });
+    //     labels.push(timeLabel);
+    //   });
 
-      return { prices, labels };
-    }
+    //   return { prices, labels };
+    // }
 
     const abortController = new AbortController();
     const { signal } = abortController;
@@ -385,38 +427,46 @@ export default function PriceActionChart({
           }
         }
 
-        // Try Supabase Token Analysis API first (Primary Source)
-        try {
-          const supabaseData = await fetchFromSupabase(signal);
-          console.log('Supabase data loaded:', supabaseData.prices.length, 'points');
-          setData(supabaseData);
-          cacheRef.current.set(key, { ...supabaseData, ts: Date.now() });
-          return;
-        } catch (sbError) {
-          console.warn('Supabase API failed, falling back to CoinGecko:', sbError);
+        // Use Supabase Token Analysis API for BSC and ETH
+        if (chain === 'bsc' || chain === 'eth') {
+          try {
+            const supabaseData = await fetchFromSupabase(signal);
+            console.log('Supabase data loaded:', supabaseData.prices.length, 'points');
+            setData(supabaseData);
+            cacheRef.current.set(key, { ...supabaseData, ts: Date.now() });
+            return;
+          } catch (sbError) {
+            console.warn('Supabase API failed for chain', chain, sbError);
+            throw sbError; // let outer catch handle display
+          }
         }
 
-        // Try CoinGecko second
+        // If chain is not supported by Supabase and not RWA, show unsupported
+        if (chain !== 'rwa') {
+          throw new Error(`Unsupported chain for price data: ${chain}`);
+        }
+
+        // Otherwise (chain === 'rwa') we already attempted RWA above; fallthrough to error
         try {
-          const coinGeckoData = await fetchFromCoinGecko(signal);
-          console.log('CoinGecko data loaded:', coinGeckoData.prices.length, 'points');
-          setData(coinGeckoData);
+          // const coinGeckoData = await fetchFromCoinGecko(signal);
+          // console.log('CoinGecko data loaded:', coinGeckoData.prices.length, 'points');
+          // setData(coinGeckoData);
           // setDataSource("coingecko");
-          cacheRef.current.set(key, { ...coinGeckoData, ts: Date.now() });
-          return;
+          // cacheRef.current.set(key, { ...coinGeckoData, ts: Date.now() });
+          // return;
         } catch (cgError) {
           console.warn('CoinGecko failed, trying CryptoCompare:', cgError);
 
-          // Fallback to CryptoCompare if API key is provided
-          if (!cryptocompareApiKey) {
-            throw new Error('CoinGecko failed and no CryptoCompare API key provided. Get a free key at https://www.cryptocompare.com/cryptopian/api-keys');
-          }
+          // // Fallback to CryptoCompare if API key is provided
+          // if (!cryptocompareApiKey) {
+          //   throw new Error('CoinGecko failed and no CryptoCompare API key provided. Get a free key at https://www.cryptocompare.com/cryptopian/api-keys');
+          // }
 
-          const cryptoCompareData = await fetchFromCryptoCompare(signal);
-          console.log('CryptoCompare data loaded:', cryptoCompareData.prices.length, 'points');
-          setData(cryptoCompareData);
-          // setDataSource("cryptocompare");
-          cacheRef.current.set(key, { ...cryptoCompareData, ts: Date.now() });
+          // const cryptoCompareData = await fetchFromCryptoCompare(signal);
+          // console.log('CryptoCompare data loaded:', cryptoCompareData.prices.length, 'points');
+          // setData(cryptoCompareData);
+          // // setDataSource("cryptocompare");
+          // cacheRef.current.set(key, { ...cryptoCompareData, ts: Date.now() });
         }
       } catch (e) {
         console.error('All data sources failed:', e);
@@ -433,7 +483,7 @@ export default function PriceActionChart({
       cancelled = true;
       abortController.abort();
     };
-  }, [coingeckoUrl, contractAddress, selectedTimeframe, chain, cryptocompareApiKey]);
+  }, [ contractAddress, selectedTimeframe, chain]);
 
   // Create chart
   useEffect(() => {
@@ -491,14 +541,14 @@ export default function PriceActionChart({
               ticks: {
                 callback: (val: any) => {
                   const price = Number(val);
-                  // Determine appropriate decimal places based on price magnitude
+                  if (!Number.isFinite(price)) return '';
+                  const max = dataMaxRef.current || Math.abs(price);
                   if (price === 0) return '$0';
-                  if (price >= 1000) return `$${price.toFixed(2)}`;
-                  if (price >= 1) return `$${price.toFixed(4)}`;
-                  if (price >= 0.01) return `$${price.toFixed(4)}`;
-                  // For very small prices, use scientific notation or more decimals
-                  if (price < 0.000001) return `$${price.toExponential(2)}`;
-                  return `$${price.toFixed(8)}`;
+                  if (max >= 1000) return `$${price.toFixed(2)}`;
+                  if (max >= 1) return `$${price.toFixed(4)}`;
+                  if (max >= 0.01) return `$${price.toFixed(4)}`;
+                  // For very small prices, use exponential with 2 decimals
+                  return `$${price.toExponential(2)}`;
                 },
                 color: "#9ca3af",
               },
@@ -514,8 +564,14 @@ export default function PriceActionChart({
             tooltip: {
               callbacks: {
                 label: (ctx: any) => {
-                  const value = ctx.parsed.y;
-                  return `Price: $${Number(value).toLocaleString(undefined, { maximumFractionDigits: 8 })}`;
+                  const value = Number(ctx.parsed.y);
+                  if (!Number.isFinite(value)) return '';
+                  const max = dataMaxRef.current || Math.abs(value);
+                  if (max >= 1) {
+                    return `Price: $${value.toLocaleString(undefined, { maximumFractionDigits: 6 })}`;
+                  }
+                  // small prices -> exponential
+                  return `Price: $${value.toExponential(6)}`;
                 },
               },
             },
@@ -556,7 +612,7 @@ export default function PriceActionChart({
       ) : error ? (
         <div className="text-center py-8">
           <div className="text-sm text-red-500 mb-2">{error}</div>
-          {!cryptocompareApiKey && error.includes('CryptoCompare') && (
+          {/* {!cryptocompareApiKey && error.includes('CryptoCompare') && (
             <a
               href="https://www.cryptocompare.com/cryptopian/api-keys"
               target="_blank"
@@ -565,7 +621,7 @@ export default function PriceActionChart({
             >
               Get a free CryptoCompare API key →
             </a>
-          )}
+          )} */}
         </div>
       ) : data && data.prices.length > 0 ? (
         <div className="h-64 md:h-80">
