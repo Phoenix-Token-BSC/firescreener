@@ -141,6 +141,9 @@ export function useEmojiReactions(contractAddress: string | null): UseEmojiReact
       }));
 
       try {
+
+        markAsReactedToday(contractAddress);
+        setHasReactedToday(true);
         const updatedCounts = {
           ...counts,
           [emojiId]: counts[emojiId] + 1,
@@ -162,8 +165,7 @@ export function useEmojiReactions(contractAddress: string | null): UseEmojiReact
         setCounts(data.reactions);
         
         // Mark as reacted today in local storage
-        markAsReactedToday(contractAddress);
-        setHasReactedToday(true);
+        
         setError(null);
       } catch (err) {
         // Revert on error
