@@ -138,12 +138,12 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
   { address: "0x8489c022a10a8d2a65eb5aF2b0E4aE0191e7916D", symbol: "cct", name: "CatCake Token", chain: "bsc", isBurn: true },
   { address: "0x38Aec84f305564cB2625430A294382Cf33e3c317", symbol: "talent", name: "Talent Token", chain: "bsc", isBurn: true },
   { address: "0x71fd83d49fAaD4612E9d35876A75a97a5aDd4Bc2", symbol: "pcat", name: "Persian Cat Token", chain: "bsc", isBurn: true },
-  {address: "0xF8418D9144172d43d12938caB74AFa695984062A", symbol: "bp", name: "Baby Priceless", chain: "bsc", isBurn: true },
-  {address: "0x73cD10B66c4EBC6eE77ADFcc4310C03D79a74444", symbol: "jawgular", name: "JAWGULAR", chain: "bsc", isBurn: true },
+  { address: "0xF8418D9144172d43d12938caB74AFa695984062A", symbol: "bp", name: "Baby Priceless", chain: "bsc", isBurn: true },
+  { address: "0x73cD10B66c4EBC6eE77ADFcc4310C03D79a74444", symbol: "jawgular", name: "JAWGULAR", chain: "bsc", isBurn: true },
   { address: "0x39B4cBC1CE609D736E9aC3BaDd98E95c890731F3", symbol: "dst", name: "DayStar Token", chain: "bsc", isBurn: true },
   { address: "0x5f3170D7A37D70FFE92a3e573ec67400b795B854", symbol: "peperice", name: "Pepe Rice", chain: "bsc", isBurn: true },
-  { address: "0xfd8eab4F5cf3572Ae62445CAD634226DbaA37F69", symbol: "godinu",  name: "GOD INU", chain: "bsc", isBurn: true },
-  { address: "0x034437C7037317eaAbA782f2aD5B0A54cFcCf726", symbol: "zoe", name: "ZOE Token", chain: "bsc", isBurn: true } ,
+  { address: "0xfd8eab4F5cf3572Ae62445CAD634226DbaA37F69", symbol: "godinu", name: "GOD INU", chain: "bsc", isBurn: true },
+  { address: "0x034437C7037317eaAbA782f2aD5B0A54cFcCf726", symbol: "zoe", name: "ZOE Token", chain: "bsc", isBurn: true },
   { address: "0x90206Ad9b7d23c672cd75A633CA96b5D9e9AE8Ed", symbol: "lai", name: "LeadAI Token", chain: "bsc", isBurn: true },
   { address: "0x45c0f77541d195a6dea20a681e6c02a94ca04dd0", symbol: "babydew", name: "BABY DEW", chain: "bsc", isBurn: true },
   { address: "0x4ff377aad0c67541aa12ece8b12d1217f3c94444", symbol: "sat", name: "SATERIA", chain: "bsc", isBurn: true },
@@ -154,32 +154,33 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
   { address: "0xC284A77838D09784C79061BA57B7203F8CBF76d9", symbol: "zonic", name: "Zion Token", chain: "bsc", isBurn: true },
   { address: "0x61Fc93c7C070B32B1b1479B86056d8Ec1D7125BD", symbol: "bc400", name: "BITCOIN CULTIVATOR 400", chain: "bsc", isBurn: false },
   { address: "0x591DF09AF60366298FE31C4590a9230585D34FBd", symbol: "bnc", name: "BULLNANCE", chain: "bsc", isBurn: false },
-  { address: "0x199A88E5BFacc9eAB72913c5F05Ca75D1f30234f", symbol: "jct", name:"JustCat Token", chain:"bsc", isBurn: false},
-  { address: "0xa98283c7e78e7604960f672b3d609d0c5e594ed0", symbol: "RICH", name: "RichSea Token", chain: "bsc", isBurn: true},
-  { address: "0xf1c599e9a5fbdea408a7409c0176a2fe42c64444", symbol: "hachiko", name: "Hachiko Inu", chain: "bsc", isBurn: false},
-  { address: "0x63852B25cFabFE4EaB380df29A68663656f757EA", symbol: "jiti", name: "JITI", chain: "bsc", isBurn: false},
-  { address: "0xc269d59a0D608EA0bd672F2F4616C372d8554444", symbol: "ClipX", name: "ClipX", chain: "bsc", isBurn: false},
-  { address: "0x103c164727572D7A0BE8021F3d9274F0eB9F4CF8", symbol: "NEKO", name: "Nekomeow", chain:"bsc", isBurn: false},
-  { address: "0xE1bf97baCF682AE17cA3E239aB68a7b525f994A4", symbol: "zuba", name: "Zuba TheSuperDog", chain:"bsc", isBurn: false},
-  { address: "0x3925f2ae71bCd36b9e4284F92f519f3924b2A91a", symbol: "spt", name: "SAFEPOINT TOKEN", chain: "bsc", isBurn: false},
-  { address: "0x5944C5278298ADfa691d29ceA70e29333dD47777", symbol: "gpan", name: "Giant Panda", chain: "bsc", isBurn: false},
-    { address: "0xA925EbCF141c5efdDA5c38c569Ab789aa52f0Fc3", symbol: "aide", name: "AI DEFI", chain: "bsc", isBurn: false},
-        { address: "0xc0a0626dfc53b05460eca06f546f1a1f0d0a4444", symbol: "kratos", name: "KRATOS", chain: "bsc", isBurn: false},
+  { address: "0x199A88E5BFacc9eAB72913c5F05Ca75D1f30234f", symbol: "jct", name: "JustCat Token", chain: "bsc", isBurn: false },
+  { address: "0xa98283c7e78e7604960f672b3d609d0c5e594ed0", symbol: "RICH", name: "RichSea Token", chain: "bsc", isBurn: true },
+  { address: "0xf1c599e9a5fbdea408a7409c0176a2fe42c64444", symbol: "hachiko", name: "Hachiko Inu", chain: "bsc", isBurn: false },
+  { address: "0x63852B25cFabFE4EaB380df29A68663656f757EA", symbol: "jiti", name: "JITI", chain: "bsc", isBurn: false },
+  { address: "0xc269d59a0D608EA0bd672F2F4616C372d8554444", symbol: "ClipX", name: "ClipX", chain: "bsc", isBurn: false },
+  { address: "0x103c164727572D7A0BE8021F3d9274F0eB9F4CF8", symbol: "NEKO", name: "Nekomeow", chain: "bsc", isBurn: false },
+  { address: "0xE1bf97baCF682AE17cA3E239aB68a7b525f994A4", symbol: "zuba", name: "Zuba TheSuperDog", chain: "bsc", isBurn: false },
+  { address: "0x3925f2ae71bCd36b9e4284F92f519f3924b2A91a", symbol: "spt", name: "SAFEPOINT TOKEN", chain: "bsc", isBurn: false },
+  { address: "0x5944C5278298ADfa691d29ceA70e29333dD47777", symbol: "gpan", name: "Giant Panda", chain: "bsc", isBurn: false },
+  { address: "0xA925EbCF141c5efdDA5c38c569Ab789aa52f0Fc3", symbol: "aide", name: "AI DEFI", chain: "bsc", isBurn: false },
+  { address: "0xc0a0626dfc53b05460eca06f546f1a1f0d0a4444", symbol: "kratos", name: "Kratos Token", chain: "bsc", isBurn: false },
+  { address: "0x903badf5bf9175297cc889030e051431950cffff", symbol: "Cardio", name: "Cardio", chain: "bsc", isBurn: false },
 
-  {address: "0xf20f989CAf263C513f9183B4Fed88F14Fc04c8dB", symbol: "shalom", name: "Shalom", chain: "rwa", isBurn: false },
-  { address: "0x782ea82124B474f1f968262ec24FCdED39689dd5", symbol: "rvm", name: "Real World Meme", chain: "rwa", isBurn: false},
-  {address: "0x02afe9989D86a0357fbb238579FE035dc17BcAB0", symbol: "xRWA", name: "Xend Finance RWA", chain: "rwa", isBurn: false},
-  {address: "0xEc6943BB984AED25eC96986898721a7f8aB6212E", symbol: "", name: "WiCrypt Network", chain:"rwa", isBurn: false},
-  { address: "0x7923C0f6FA3d1BA6EAFCAedAaD93e737Fd22FC4F", symbol: "cNGN", name: "cNGN", chain: "rwa", isBurn: false},
-  {address: "0xbe231A8492487aAe6096278A97050FAe6B9d5BEc", symbol: "weth", name: "Wrapped Ether", chain: "rwa", isBurn: false},
+  { address: "0xf20f989CAf263C513f9183B4Fed88F14Fc04c8dB", symbol: "shalom", name: "Shalom", chain: "rwa", isBurn: false },
+  { address: "0x782ea82124B474f1f968262ec24FCdED39689dd5", symbol: "rvm", name: "Real World Meme", chain: "rwa", isBurn: false },
+  { address: "0x02afe9989D86a0357fbb238579FE035dc17BcAB0", symbol: "xRWA", name: "Xend Finance RWA", chain: "rwa", isBurn: false },
+  { address: "0xEc6943BB984AED25eC96986898721a7f8aB6212E", symbol: "", name: "WiCrypt Network", chain: "rwa", isBurn: false },
+  { address: "0x7923C0f6FA3d1BA6EAFCAedAaD93e737Fd22FC4F", symbol: "cNGN", name: "cNGN", chain: "rwa", isBurn: false },
+  { address: "0xbe231A8492487aAe6096278A97050FAe6B9d5BEc", symbol: "weth", name: "Wrapped Ether", chain: "rwa", isBurn: false },
 
-  {address: "0x4200000623d0242cccd4e907008583dcb4af6472", symbol: "estee", name: "SHIBSTEE", chain: "eth", isBurn: false},
+  { address: "0x4200000623d0242cccd4e907008583dcb4af6472", symbol: "estee", name: "SHIBSTEE", chain: "eth", isBurn: false },
 
 ];
 
 // Utility functions for token lookups
 export function getTokenByAddress(address: string): TokenMetadata | undefined {
-  return TOKEN_REGISTRY.find(token => 
+  return TOKEN_REGISTRY.find(token =>
     token.address.toLowerCase() === address.toLowerCase()
   );
 }
@@ -204,7 +205,7 @@ export function getTokensBySymbol(symbol: string): TokenMetadata[] {
   );
 }
 
-export function getTokensByChain(chain: 'bsc' | 'sol'| 'rwa' | 'eth'): TokenMetadata[] {
+export function getTokensByChain(chain: 'bsc' | 'sol' | 'rwa' | 'eth'): TokenMetadata[] {
   return TOKEN_REGISTRY.filter(token => token.chain === chain);
 }
 
@@ -217,12 +218,12 @@ export function isValidContractAddress(address: string, chain: 'bsc' | 'sol' | '
     // EVM address validation: 42 characters, starts with 0x, followed by 40 hex characters
     return /^0x[a-fA-F0-9]{40}$/.test(address);
   }
-   else if (chain === 'sol') {
+  else if (chain === 'sol') {
     // Solana address validation: 32-44 characters, base58 encoded
     return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
   }
   else if (chain === 'rwa') {
-    
+
     return /^0x[a-fA-F0-9]{40}$/.test(address);
   }
   return false;
@@ -240,7 +241,7 @@ TOKEN_REGISTRY.forEach(token => {
   const symbolKey = token.symbol.toLowerCase();
   // Only set if not already set, or if current token is BSC and existing is not
   if (!SYMBOL_TO_ADDRESS_MAP[symbolKey] ||
-      (token.chain === 'bsc' && getTokenByAddress(SYMBOL_TO_ADDRESS_MAP[symbolKey])?.chain !== 'bsc')) {
+    (token.chain === 'bsc' && getTokenByAddress(SYMBOL_TO_ADDRESS_MAP[symbolKey])?.chain !== 'bsc')) {
     SYMBOL_TO_ADDRESS_MAP[symbolKey] = token.address;
   }
 });
@@ -250,7 +251,7 @@ export const TOKEN_MAP: Record<string, { address: string }> = {};
 TOKEN_REGISTRY.forEach(token => {
   // Only set if not already set, or if current token is BSC and existing is not
   if (!TOKEN_MAP[token.symbol] ||
-      (token.chain === 'bsc' && getTokenByAddress(TOKEN_MAP[token.symbol].address)?.chain !== 'bsc')) {
+    (token.chain === 'bsc' && getTokenByAddress(TOKEN_MAP[token.symbol].address)?.chain !== 'bsc')) {
     TOKEN_MAP[token.symbol] = { address: token.address };
   }
 });
