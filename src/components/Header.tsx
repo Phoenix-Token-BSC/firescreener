@@ -2,148 +2,73 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import {
+    TOKEN_REGISTRY,
+    getTokenByAddress,
+    getTokensBySymbol,
+    isValidContractAddress,
+} from "@/lib/tokenRegistry";
+
+// Format price with subscript zeros for very small numbers (matches page.tsx)
+function formatPrice(price: number | string): { display: string; isExponential: boolean; zeros?: number; rest?: string } {
+    if (price === 'N/A' || price === null || price === undefined || price === '') {
+        return { display: 'N/A', isExponential: false };
+    }
+    let priceNum: number;
+    if (typeof price === 'string') {
+        priceNum = parseFloat(price.replace(/[^0-9.-]/g, ''));
+    } else {
+        priceNum = price;
+    }
+    if (isNaN(priceNum)) {
+        return { display: 'N/A', isExponential: false };
+    }
+    const priceStr = priceNum.toFixed(20);
+    if (priceStr.includes('.')) {
+        const decimalPart = priceStr.split('.')[1];
+        if (decimalPart) {
+            const leadingZeros = decimalPart.match(/^0+/)?.[0].length || 0;
+            if (leadingZeros > 4) {
+                const restOfNumber = decimalPart.substring(leadingZeros).substring(0, 6);
+                return { display: '$0.', isExponential: true, zeros: leadingZeros, rest: restOfNumber };
+            }
+        }
+    }
+    let formattedPrice: string;
+    if (priceNum >= 1) {
+        formattedPrice = priceNum.toFixed(2);
+    } else if (priceNum >= 0.01) {
+        formattedPrice = priceNum.toFixed(6);
+    } else {
+        formattedPrice = priceNum.toFixed(8);
+    }
+    return { display: '$' + formattedPrice, isExponential: false };
+}
 
 // Define interfaces for data structures
 interface Token {
     symbol: string;
     fullName: string;
     chain: string;
+    address: string;
+    price: string;
     volume24h: number;
-    priceChange24h: string | undefined; // Keep as string | undefined to match API
+    change1h: string;
+    change3h: string;
+    change6h: string;
+    change24h: string;
 }
 
 interface Suggestion {
     fullName: string;
     symbol: string;
+    chain: string;
+    address: string;
 }
 
-// Token list with chain mapping
-const TOKEN_LIST: { [key: string]: string } = {
-    pht: "bsc",
-    wkc: "bsc",
-    dtg: "bsc",
-    war: "bsc",
-    yukan: "bsc",
-    btcdragon: "bsc",
-    ocicat: "bsc",
-    nene: "bsc",
-    twc: "bsc",
-    durt: "bsc",
-    gtan: "bsc",
-    zedek: "bsc",
-    tkc: "bsc",
-    twd: "bsc",
-    bcat: "bsc",
-    bengcat: "bsc",
-    nct: "bsc",
-    kitsune: "bsc",
-    bft: "bsc",
-    crystalstones: "bsc",
-    cross: "bsc",
-    thc: "bsc",
-    bbft: "bsc",
-    surv: "bsc",
-    bob: "bsc",
-    tut: "bsc",
-    puffcat: "bsc",
-    crepe: "bsc",
-    popielno: "bsc",
-    spray: "bsc",
-    mbc: "bsc",
-    mars: "bsc",
-    sdc: "bsc",
-    kind: "bsc",
-    shibc: "bsc",
-    pcat: "bsc",
-    egw: "bsc",
-    "1000pdf": "bsc",
-    aidove: "bsc",
-    hmt: "bsc",
-    rbcat: "bsc",
-    bbcat: "bsc",
-    cct: "bsc",
-    talent: "bsc",
-    jawgular: "bsc",
-    dst: "bsc",
-    zoe: "bsc",
-    godinu: "bsc",
-    peperice: "bsc",
-    bp: "bsc",
-    lai: "bsc",
-    babydew: "bsc",
-    sat: "bsc",
-    orb: "bsc",
-    captainbnb: "bsc",
-    anndy: "bsc",
-    light: "bsc",
-    zonic: "bsc",
-
-};
-
-// Full name to symbol mapping for suggestions
-const FULL_NAME_MAP: { [key: string]: string } = {
-    "Phoenix Token": "pht",
-    "WikiCat Coin ": "wkc",
-    "Defi Tiger Token": "dtg",
-    "Water Rabbit Token": "war",
-    "Yukan Token": "yukan",
-    "BTC Dragon Token": "btcdragon",
-    "OciCat Token": "ocicat",
-    "Nene": "nene",
-    "TIWI CAT": "twc",
-    "The Word Token": "twd",
-    "The Kingdom Coin": "tkc",
-    "Dutch Rabbit": "durt",
-    "Giant Token": "gtan",
-    "Zedek Token": "zedek",
-    "Billicat Token ": "bcat",
-    "Bengal Cat Token": "bengcat",
-    "New Cat Token": "nct",
-    "Kitsune Token": "kitsune",
-    "Crystal Stones": "crystalstones",
-    "The Big Five Token": "bft",
-    "Cross Token": "cross",
-    "Transhuman Coin": "thc",
-    "Baby BFT": "bbft",
-    "Survarium": "surv",
-    "Build on BNB": "bob",
-    "Tutorial Token": "tut",
-    "PuffCat Token": "puffcat",
-    "CREPE": "crepe",
-    "POPIELNO": "popielno",
-    "SPRAY LOTTERY TOKEN": "spray",
-    "Mamba Token": "mbc",
-    "Matara Token": "mars",
-    "SIDE CHICK": "sdc",
-    "KIND CAT TOKEN": "kind",
-    "AIShibCeo": "shibc",
-    "Phenomenal Cat": "pcat",
-    "Eagles Wings": "egw",
-    "1000PDF Token": "1000pdf",
-    "AiDove": "aidove",
-    "HawkMoon Token": "hmt",
-    "Russian Blue Cat": "rbcat",
-    "Baby BilliCat": "bbcat",
-    "CatCake Token": "cct",
-    "Talent Token": "talent",
-    "Persian Cat Token": "pcat",
-    "ZOE Token": "zoe",
-    "JAWGULAR": "jawgular",
-    "GOD INU": "godinu",
-    "Pepe Rice": "peperice",
-    "DayStar Token": "dst",
-    "Baby Priceless": "bp",
-    "LeadAI Token": "lai",
-    "BABY DEW": "babydew",
-    "SATERIA": "sat",
-    "ORBITAL": "orb",
-    "CaptainBNB": "captainbnb",
-    "首席模因官": "anndy",
-    "Luminous Token": "light",
-    "Zion Token": "zonic",
-};
+const MAX_SUGGESTIONS = 25;
 
 export default function Header() {
     const router = useRouter();
@@ -153,12 +78,13 @@ export default function Header() {
     const [isDesktopMenuOpen, setIsDesktopMenuOpen] = useState(false);
     const [isDesktopSearchFocused, setIsDesktopSearchFocused] = useState(false);
     const [isChainDropdownOpen, setIsChainDropdownOpen] = useState(false);
+    const dropdownInteractingRef = useRef(false);
     const [search, setSearch] = useState<string>("");
     const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
     const [trendingTokens, setTrendingTokens] = useState<Token[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
-    const [sortMetric, setSortMetric] = useState<"volume" | "priceChange">("volume");
+    const [sortMetric, setSortMetric] = useState<"change24h" | "change6h" | "change3h" | "change1h" | "volume">("change24h");
 
     // Determine active chain from pathname
     const getActiveChain = (): string | null => {
@@ -191,27 +117,68 @@ export default function Header() {
     };
 
     const handleSearch = (tokenFromSearchBar: string = search): void => {
-        const token = tokenFromSearchBar.trim().toLowerCase();
-        console.log("handleSearch called with:", token);
-        if (token && TOKEN_LIST[token]) {
-            const chain = TOKEN_LIST[token];
-            console.log("Navigating to:", { chain, token });
-            router.push(`/${chain}/${token}`);
-        } else {
-            console.log("Search token not found in TOKEN_LIST:", token);
-            setError(`Token "${token}" not found`);
+        const raw = tokenFromSearchBar.trim();
+        const q = raw.toLowerCase();
+        if (!q) return;
+
+        setError(null);
+
+        // If the user pasted a contract address, route directly (chain can be inferred from registry)
+        const looksLikeBscOrEth = isValidContractAddress(q, "bsc") || isValidContractAddress(q, "eth");
+        const looksLikeRwa = isValidContractAddress(q, "rwa");
+        const looksLikeSol = isValidContractAddress(q, "sol");
+        if (looksLikeBscOrEth || looksLikeRwa || looksLikeSol) {
+            const match = getTokenByAddress(q);
+            if (match) {
+                router.push(`/${match.chain}/${match.address}`);
+                return;
+            }
+            // If not in registry, try current chain if available; default to bsc-like route
+            if (activeChain) {
+                router.push(`/${activeChain}/${q}`);
+                return;
+            }
+            router.push(`/bsc/${q}`);
+            return;
         }
+
+        // Otherwise treat input as a symbol/name query using registry
+        const active = (activeChain ?? undefined) as "bsc" | "sol" | "rwa" | "eth" | undefined;
+        let candidates = getTokensBySymbol(q);
+
+        // Fallback: match by name contains query (within active chain if set)
+        if (candidates.length === 0) {
+            const byName = TOKEN_REGISTRY.filter(t => t.name.toLowerCase().includes(q));
+            candidates = byName;
+        }
+
+        if (candidates.length > 0) {
+            // Prefer exact symbol match in active chain, then exact symbol, then active chain, then BSC, then first
+            const exactInActive = active
+                ? candidates.find(t => t.chain === active && t.symbol.toLowerCase() === q)
+                : undefined;
+            const exactSymbol = candidates.find(t => t.symbol.toLowerCase() === q);
+            const inActive = active ? candidates.find(t => t.chain === active) : undefined;
+            const chosen =
+                exactInActive ||
+                exactSymbol ||
+                inActive ||
+                candidates.find(t => t.chain === "bsc") ||
+                candidates[0];
+            router.push(`/${chosen.chain}/${chosen.address}`);
+            return;
+        }
+
+        setError(`Token "${raw}" not found`);
     };
 
     const onSuggestionClick = (suggestion: Suggestion) => {
-        const symbol = suggestion.symbol;
-        if (symbol) {
-            setSearch(symbol);
-            console.log("Suggestion selected, search set to:", symbol);
-            handleSearch(symbol);
-            setSuggestions([]);
-            setIsSearchOpen(false);
-        }
+        if (!suggestion?.address || !suggestion?.chain) return;
+        setSearch(suggestion.symbol.toUpperCase());
+        router.push(`/${suggestion.chain}/${suggestion.address}`);
+        setSuggestions([]);
+        setIsSearchOpen(false);
+        setIsDesktopSearchFocused(false);
     };
 
     const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -219,18 +186,35 @@ export default function Header() {
         setSearch(value);
         console.log("Input changed, search set to:", value.toLowerCase());
 
-        if (value.trim()) {
-            const filteredSuggestions = Object.entries(FULL_NAME_MAP)
-                .filter(
-                    ([fullName, symbol]) =>
-                        fullName.toUpperCase().includes(value.toUpperCase()) ||
-                        symbol.toUpperCase().includes(value.toUpperCase())
-                )
-                .map(([fullName, symbol]) => ({ fullName, symbol }));
-            setSuggestions(filteredSuggestions);
-        } else {
+        if (!value.trim()) {
             setSuggestions([]);
+            return;
         }
+
+        const q = value.trim().toLowerCase();
+        const active = (activeChain ?? undefined) as "bsc" | "sol" | "rwa" | "eth" | undefined;
+
+        const filtered = TOKEN_REGISTRY
+            .filter(t =>
+                t.symbol.toLowerCase().includes(q) ||
+                t.name.toLowerCase().includes(q) ||
+                t.address.toLowerCase() === q
+            )
+            .sort((a, b) => {
+                // Prefer active chain, then BSC
+                const score = (t: typeof a) =>
+                    (active && t.chain === active ? 100 : 0) + (t.chain === "bsc" ? 10 : 0);
+                return score(b) - score(a);
+            })
+            .slice(0, MAX_SUGGESTIONS)
+            .map(t => ({
+                fullName: t.name,
+                symbol: t.symbol,
+                chain: t.chain,
+                address: t.address,
+            }));
+
+        setSuggestions(filtered);
     };
 
     useEffect(() => {
@@ -241,47 +225,35 @@ export default function Header() {
             setError(null);
 
             try {
-                const tokenSymbols = Object.keys(TOKEN_LIST);
-                const fetchPromises = tokenSymbols.map(async (symbol: string) => {
-                    try {
-                        const response = await fetch(`/api/bsc/volume/dex/${symbol}`);
-                        const data: { volume: string; priceChange24h?: string; error?: string } = await response.json();
-                        if (data.error || data.volume === "N/A") {
-                            return null;
-                        }
-                        const fullName =
-                            Object.keys(FULL_NAME_MAP).find(
-                                (name) => FULL_NAME_MAP[name] === symbol
-                            ) || symbol.toUpperCase();
-                        return {
-                            symbol,
-                            fullName,
-                            chain: TOKEN_LIST[symbol],
-                            volume24h: parseFloat(data.volume) || 0,
-                            priceChange24h: data.priceChange24h, // Keep as string | undefined
-                        };
-                    } catch (err) {
-                        console.error(`Failed to fetch data for ${symbol}:`, err);
-                        return null;
-                    }
-                });
+                const response = await fetch(
+                    `/api/price-change?sortBy=${sortMetric}&limit=10`
+                );
+                const data = await response.json();
 
-                const results = await Promise.all(fetchPromises);
-                const validTokens = results
-                    .filter((token): token is Token => token !== null && token.volume24h > 0)
-                    .sort((a, b) => {
-                        if (sortMetric === "volume") {
-                            return b.volume24h - a.volume24h;
-                        } else {
-                            const aChange = parseFloat(a.priceChange24h || "0") || 0;
-                            const bChange = parseFloat(b.priceChange24h || "0") || 0;
-                            return bChange - aChange;
-                        }
+                if (!response.ok || data.error) {
+                    setError(data.error || "Failed to load trending tokens");
+                    setTrendingTokens([]);
+                    return;
+                }
+
+                const tokens: Token[] = (data.tokens || []).map(
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (t: any) => ({
+                        symbol: t.symbol?.toLowerCase() || "",
+                        fullName: t.name || t.symbol || "",
+                        chain: t.chain || "bsc",
+                        address: t.address || "",
+                        price: t.price || "0",
+                        volume24h: parseFloat(t.volume24h) || 0,
+                        change1h: t.change1h || "0",
+                        change3h: t.change3h || "0",
+                        change6h: t.change6h || "0",
+                        change24h: t.change24h || "0",
                     })
-                    .slice(0, 5); // Top 5 tokens
+                );
 
-                setTrendingTokens(validTokens);
-                if (validTokens.length === 0) {
+                setTrendingTokens(tokens);
+                if (tokens.length === 0) {
                     setError("No data available for trending tokens");
                 }
             } catch (err) {
@@ -309,6 +281,14 @@ export default function Header() {
                     FIRESCREENER
                 </Link>
 
+                {/* Backdrop overlay when search is focused */}
+                {isDesktopSearchFocused && (
+                    <div
+                        className="fixed inset-0 bg-black/40 z-40"
+                        onClick={() => setIsDesktopSearchFocused(false)}
+                    />
+                )}
+
                 {/* Desktop Search (Center) - Replaces the old Nav Links */}
                 <div className="hidden md:flex flex-1 max-w-2xl mx-8 relative z-50">
                     <div className="relative w-full">
@@ -332,14 +312,15 @@ export default function Header() {
                                 value={search}
                                 onChange={onChange}
                                 onFocus={() => setIsDesktopSearchFocused(true)}
-                                onBlur={() => setTimeout(() => setIsDesktopSearchFocused(false), 200)}
                                 className="w-full pl-10 pr-4 py-2 bg-neutral-100 text-neutral-900 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 transition duration-200"
                             />
                         </div>
 
                         {/* Desktop Search Suggestions/Trending Dropdown */}
                         {isDesktopSearchFocused && (
-                            <div className="absolute top-full left-0 right-0 mt-2 bg-neutral-900 border border-orange-500 rounded-lg shadow-xl p-4 max-h-[80vh] overflow-y-auto w-full">
+                            <div
+                                className="absolute top-full left-0 right-0 mt-2 bg-neutral-900 border border-orange-500 rounded-lg shadow-xl p-4 max-h-[80vh] overflow-y-auto w-full"
+                            >
                                 {/* Suggestions */}
                                 {suggestions.length > 0 && (
                                     <ul className="bg-neutral-800 border-2 border-orange-500 rounded-md max-h-40 overflow-y-auto mb-4">
@@ -354,7 +335,7 @@ export default function Header() {
                                                     <span className="text-gray-400 text-sm ml-2">{suggestion.symbol.toUpperCase()}</span>
                                                 </div>
                                                 <span className="text-gray-400 text-xs uppercase">
-                                                    {TOKEN_LIST[suggestion.symbol] || "Unknown"}
+                                                    {suggestion.chain?.toUpperCase() || "UNKNOWN"}
                                                 </span>
                                             </li>
                                         ))}
@@ -363,39 +344,104 @@ export default function Header() {
 
                                 <div className="flex justify-between items-center mb-3">
                                     <h3 className="text-lg font-semibold text-white">
-                                        Top Tokens
+                                        🔥 Top Performing Tokens
                                     </h3>
+                                    <select
+                                        value={sortMetric}
+                                        onChange={(e) => setSortMetric(e.target.value as typeof sortMetric)}
+                                        onMouseDown={(e) => e.stopPropagation()}
+                                        className="bg-neutral-800 text-white text-xs border border-orange-500 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                    >
+                                        <option value="change24h">24h Change</option>
+                                        <option value="change6h">6h Change</option>
+                                        <option value="change3h">3h Change</option>
+                                        <option value="change1h">1h Change</option>
+                                        <option value="volume">24h Volume</option>
+                                    </select>
                                 </div>
 
                                 {isLoading ? (
-                                    <div className="text-center py-4 text-white">Loading...</div>
+                                    <div className="flex items-center justify-center py-6">
+                                        <div className="animate-spin inline-block w-5 h-5 border-2 border-orange-500 border-t-transparent rounded-full" />
+                                        <span className="ml-2 text-gray-400 text-sm">Loading top tokens...</span>
+                                    </div>
                                 ) : trendingTokens.length > 0 ? (
-                                    <table className="w-full text-left text-sm">
-                                        <thead className="bg-neutral-900">
-                                            <tr>
-                                                <th className="p-3 text-white">Symbol</th>
-                                                <th className="p-3 text-white">Chain</th>
-                                                <th className="p-3 text-right text-white">24h Vol</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {trendingTokens.map((token, index) => (
-                                                <tr
-                                                    key={index}
-                                                    onMouseDown={() =>
-                                                        onSuggestionClick({ symbol: token.symbol, fullName: token.fullName })
-                                                    }
-                                                    className="border-t border-orange-500 hover:bg-neutral-700 cursor-pointer"
-                                                >
-                                                    <td className="p-3 text-white">{token.symbol.toUpperCase()}</td>
-                                                    <td className="p-3 text-gray-400">{token.chain.toUpperCase()}</td>
-                                                    <td className="p-3 text-right text-white">
-                                                        ${token.volume24h.toLocaleString()}
-                                                    </td>
+                                    <div className="rounded-md overflow-hidden border border-neutral-700 max-w-full">
+                                        <div className="w-full overflow-x-auto">
+                                            <table className="min-w-[640px] w-full text-left text-sm table-fixed">
+                                            <thead className="bg-neutral-800">
+                                                <tr>
+                                                    <th className="px-3 py-2 text-gray-400 text-xs font-medium w-[44px]">#</th>
+                                                    <th className="px-3 py-2 text-gray-400 text-xs font-medium w-[120px]">Token</th>
+                                                    <th className="px-3 py-2 text-right text-gray-400 text-xs font-medium">
+                                                        {sortMetric === 'volume' ? '24h Vol' : (
+                                                            sortMetric === 'change1h' ? '1h %' :
+                                                            sortMetric === 'change3h' ? '3h %' :
+                                                            sortMetric === 'change6h' ? '6h %' : '24h %'
+                                                        )}
+                                                    </th>
+                                                    <th className="px-3 py-2 text-right text-gray-400 text-xs font-medium">Price</th>
+                                                    <th className="px-3 py-2 text-gray-400 text-xs font-medium">Chain</th>
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                            </thead>
+                                            <tbody>
+                                                {trendingTokens.map((token, index) => {
+                                                    const changeVal = sortMetric === 'volume'
+                                                        ? token.volume24h
+                                                        : parseFloat(
+                                                            sortMetric === 'change1h' ? token.change1h :
+                                                            sortMetric === 'change3h' ? token.change3h :
+                                                            sortMetric === 'change6h' ? token.change6h :
+                                                            token.change24h
+                                                          ) || 0;
+                                                    const isPositive = changeVal > 0;
+                                                    const isVolume = sortMetric === 'volume';
+                                                    return (
+                                                        <tr
+                                                            key={token.address || index}
+                                                            onMouseDown={() => {
+                                                                if (token.chain && token.address) {
+                                                                    router.push(`/${token.chain}/${token.address}`);
+                                                                    setIsDesktopSearchFocused(false);
+                                                                    setSuggestions([]);
+                                                                }
+                                                            }}
+                                                            className="border-t border-neutral-700/50 hover:bg-neutral-800 cursor-pointer transition-colors duration-150"
+                                                        >
+                                                            <td className="px-3 py-2 text-gray-500 text-xs">{index + 1}</td>
+                                                            <td className="px-3 py-2">
+                                                                <span className="text-white font-medium text-sm truncate block">
+                                                                    {token.symbol.toUpperCase()}
+                                                                </span>
+                                                            </td>
+                                                            <td className={`px-3 py-2 text-right text-sm font-medium ${
+                                                                isVolume ? 'text-white' : isPositive ? 'text-green-400' : 'text-red-400'
+                                                            }`}>
+                                                                {isVolume
+                                                                    ? `$${changeVal.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                                                                    : `${isPositive ? '+' : ''}${changeVal.toFixed(2)}%`
+                                                                }
+                                                            </td>
+                                                            <td className="px-3 py-2 text-right text-white text-sm">
+                                                                {(() => {
+                                                                    const { display, isExponential, zeros, rest } = formatPrice(token.price);
+                                                                    if (display === 'N/A') return <span className="text-neutral-400">N/A</span>;
+                                                                    if (isExponential) return <>{display}0<sub>{zeros}</sub>{rest}</>;
+                                                                    return display;
+                                                                })()}
+                                                            </td>
+                                                            <td className="px-3 py-2">
+                                                                <span className="text-xs px-1.5 py-0.5 rounded bg-neutral-800 text-gray-400 border border-neutral-700">
+                                                                    {token.chain.toUpperCase()}
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
                                 ) : (
                                     <div className="text-center py-4 text-gray-400">
                                         No trending tokens available
@@ -792,7 +838,7 @@ export default function Header() {
                                             <span className="text-gray-400 text-sm ml-2">{suggestion.symbol.toUpperCase()}</span>
                                         </div>
                                         <span className="text-gray-400 text-xs uppercase">
-                                            {TOKEN_LIST[suggestion.symbol] || "Unknown"}
+                                            {suggestion.chain?.toUpperCase() || "UNKNOWN"}
                                         </span>
                                     </li>
                                 ))}
@@ -803,60 +849,103 @@ export default function Header() {
                         <div>
                             <div className="flex justify-between items-center mb-3">
                                 <h3 className="text-lg font-semibold text-white">
-                                    Top Tokens by {sortMetric === "volume" ? "24h Trading Volume" : "24h Price Change"}
+                                    🔥 Top Performing Tokens
                                 </h3>
                                 <select
                                     value={sortMetric}
-                                    onChange={(e) => setSortMetric(e.target.value as "volume" | "priceChange")}
-                                    className="bg-neutral-800 text-white border-2 border-orange-500 rounded-md p-1 focus:outline-none"
+                                    onChange={(e) => setSortMetric(e.target.value as typeof sortMetric)}
+                                    className="bg-neutral-800 text-white text-xs border border-orange-500 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-orange-500"
                                 >
+                                    <option value="change24h">24h Change</option>
+                                    <option value="change6h">6h Change</option>
+                                    <option value="change3h">3h Change</option>
+                                    <option value="change1h">1h Change</option>
                                     <option value="volume">24h Volume</option>
-                                    <option value="priceChange">24h Price Change</option>
                                 </select>
                             </div>
-                            <div className="bg-neutral-800 rounded-md overflow-hidden border-2 border-orange-500">
+                            <div className="bg-neutral-800 rounded-md overflow-hidden border border-neutral-700 max-w-full">
                                 {isLoading ? (
-                                    <div className="flex items-center justify-center py-4">
-                                        <div
-                                            className="animate-spin inline-block w-6 h-6 border-4 border-orange-500 border-t-transparent rounded-full"
-                                            role="status"
-                                        >
-                                            <span className="sr-only">Loading...</span>
-                                        </div>
+                                    <div className="flex items-center justify-center py-6">
+                                        <div className="animate-spin inline-block w-5 h-5 border-2 border-orange-500 border-t-transparent rounded-full" />
+                                        <span className="ml-2 text-gray-400 text-sm">Loading top tokens...</span>
                                     </div>
                                 ) : error ? (
                                     <div className="text-center py-4 text-red-500">{error}</div>
                                 ) : trendingTokens.length > 0 ? (
-                                    <table className="w-full text-left text-sm">
-                                        <thead className="bg-neutral-900">
-                                            <tr>
-                                                <th className="p-3 text-white">Symbol</th>
-                                                <th className="p-3 text-white">Chain</th>
-                                                <th className="p-3 text-right text-white">
-                                                    {sortMetric === "volume" ? "24h Volume" : "24h Price Change"}
-                                                </th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {trendingTokens.map((token, index) => (
-                                                <tr
-                                                    key={index}
-                                                    onClick={() =>
-                                                        onSuggestionClick({ symbol: token.symbol, fullName: token.fullName })
-                                                    }
-                                                    className="border-t border-orange-500 hover:bg-neutral-700 cursor-pointer"
-                                                >
-                                                    <td className="p-3 text-white">{token.symbol.toUpperCase()}</td>
-                                                    <td className="p-3 text-gray-400">{token.chain.toUpperCase()}</td>
-                                                    <td className="p-3 text-right text-white">
-                                                        {sortMetric === "volume"
-                                                            ? `$${token.volume24h.toLocaleString()}`
-                                                            : `${token.priceChange24h || "N/A"}%`}
-                                                    </td>
+                                    <div className="w-full overflow-x-auto">
+                                        <table className="min-w-[640px] w-full text-left text-sm table-fixed">
+                                            <thead className="bg-neutral-800">
+                                                <tr>
+                                                    <th className="px-3 py-2 text-gray-400 text-xs font-medium w-[44px]">#</th>
+                                                    <th className="px-3 py-2 text-gray-400 text-xs font-medium w-[120px]">Token</th>
+                                                    <th className="px-3 py-2 text-right text-gray-400 text-xs font-medium">
+                                                        {sortMetric === 'volume' ? '24h Vol' : (
+                                                            sortMetric === 'change1h' ? '1h %' :
+                                                            sortMetric === 'change3h' ? '3h %' :
+                                                            sortMetric === 'change6h' ? '6h %' : '24h %'
+                                                        )}
+                                                    </th>
+                                                    <th className="px-3 py-2 text-right text-gray-400 text-xs font-medium">Price</th>
+                                                    <th className="px-3 py-2 text-gray-400 text-xs font-medium">Chain</th>
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                            </thead>
+                                            <tbody>
+                                                {trendingTokens.map((token, index) => {
+                                                    const changeVal = sortMetric === 'volume'
+                                                        ? token.volume24h
+                                                        : parseFloat(
+                                                            sortMetric === 'change1h' ? token.change1h :
+                                                            sortMetric === 'change3h' ? token.change3h :
+                                                            sortMetric === 'change6h' ? token.change6h :
+                                                            token.change24h
+                                                          ) || 0;
+                                                    const isPositive = changeVal > 0;
+                                                    const isVolume = sortMetric === 'volume';
+                                                    return (
+                                                        <tr
+                                                            key={token.address || index}
+                                                            onClick={() => {
+                                                                if (token.chain && token.address) {
+                                                                    router.push(`/${token.chain}/${token.address}`);
+                                                                    setIsSearchOpen(false);
+                                                                    setSuggestions([]);
+                                                                }
+                                                            }}
+                                                            className="border-t border-neutral-700/50 hover:bg-neutral-700 cursor-pointer transition-colors duration-150"
+                                                        >
+                                                            <td className="px-3 py-2 text-gray-500 text-xs">{index + 1}</td>
+                                                            <td className="px-3 py-2">
+                                                                <span className="text-white font-medium text-sm truncate block">
+                                                                    {token.symbol.toUpperCase()}
+                                                                </span>
+                                                            </td>
+                                                            <td className={`px-3 py-2 text-right text-sm font-medium ${
+                                                                isVolume ? 'text-white' : isPositive ? 'text-green-400' : 'text-red-400'
+                                                            }`}>
+                                                                {isVolume
+                                                                    ? `$${changeVal.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                                                                    : `${isPositive ? '+' : ''}${changeVal.toFixed(2)}%`
+                                                                }
+                                                            </td>
+                                                            <td className="px-3 py-2 text-right text-white text-sm">
+                                                                {(() => {
+                                                                    const { display, isExponential, zeros, rest } = formatPrice(token.price);
+                                                                    if (display === 'N/A') return <span className="text-neutral-400">N/A</span>;
+                                                                    if (isExponential) return <>{display}0<sub>{zeros}</sub>{rest}</>;
+                                                                    return display;
+                                                                })()}
+                                                            </td>
+                                                            <td className="px-3 py-2">
+                                                                <span className="text-xs px-1.5 py-0.5 rounded bg-neutral-800 text-gray-400 border border-neutral-700">
+                                                                    {token.chain.toUpperCase()}
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 ) : (
                                     <div className="text-center py-4 text-gray-400">
                                         No trending tokens available
