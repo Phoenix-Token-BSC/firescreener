@@ -167,6 +167,8 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
   { address: "0xc0a0626dfc53b05460eca06f546f1a1f0d0a4444", symbol: "kratos", name: "Kratos Token", chain: "bsc", isBurn: false },
   { address: "0x903badf5bf9175297cc889030e051431950cffff", symbol: "Cardio", name: "Cardio", chain: "bsc", isBurn: false },
   { address: "0xAA091C8bd5bded850a78F1cf72d5029b19459237", symbol: "$iaped", name: "IAped Token", chain: "bsc", isBurn: false },
+  { address: "0xbe2306D28852Ea53A1e90CABA1bc9e6db5E11CE8", symbol: "$can", name: "CANDLEFI", chain: "bsc", isBurn: false },
+
 
   { address: "0xf20f989CAf263C513f9183B4Fed88F14Fc04c8dB", symbol: "shalom", name: "Shalom", chain: "rwa", isBurn: false },
   { address: "0x782ea82124B474f1f968262ec24FCdED39689dd5", symbol: "rvm", name: "Real World Meme", chain: "rwa", isBurn: false },
