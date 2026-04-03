@@ -161,7 +161,7 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
   { address: "0xc269d59a0D608EA0bd672F2F4616C372d8554444", symbol: "ClipX", name: "ClipX", chain: "bsc", isBurn: false },
   { address: "0x103c164727572D7A0BE8021F3d9274F0eB9F4CF8", symbol: "NEKO", name: "Nekomeow", chain: "bsc", isBurn: false },
   { address: "0xE1bf97baCF682AE17cA3E239aB68a7b525f994A4", symbol: "zuba", name: "Zuba TheSuperDog", chain: "bsc", isBurn: false },
-  { address: "0x3925f2ae71bCd36b9e4284F92f519f3924b2A91a", symbol: "spt", name: "SAFEPOINT TOKEN", chain: "bsc", isBurn: false },
+  { address: "0x3925f2ae71bCd36b9e4284F92f519f3924b2A91a", symbol: "spt", name: "SAFEPOINT TOKEN", chain: "bsc", isBurn: true },
   { address: "0x5944C5278298ADfa691d29ceA70e29333dD47777", symbol: "gpan", name: "Giant Panda", chain: "bsc", isBurn: false },
   { address: "0xA925EbCF141c5efdDA5c38c569Ab789aa52f0Fc3", symbol: "aide", name: "AI DEFI", chain: "bsc", isBurn: false },
   { address: "0xc0a0626dfc53b05460eca06f546f1a1f0d0a4444", symbol: "kratos", name: "Kratos Token", chain: "bsc", isBurn: false },
