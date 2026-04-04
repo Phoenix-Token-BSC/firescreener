@@ -170,6 +170,7 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
   { address: "0xbe2306D28852Ea53A1e90CABA1bc9e6db5E11CE8", symbol: "can", name: "CANDLEFI", chain: "bsc", isBurn: false },
   { address: "0x47318Ce01d3c447acA06A7bbBd25a35Ad1184D96", symbol: "gcat", name: "Glory Cat", chain: "bsc", isBurn: false },
   { address: "0x6fc20e595A8704725DBd160E7c799665706e0bdD", symbol: "lexa", name: "Lexa Coin", chain: "bsc", isBurn: false},
+    { address: "0x4CF42771B73dACb4C2c78790dA77D64a9ae6bdBd", symbol: "kinka", name: "Kinkajou Token", chain: "bsc", isBurn: false},
 
 
   { address: "0xf20f989CAf263C513f9183B4Fed88F14Fc04c8dB", symbol: "shalom", name: "Shalom", chain: "rwa", isBurn: false },
