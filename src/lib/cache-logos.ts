@@ -1,18 +1,18 @@
 import { redis } from './redis';
+import { supabase } from './supabase';
 import { TOKEN_REGISTRY } from './tokenRegistry';
 
 /**
- * Cache all token logos in Redis
+ * Cache all token logos in Redis from Supabase Storage
  * This can be run as a cron job or manually to warm up the cache
  */
 export async function cacheAllLogos() {
-  console.log('Starting logo caching process...');
+  console.log('Starting logo caching process from Supabase Storage...');
   let foundCount = 0;
   let missingCount = 0;
   let skipCount = 0;
 
-  const imageKitUrl = process.env.IMAGE_KIT_URL || 'https://ik.imagekit.io/5j6l15rnd';
-  const fileExtensions = ['.png', '.jpg', '.jpeg', '.webp'];
+  const fileExtensions = ['png', 'jpg', 'jpeg', 'webp'];
 
   for (const token of TOKEN_REGISTRY) {
     const { address, chain, symbol } = token;
@@ -32,32 +32,36 @@ export async function cacheAllLogos() {
         // ignore redis get error
       }
 
-      // Try to fetch the logo from ImageKit
+      // Try to fetch the logo from Supabase Storage
       let buffer: Buffer | null = null;
       let contentType = 'image/png';
+      const normalizedAddr = address.toLowerCase();
+      const bucketName = 'token-logos'; // Single bucket with subdirectories
 
-      const addressVariants = [address, address.toLowerCase()];
-      // Deduplicate variants
-      const uniqueVariants = [...new Set(addressVariants)];
+      // Try original case first, then lowercase (files may be stored with mixed case)
+      const addressVariants = [address, normalizedAddr];
 
-      for (const addressVariant of uniqueVariants) {
+      for (const addr of addressVariants) {
         for (const ext of fileExtensions) {
-          const imageUrl = `${imageKitUrl}/${chain}/${addressVariant}${ext}`;
+          const filePath = `${chain}/${addr}.${ext}`; // token-logos/bsc/0x... (original case or lowercase)
 
           try {
-            const response = await fetch(imageUrl, { method: 'GET' });
+            const { data, error } = await supabase.storage
+              .from(bucketName)
+              .download(filePath);
 
-            if (response.ok) {
-              const arrayBuffer = await response.arrayBuffer();
+            if (!error && data) {
+              const arrayBuffer = await data.arrayBuffer();
               buffer = Buffer.from(arrayBuffer);
-              contentType = response.headers.get('content-type') || 'image/png';
+              contentType = `image/${ext}`;
               break;
             }
           } catch (e) {
-            // continue
+            // continue to next extension/variant
           }
         }
-        if (buffer) break;
+        
+        if (buffer) break; // Found it, stop trying variants
       }
 
       if (buffer) {
@@ -68,13 +72,13 @@ export async function cacheAllLogos() {
             buffer: base64Buffer,
             contentType: contentType,
           });
-          console.log(`✓ Found in ImageKit: ${symbol} (${chain}) - ${buffer.length} bytes`);
+          console.log(`✓ Found in Supabase Storage: ${symbol} (${chain}) - ${buffer.length} bytes`);
           foundCount++;
         } catch (error) {
           console.error(`✗ Error caching ${symbol} (${chain}):`, error);
         }
       } else {
-        console.log(`✗ Missing in ImageKit: ${symbol} (${chain})`);
+        console.log(`✗ Missing in Supabase Storage: ${symbol} (${chain})`);
         missingCount++;
       }
     } catch (error) {
@@ -83,7 +87,7 @@ export async function cacheAllLogos() {
     }
   }
 
-  console.log('\n=== ImageKit Cache Check Complete ===');
+  console.log('\n=== Supabase Storage Cache Check Complete ===');
   console.log(`✓ Found/Cached: ${foundCount}`);
   console.log(`→ Skipped (Already Cached): ${skipCount}`);
   console.log(`✗ Missing: ${missingCount}`);
@@ -98,10 +102,10 @@ export async function cacheAllLogos() {
 }
 
 /**
- * Clear all logo cache entries
+ * Clear all logo cache entries from Redis
  */
 export async function clearLogoCache() {
-  console.log('Clearing logo cache...');
+  console.log('Clearing logo cache from Redis...');
   let count = 0;
 
   for (const token of TOKEN_REGISTRY) {
@@ -116,12 +120,12 @@ export async function clearLogoCache() {
     }
   }
 
-  console.log(`Cleared ${count} cache entries`);
+  console.log(`Cleared ${count} cache entries from Redis`);
   return count;
 }
 
 /**
- * Get cache statistics
+ * Get cache statistics from Redis
  */
 export async function getLogoCacheStats() {
   let cachedCount = 0;
@@ -151,4 +155,3 @@ export async function getLogoCacheStats() {
     cacheRate: ((cachedCount / TOKEN_REGISTRY.length) * 100).toFixed(2) + '%',
   };
 }
-

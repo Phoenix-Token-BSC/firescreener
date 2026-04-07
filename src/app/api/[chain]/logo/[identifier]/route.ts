@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { v2 as cloudinary } from "cloudinary";
+import { supabase } from "@/lib/supabase";
 import { getTokenByAddress, getTokenBySymbol, isValidContractAddress } from "@/lib/tokenRegistry";
 
-cloudinary.config({
-  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
-
 type CacheHit = { buffer: ArrayBuffer; contentType: string; expiry: number };
-type CacheMiss = { notFound: true; expiry: number };
-type CacheEntry = CacheHit | CacheMiss;
+type CacheEntry = CacheHit; // ✅ Removed CacheMiss — misses are never cached now
 
 const globalForCache = global as unknown as {
   logoCache: Map<string, CacheEntry>;
@@ -22,106 +15,109 @@ if (!globalForCache.logoCache) {
 
 const localCache = globalForCache.logoCache;
 
-const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours for successful fetches
-const NOT_FOUND_TTL = 10 * 60 * 1000; // 10 min for not-found (allows retry when new images are added)
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours for successful fetches only
 
 function isCacheHit(entry: CacheEntry): entry is CacheHit {
   return "buffer" in entry;
 }
 
-async function fetchFromCloudinary(
+function getContentTypeFromPath(path: string): string {
+  const lastDotIndex = path.lastIndexOf(".");
+  if (lastDotIndex === -1) return "image/png";
+  const ext = path.slice(lastDotIndex + 1).toLowerCase();
+
+  switch (ext) {
+    case "png":  return "image/png";
+    case "jpg":  return "image/jpeg";
+    case "jpeg": return "image/jpeg";
+    case "webp": return "image/webp";
+    default:     return "image/png";
+  }
+}
+
+async function fetchFromSupabaseStorage(
   chain: string,
-  address: string
+  address: string,
+  originalCaseAddress?: string
 ): Promise<{ buffer: ArrayBuffer; contentType: string } | null> {
-  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
   const normalizedAddr = address.toLowerCase();
-  const publicIdPrefix = `${chain}/${normalizedAddr}`;
-
-  // Strategy 1: Search Cloudinary for versioned public_id (e.g. bsc/0x123_v123)
-  try {
-    const result = await cloudinary.search
-      .expression(`folder:${chain} AND public_id:${publicIdPrefix}_*`)
-      .sort_by("created_at", "desc")
-      .max_results(1)
-      .execute();
-
-    if (result.resources?.length > 0) {
-      const imageUrl = result.resources[0].secure_url;
-      const res = await fetch(imageUrl);
-      if (res.ok) {
-        const contentType = res.headers.get("content-type") || "image/png";
-        const buffer = await res.arrayBuffer();
-        return { buffer, contentType };
-      }
-    }
-  } catch (err) {
-    console.warn(`[Cloudinary] Search failed for ${publicIdPrefix}:`, err);
-  }
-
-  // Strategy 2: Search for exact public_id (e.g. bsc/0x123, no version suffix)
-  try {
-    const result = await cloudinary.search
-      .expression(`folder:${chain} AND public_id:${publicIdPrefix}`)
-      .max_results(1)
-      .execute();
-
-    if (result.resources?.length > 0) {
-      const imageUrl = result.resources[0].secure_url;
-      const res = await fetch(imageUrl);
-      if (res.ok) {
-        const contentType = res.headers.get("content-type") || "image/png";
-        const buffer = await res.arrayBuffer();
-        return { buffer, contentType };
-      }
-    }
-  } catch (err) {
-    console.warn(`[Cloudinary] Exact search failed for ${publicIdPrefix}:`, err);
-  }
-
-  // Strategy 3: Try direct delivery URL (works if asset exists with predictable path)
-  if (cloudName) {
-    for (const ext of ["png", "jpg", "jpeg", "webp"]) {
-      const url = `https://res.cloudinary.com/${cloudName}/image/upload/${publicIdPrefix}.${ext}`;
-      try {
-        const res = await fetch(url, { method: "HEAD" });
-        if (res.ok) {
-          const fullRes = await fetch(url);
-          if (fullRes.ok) {
-            const contentType = fullRes.headers.get("content-type") || `image/${ext}`;
-            const buffer = await fullRes.arrayBuffer();
-            return { buffer, contentType };
-          }
-        }
-      } catch {
-        // ignore
-      }
+  const bucketName = "token-logos";
+  const extensions = ["png", "webp", "jpg", "jpeg"];
+  
+  // Try with original case first (files uploaded with mixed case), then lowercase
+  const addressVariants = originalCaseAddress 
+    ? [originalCaseAddress, normalizedAddr]
+    : [normalizedAddr];
+  
+  const pathVariants: string[] = [];
+  for (const addr of addressVariants) {
+    for (const ext of extensions) {
+      pathVariants.push(`${chain}/${addr}.${ext}`);
     }
   }
 
+  for (const path of pathVariants) {
+    try {
+      const { data: publicUrlData } = supabase.storage
+        .from(bucketName)
+        .getPublicUrl(path);
+
+      if (!publicUrlData?.publicUrl) {
+        console.debug(`[Supabase] No public URL generated for ${path}`);
+        continue;
+      }
+
+      const response = await fetch(publicUrlData.publicUrl, {
+        headers: { "Cache-Control": "no-cache" },
+      });
+
+      if (response.status === 400 || response.status === 404) {
+        console.debug(`[Supabase] ${response.status} — not found: ${path}`);
+        continue;
+      }
+
+      if (!response.ok) {
+        console.warn(`[Supabase] Unexpected ${response.status} for ${path}`);
+        continue;
+      }
+
+      const buffer = await response.arrayBuffer();
+
+      if (buffer.byteLength === 0) {
+        console.warn(`[Supabase] 0-byte response for ${path}`);
+        continue;
+      }
+
+      const contentType =
+        response.headers.get("content-type")?.split(";")[0].trim() ||
+        getContentTypeFromPath(path);
+
+      console.log(`[Supabase] ✅ ${path} (${buffer.byteLength} bytes, ${contentType})`);
+      return { buffer, contentType };
+    } catch (err) {
+      console.debug(`[Supabase] Fetch exception for ${path}:`, err);
+    }
+  }
+
+  console.warn(`[Supabase] ❌ No logo found for ${chain}/${normalizedAddr} (original: ${originalCaseAddress || 'none'})`);
   return null;
 }
 
-async function getLogoBuffer(chain: string, address: string): Promise<CacheHit | null> {
+async function getLogoBuffer(chain: string, address: string, originalCaseAddress?: string): Promise<CacheHit | null> {
   const cacheKey = `logo:${chain}:${address.toLowerCase()}`;
   const now = Date.now();
 
   const cached = localCache.get(cacheKey);
-  if (cached) {
-    if (cached.expiry > now) {
-      if (isCacheHit(cached)) {
-        console.log(`[CACHE HIT] ${chain}/${address}`);
-        return cached;
-      }
-      // Cached "not found" still valid - don't hit Cloudinary
-      console.log(`[CACHE HIT] not-found ${chain}/${address} (retry in ${Math.round((cached.expiry - now) / 60000)}m)`);
-      return null;
-    }
-    // Expired - remove so we can retry Cloudinary (new images may have been added)
-    localCache.delete(cacheKey);
+  if (cached && cached.expiry > now) {
+    // ✅ Only cache hits are stored now, so this is always a valid logo
+    console.log(`[CACHE HIT] ${chain}/${address}`);
+    return cached;
   }
 
-  // Not in cache or expired: request individually from Cloudinary
-  const fetched = await fetchFromCloudinary(chain, address);
+  // Expired or never cached — always try Supabase (covers newly uploaded logos too)
+  if (cached) localCache.delete(cacheKey);
+
+  const fetched = await fetchFromSupabaseStorage(chain, address, originalCaseAddress);
 
   if (fetched) {
     const entry: CacheHit = {
@@ -130,16 +126,12 @@ async function getLogoBuffer(chain: string, address: string): Promise<CacheHit |
       expiry: now + CACHE_TTL,
     };
     localCache.set(cacheKey, entry);
-    console.log(`[CACHE MISS] Fetched & stored ${chain}/${address} from Cloudinary`);
+    console.log(`[CACHE MISS] Stored ${chain}/${address}`);
     return entry;
   }
 
-  // Not found: cache with short TTL so we retry when new images are added
-  localCache.set(cacheKey, {
-    notFound: true,
-    expiry: now + NOT_FOUND_TTL,
-  });
-  console.log(`[CACHE MISS] Not found ${chain}/${address}, will retry in ${NOT_FOUND_TTL / 60000}m`);
+  // ✅ Not found — do NOT cache, so next request retries Supabase immediately
+  console.log(`[CACHE MISS] Not found ${chain}/${address} — will retry on next request`);
   return null;
 }
 
@@ -147,6 +139,10 @@ export async function GET(
   _req: NextRequest,
   context: { params: Promise<{ chain: string; identifier: string }> }
 ) {
+
+  const params = await context.params;
+  console.log("🔥 Route hit — raw params:", params);
+  console.log("🔥 Full URL:", _req.url);
   try {
     const { chain, identifier } = await context.params;
 
@@ -154,7 +150,7 @@ export async function GET(
       return NextResponse.json({ error: "Missing parameters" }, { status: 400 });
     }
 
-    const chainLower = chain.toLowerCase() as 'bsc' | 'sol' | 'rwa' | 'eth';
+    const chainLower = chain.toLowerCase() as "bsc" | "sol" | "rwa" | "eth";
     const identifierLower = identifier.toLowerCase();
 
     let tokenMetadata = null;
@@ -176,9 +172,9 @@ export async function GET(
       );
     }
 
-    const contractAddress = tokenMetadata?.address ?? identifierLower;
-
-    const logoData = await getLogoBuffer(chainLower, contractAddress);
+    const contractAddress = (tokenMetadata?.address ?? identifierLower).toLowerCase();
+    const originalCaseAddress = tokenMetadata?.address || undefined;
+    const logoData = await getLogoBuffer(chainLower, contractAddress, originalCaseAddress);
 
     if (logoData) {
       return new NextResponse(logoData.buffer, {
