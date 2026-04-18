@@ -5,8 +5,24 @@ import { redis } from '@/lib/redis';
 const DEXSCREENER_API_URL = "https://api.dexscreener.com/latest/dex/tokens";
 const ASSETCHAIN_LIQUIDITY_API = "https://liquidity-pool-api.assetchain.org/tokens";
 
-// Cache TTL in seconds
-const CACHE_TTL = 60; // 1 minute for price data (needs to be fresh)
+const CACHE_TTL = 60;
+// NEW: a shared list cache so the full token list is only built once
+const LIST_CACHE_KEY = 'tokens:all';
+const LIST_CACHE_TTL = 30; // 30s — fresh enough, fast enough
+
+// Helper function for fetch with timeout
+async function fetchWithTimeout(url: string, timeout = 5000): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+}
 
 interface DexScreenerPair {
   priceUsd?: string;
@@ -79,7 +95,7 @@ async function fetchFromAssetChain(tokenAddress: string): Promise<Partial<TokenD
 
     // Fetch from API
     const url = `${ASSETCHAIN_LIQUIDITY_API}?address=${tokenAddress}`;
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url, 5000);
 
     if (!response.ok) {
       console.error(`AssetChain API error for ${tokenAddress}: ${response.statusText}`);
@@ -107,7 +123,7 @@ async function fetchFromAssetChain(tokenAddress: string): Promise<Partial<TokenD
     };
 
     // Cache the result
-    await redis.setex(cacheKey, CACHE_TTL, result);
+    await redis.setex(cacheKey, CACHE_TTL, result).catch(() => {});
     console.log(`✓ AssetChain cached: ${tokenAddress}`);
 
     return result;
@@ -129,9 +145,9 @@ async function fetchFromDexScreener(tokenAddress: string): Promise<Partial<Token
       return cached as Partial<TokenData>;
     }
 
-    // Fetch from API
+    // Fetch from API with timeout
     const url = `${DEXSCREENER_API_URL}/${tokenAddress}`;
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url, 5000);
 
     if (!response.ok) {
       console.error(`DexScreener API error for ${tokenAddress}: ${response.statusText}`);
@@ -156,7 +172,7 @@ async function fetchFromDexScreener(tokenAddress: string): Promise<Partial<Token
     };
 
     // Cache the result
-    await redis.setex(cacheKey, CACHE_TTL, result);
+    await redis.setex(cacheKey, CACHE_TTL, result).catch(() => {});
     console.log(`✓ DexScreener cached: ${tokenAddress}`);
 
     return result;
@@ -296,96 +312,119 @@ async function getTokenDataFromSource(
   }
 }
 
+async function buildAllTokensList(sortBy: string): Promise<object[]> {
+  const allTokens = TOKEN_REGISTRY.map(token => ({
+    symbol: token.symbol,
+    address: token.address,
+    name: token.name,
+    chain: token.chain,
+  }));
+
+  const tokenDataPromises = allTokens.map(async (token) => {
+    try {
+      const data = await getTokenData(token.address);
+      return {
+        symbol: token.symbol,
+        name: token.name,
+        address: token.address,
+        chain: token.chain,
+        price: data?.price || 'N/A',
+        marketCap: data?.marketCap || 'N/A',
+        volume: data?.volume || 'N/A',
+        change24h: data?.change24h || 'N/A',
+        liquidity: data?.liquidity || 'N/A',
+      };
+    } catch {
+      return {
+        symbol: token.symbol, name: token.name,
+        address: token.address, chain: token.chain,
+        price: 'N/A', marketCap: 'N/A',
+        volume: 'N/A', change24h: 'N/A', liquidity: 'N/A',
+      };
+    }
+  });
+
+  const tokensData = await Promise.all(tokenDataPromises);
+
+  return tokensData.sort((a, b) => {
+    if (sortBy === 'marketCap') {
+      const mcA = parseFloat(String(a.marketCap).replace(/[^0-9.-]+/g, '')) || 0;
+      const mcB = parseFloat(String(b.marketCap).replace(/[^0-9.-]+/g, '')) || 0;
+      return mcB - mcA;
+    } else if (sortBy === 'volume') {
+      const volA = parseFloat(String(a.volume).replace(/[^0-9.-]+/g, '')) || 0;
+      const volB = parseFloat(String(b.volume).replace(/[^0-9.-]+/g, '')) || 0;
+      return volB - volA;
+    }
+    return 0;
+  });
+}
+
 // API Route Handler
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const identifier = searchParams.get('identifier');
     const source = searchParams.get('source') as 'dexscreener' | 'assetchain' | null;
-    const sortBy = searchParams.get('sortBy') || 'marketCap'; // Default sort by market cap
+    const sortBy = searchParams.get('sortBy') || 'marketCap';
 
-    // If identifier is provided, fetch single token
+    // Single token — unchanged
     if (identifier) {
       let data;
       if (source) {
-        // Fetch from specific source
         data = await getTokenDataFromSource(identifier, source);
       } else {
-        // Fetch from both sources and merge
         data = await getTokenData(identifier);
       }
-
-      if (!data) {
-        return NextResponse.json(
-          { error: 'Token not found' },
-          { status: 404 }
-        );
-      }
-
+      if (!data) return NextResponse.json({ error: 'Token not found' }, { status: 404 });
       return NextResponse.json(data, { status: 200 });
     }
 
-    // If no identifier, fetch all tokens from TOKEN_REGISTRY
-    const allTokens = TOKEN_REGISTRY.map(token => ({
-      symbol: token.symbol,
-      address: token.address,
-      name: token.name,
-      chain: token.chain,
-    }));
+    // --- OPTIMIZED: list-level cache with stale-while-revalidate ---
+    const listCacheKey = `${LIST_CACHE_KEY}:${sortBy}`;
+    
+    let cached;
+    try {
+      cached = await redis.get(listCacheKey);
+    } catch (redisError) {
+      console.warn('Redis error, continuing without cache:', redisError);
+      cached = null;
+    }
 
-    // Fetch data for all tokens in parallel
-    const tokenDataPromises = allTokens.map(async (token) => {
-      try {
-        const data = await getTokenData(token.address);
-        return {
-          symbol: token.symbol,
-          name: token.name,
-          address: token.address,
-          chain: token.chain,
-          price: data?.price || 'N/A',
-          marketCap: data?.marketCap || 'N/A',
-          volume: data?.volume || 'N/A',
-          change24h: data?.change24h || 'N/A',
-          liquidity: data?.liquidity || 'N/A',
-        };
-      } catch (error) {
-        console.error(`Error fetching data for ${token.symbol}:`, error);
-        return {
-          symbol: token.symbol,
-          name: token.name,
-          address: token.address,
-          chain: token.chain,
-          price: 'N/A',
-          marketCap: 'N/A',
-          volume: 'N/A',
-          change24h: 'N/A',
-          liquidity: 'N/A',
-        };
-      }
+    if (cached) {
+      // Return stale data immediately, revalidate in the background
+      const response = NextResponse.json(cached, {
+        status: 200,
+        headers: {
+          'Cache-Control': 'public, s-maxage=15, stale-while-revalidate=30',
+        },
+      });
+
+      // Background revalidation — don't await, doesn't block the response
+      buildAllTokensList(sortBy)
+        .then(fresh => redis.setex(listCacheKey, LIST_CACHE_TTL, fresh).catch(() => {}))
+        .catch(err => console.error('Background revalidation failed:', err));
+
+      return response;
+    }
+
+    // Cache miss — build fresh and cache
+    const sortedTokens = await buildAllTokensList(sortBy);
+    try {
+      await redis.setex(listCacheKey, LIST_CACHE_TTL, sortedTokens);
+    } catch (redisError) {
+      console.warn('Redis set failed, returning data anyway:', redisError);
+    }
+
+    return NextResponse.json(sortedTokens, {
+      status: 200,
+      headers: {
+        'Cache-Control': 'public, s-maxage=15, stale-while-revalidate=30',
+      },
     });
 
-    const tokensData = await Promise.all(tokenDataPromises);
-
-    // Sort tokens by market cap (descending)
-    const sortedTokens = tokensData.sort((a, b) => {
-      if (sortBy === 'marketCap') {
-        const mcA = parseFloat(String(a.marketCap).replace(/[^0-9.-]+/g, '')) || 0;
-        const mcB = parseFloat(String(b.marketCap).replace(/[^0-9.-]+/g, '')) || 0;
-        return mcB - mcA; // Descending order
-      } else if (sortBy === 'volume') {
-        const volA = parseFloat(String(a.volume).replace(/[^0-9.-]+/g, '')) || 0;
-        const volB = parseFloat(String(b.volume).replace(/[^0-9.-]+/g, '')) || 0;
-        return volB - volA;
-      }
-      return 0;
-    });
-
-    return NextResponse.json(sortedTokens, { status: 200 });
   } catch (error) {
     console.error('Error in tokens API route:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error', details: String(error) }, { status: 500 });
   }
 }
