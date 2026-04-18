@@ -27,6 +27,7 @@ import HoneypotAnalysis from "@/components/HoneypotAnalysis";
 import LiquidityLocker from "@/components/LiquidityLocker";
 import TokenInfo from "@/components/TokenInfo";
 import VolumeTxnsInfo from "@/components/VolumeTxnsInfo";
+import LoadingWithLogo from "@/components/LoadingWithLogo";
 
 // Define types for token data and intervals
 interface TokenData {
@@ -388,20 +389,7 @@ export default function TokenPage({ params: paramsPromise }: TokenPageProps) {
       <Header />
       <main className="flex-1 px-3 md:px-8 mt-8">
         {loading ? (
-          <div className="flex items-center justify-center mt-8">
-            <div className="text-center">
-              <div
-                className="animate-spin inline-block w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full"
-                role="status"
-              >
-                <span className="sr-only">Loading...</span>
-              </div>
-              <h1 className="text-xl font-semibold mt-4">
-                Loading data for{" "}
-                {tokenMetadata?.symbol?.toUpperCase() || "token"}...
-              </h1>
-            </div>
-          </div>
+          <LoadingWithLogo tokenSymbol={tokenMetadata?.symbol} />
         ) : error ? (
           <div className="text-center mt-8 text-red-500 bg-gray-100 p-6 rounded-lg">
             <h1 className="text-xl font-semibold">Error: {error}</h1>
