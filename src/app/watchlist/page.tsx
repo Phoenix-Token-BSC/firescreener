@@ -4,104 +4,20 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
 import { useWatchlist } from "@/hooks/useWatchlist";
-import { motion, AnimatePresence, PanInfo } from "framer-motion";
-import { Trash2 } from "lucide-react";
-
-// Helper functions (copied from page.tsx to ensure consistent formatting)
-function formatCompactNumber(value: number | string): string {
-    if (typeof value === 'string') {
-        value = parseFloat(value.replace(/[^0-9.-]+/g, ''));
-    }
-
-    if (isNaN(value) || value === 0) {
-        return 'N/A';
-    }
-
-    if (value >= 1e12) {
-        return (value / 1e12).toFixed(2) + 'T';
-    }
-    if (value >= 1e9) {
-        return (value / 1e9).toFixed(2) + 'B';
-    }
-    if (value >= 1e6) {
-        return (value / 1e6).toFixed(2) + 'M';
-    }
-    if (value >= 1e3) {
-        return (value / 1e3).toFixed(2) + 'K';
-    }
-    return value.toFixed(2);
-}
-
-function formatPrice(price: number | string): { display: string; isExponential: boolean; zeros?: number; rest?: string } {
-    if (price === 'N/A' || price === null || price === undefined || price === '') {
-        return { display: 'N/A', isExponential: false };
-    }
-
-    let priceNum: number;
-    if (typeof price === 'string') {
-        const cleanedPrice = price.replace(/[^0-9.-]/g, '');
-        priceNum = parseFloat(cleanedPrice);
-    } else {
-        priceNum = price;
-    }
-
-    if (isNaN(priceNum)) {
-        return { display: 'N/A', isExponential: false };
-    }
-
-    // Force decimal notation to check for leading zeros (prevents scientific notation issues)
-    const priceStr = priceNum.toFixed(20);
-
-    // Check for very small numbers with many leading zeros (more than 4 zeros)
-    if (priceStr.includes('.')) {
-        const decimalPart = priceStr.split('.')[1];
-        if (decimalPart) {
-            const leadingZeros = decimalPart.match(/^0+/)?.[0].length || 0;
-            // Use exponential formatting if more than 4 leading zeros
-            if (leadingZeros > 4) {
-                const restOfNumber = decimalPart.substring(leadingZeros).substring(0, 6);
-                return {
-                    display: '$0.',
-                    isExponential: true,
-                    zeros: leadingZeros,
-                    rest: restOfNumber,
-                };
-            }
-        }
-    }
-
-    let formattedPrice: string;
-    if (priceNum >= 1) {
-        formattedPrice = priceNum.toFixed(2);
-    } else if (priceNum >= 0.01) {
-        formattedPrice = priceNum.toFixed(4);
-    } else {
-        formattedPrice = priceNum.toFixed(8);
-    }
-
-    return {
-        display: '$' + formattedPrice,
-        isExponential: false,
-    };
-}
-
-interface EnrichedToken {
-    symbol: string;
-    name: string;
-    address: string;
-    chain: string;
-    price: string | number;
-    marketCap: string | number;
-    volume: string | number;
-    liquidity: string | number;
-    change24h?: string | number;
-}
+import { AnimatePresence } from "framer-motion";
+import { formatCompactNumber, formatPrice, Token } from "@/lib/tokenFormatting";
+import { useScrollRestoration } from "@/hooks/useScrollRestoration";
+import WatchlistTokenCard from "@/components/WatchlistTokenCard";
+import TokenLoadingSkeleton from "@/components/TokenLoadingSkeleton";
 
 export default function WatchlistPage() {
     const { watchlist, removeFromWatchlist } = useWatchlist();
-    const [tokens, setTokens] = useState<EnrichedToken[]>([]);
+    const [tokens, setTokens] = useState<Token[]>([]);
     const [loading, setLoading] = useState(true);
     const [mounted, setMounted] = useState(false);
+    
+    // Restore scroll position when user navigates back
+    useScrollRestoration('watchlistPageScroll');
 
     useEffect(() => {
         setMounted(true);
@@ -188,145 +104,18 @@ export default function WatchlistPage() {
                             {loading ? (
                                 <div className="flex items-center justify-center py-20">
                                     <div className="text-center">
-                                        <div
-                                            className="animate-spin inline-block w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full"
-                                            role="status"
-                                        >
-                                            <span className="sr-only">Loading...</span>
-                                        </div>
-                                        <p className="text-white mt-4">Loading watchlist...</p>
+                                       <TokenLoadingSkeleton />
                                     </div>
                                 </div>
                             ) : (
                                 <AnimatePresence>
-                                    {tokens.map((token) => {
-                                        const { display, isExponential, zeros, rest } = formatPrice(token.price);
-                                        const priceDisplay = display === 'N/A' ? (
-                                            <span className="text-neutral-400">N/A</span>
-                                        ) : isExponential ? (
-                                            <>
-                                                {display}0<sub>{zeros}</sub>{rest}
-                                            </>
-                                        ) : (
-                                            display
-                                        );
-
-                                        return (
-                                            <div key={`mobile-${token.chain}-${token.address}`} className="relative h-full w-full overflow-hidden rounded-lg">
-                                                {/* Background Layer (Red/Delete) */}
-                                                <div className="absolute inset-0 bg-red-600 flex items-center justify-start pl-6 rounded-lg">
-                                                    <Trash2 className="text-white" size={24} />
-                                                </div>
-
-                                                {/* Sliding Card Layer */}
-                                                <motion.div
-                                                    className="bg-black/90 relative h-full w-full rounded-lg border border-orange-500/30 z-10"
-                                                    drag="x"
-                                                    dragConstraints={{ left: 0, right: 0 }}
-                                                    onDragEnd={(event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-                                                        // Swipe Right to Remove (positive x)
-                                                        if (info.offset.x > 100) {
-                                                            removeFromWatchlist(token.address);
-                                                        }
-                                                    }}
-                                                    whileTap={{ cursor: "grabbing" }}
-                                                    style={{ touchAction: "none" }}
-                                                >
-                                                    <Link
-                                                        href={`/${token.chain}/${token.address}`}
-                                                        className="flex flex-col p-2"
-                                                        draggable={false}
-                                                    >
-                                                        {/* Card Header */}
-                                                        <div className="flex items-center justify-between mb-2">
-                                                            {/* Left: Token Icon and Info */}
-                                                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                                                                {/* Token Icon with Chain Badge */}
-                                                                <div className="relative flex-shrink-0">
-                                                                    <img
-                                                                        src={`/api/${token.chain}/logo/${token.address}`}
-                                                                        alt={token.symbol}
-                                                                        width={48}
-                                                                        height={48}
-                                                                        className="rounded-full w-12 h-12 object-contain bg-black"
-                                                                        onError={(e) => {
-                                                                            (e.target as HTMLImageElement).src = '/file.svg';
-                                                                        }}
-                                                                    />
-                                                                    {/* Chain Logo Overlay */}
-                                                                    <img
-                                                                        src={`/${token.chain}-logo.png`}
-                                                                        alt={token.chain}
-                                                                        width={20}
-                                                                        height={20}
-                                                                        className="absolute -bottom-1 -right-1 rounded-sm border-2 border-black"
-                                                                        onError={(e) => {
-                                                                            (e.target as HTMLImageElement).style.display = 'none';
-                                                                        }}
-                                                                    />
-                                                                </div>
-
-                                                                {/* Token Symbol and Name */}
-                                                                <div className="flex flex-col min-w-0 flex-1">
-                                                                    <span className="text-white font-bold text-lg whitespace-nowrap truncate">
-                                                                        {token.symbol.toUpperCase()}
-                                                                    </span>
-                                                                    <span className="text-neutral-200 text-xs whitespace-nowrap truncate">
-                                                                        {token.name}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Right: Price */}
-                                                            <div className="flex flex-col text-right flex-shrink-0 ml-2">
-                                                                <span className="text-white font-semibold text-xl whitespace-nowrap">
-                                                                    {priceDisplay}
-                                                                </span>
-                                                                {token.change24h !== 'N/A' && token.change24h !== undefined && (
-                                                                    (() => {
-                                                                        const change = parseFloat(String(token.change24h));
-                                                                        const isPositive = change >= 0;
-                                                                        return (
-                                                                            <span className={`text-sm ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
-                                                                                {isPositive ? '+' : ''}{change.toFixed(2)}%
-                                                                            </span>
-                                                                        );
-                                                                    })()
-                                                                )}
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Metrics Row */}
-                                                        <div className="flex flex-row justify-between items-center">
-                                                            {/* Volume */}
-                                                            <div className="flex flex-row items-center border border-orange-500 rounded-lg px-2 py-2 bg-black/50">
-                                                                <div className="text-orange-500 text-xs font-medium">VOL</div>
-                                                                <div className="text-white text-sm font-semibold">
-                                                                    ${formatCompactNumber(token.volume)}
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Liquidity */}
-                                                            <div className="flex flex-row items-center border border-orange-500 rounded-lg px-2 py-2 bg-black/50">
-                                                                <div className="text-orange-500 text-xs font-medium">LIQ.</div>
-                                                                <div className="text-white text-sm font-semibold">
-                                                                    ${formatCompactNumber(token.liquidity)}
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Market Cap */}
-                                                            <div className="flex flex-row items-center border border-orange-500 rounded-lg px-2 py-2 bg-black/50">
-                                                                <div className="text-orange-500 text-xs font-medium">MCAP</div>
-                                                                <div className="text-white text-sm font-semibold">
-                                                                    ${formatCompactNumber(token.marketCap)}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </Link>
-                                                </motion.div>
-                                            </div>
-                                        );
-                                    })}
+                                    {tokens.map((token) => (
+                                        <WatchlistTokenCard
+                                            key={`mobile-${token.chain}-${token.address}`}
+                                            token={token}
+                                            onRemove={removeFromWatchlist}
+                                        />
+                                    ))}
                                 </AnimatePresence>
                             )}
                         </div>
@@ -360,9 +149,7 @@ export default function WatchlistPage() {
                                     <tbody>
                                         {loading ? (
                                             <tr>
-                                                <td colSpan={6} className="text-center py-10 text-white">
-                                                    Loading watchlist...
-                                                </td>
+                                                <TokenLoadingSkeleton />
                                             </tr>
                                         ) : (
                                             tokens.map((token) => (

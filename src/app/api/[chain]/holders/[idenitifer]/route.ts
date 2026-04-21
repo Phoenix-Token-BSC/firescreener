@@ -8,6 +8,14 @@ const CHAIN_ID_MAP: Record<string, string> = {
     'eth': '1',
 };
 
+// Moralis uses hex chain IDs for EVM, separate gateway for Solana
+const MORALIS_CHAIN_MAP: Record<string, string | null> = {
+    bsc: '0x38',
+    eth: '0x1',
+    sol: 'mainnet', // uses separate Solana gateway
+    rwa: null,      // custom chain, not supported
+};
+
 interface RouteParams {
     chain: string;
     idenitifer: string;
@@ -35,7 +43,56 @@ export async function GET(
             return NextResponse.json({ error: 'Invalid contract address' }, { status: 400 });
         }
 
-        // Call GoPlus Token Security API (v1)
+        const moralisKey = process.env.MORALIS_API_KEY;
+        const moralisChain = MORALIS_CHAIN_MAP[chainLower];
+
+        // 1) Try Moralis
+        if (moralisKey && moralisChain) {
+            try {
+                let moralisUrl: string;
+
+                if (chainLower === 'sol') {
+                    // Solana uses a different Moralis gateway and endpoint
+                    moralisUrl = `https://solana-gateway.moralis.io/token/${moralisChain}/holders/${contractAddress}/stats`;
+                } else {
+                    // EVM chains (ETH, BSC)
+                    moralisUrl = `https://deep-index.moralis.io/api/v2.2/erc20/${contractAddress}/holders?chain=${moralisChain}`;
+                }
+
+                const moralisRes = await fetch(moralisUrl, {
+                    headers: {
+                        accept: 'application/json',
+                        'X-API-Key': moralisKey,
+                    },
+                });
+
+                if (moralisRes.ok) {
+                    const moralisData = await moralisRes.json();
+
+                    // /holders returns: { total: number, result: [...] }
+                    const count =
+                        moralisData?.total ??
+                        moralisData?.totalHolders ??
+                        moralisData?.result?.totalHolders ??
+                        null;
+
+                    if (typeof count === 'number' && count > 0) {
+                        return NextResponse.json({ holder_count: count });
+                    }
+
+                    console.warn(`Moralis returned count=${count} for ${contractAddress}, falling back to GoPlus`);
+                }
+                else {
+                    const errBody = await moralisRes.text();
+                    console.warn(`Moralis returned ${moralisRes.status}:`, errBody);
+                }
+            } catch (err) {
+                console.warn('Moralis holders lookup failed, falling back to GoPlus:', err);
+            }
+        }
+
+        // 2) Fallback: GoPlus Token Security API (v1)
+        //    Handles all chains including RWA, and covers gaps from Moralis
         const apiUrl = `https://api.gopluslabs.io/api/v1/token_security/${goPlusChainId}?contract_addresses=${contractAddress}`;
 
         const response = await fetch(apiUrl);
@@ -52,9 +109,9 @@ export async function GET(
         return NextResponse.json({ holder_count });
 
     } catch (error) {
-        console.error('GoPlus Honeypot API error:', error);
+        console.error('Holder count API error:', error);
         return NextResponse.json(
-            { error: 'Failed to fetch honeypot data' },
+            { error: 'Failed to fetch holder count' },
             { status: 500 }
         );
     }

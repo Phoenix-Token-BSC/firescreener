@@ -4,7 +4,7 @@ interface TokenLoadingSkeletonProps {
   count?: number;
 }
 
-export default function TokenLoadingSkeleton({ count = 6 }: TokenLoadingSkeletonProps) {
+export default function TokenLoadingSkeleton({ count = 15 }: TokenLoadingSkeletonProps) {
   return (
     <>
       {/* Mobile: Card Layout Skeleton */}

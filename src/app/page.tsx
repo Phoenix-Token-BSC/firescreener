@@ -4,131 +4,11 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import TokenLoadingSkeleton from '@/components/TokenLoadingSkeleton';
-// import { getTokenBySymbol } from '@/lib/tokenRegistry';
-
-interface Token {
-  symbol: string;
-  name: string;
-  address: string;
-  chain: string;
-  price: string | number;
-  marketCap: string | number;
-  volume: string | number;
-  liquidity: string | number;
-  change24h?: string | number;
-}
-
-interface TokenWithFlash extends Token {
-  _flashFields?: Set<string>;
-}
+import TokenCard from '@/components/TokenCard';
+import { useFlashOnChange, formatCompactNumber, formatPrice, Token } from '@/lib/tokenFormatting';
+import { useScrollRestoration } from '@/hooks/useScrollRestoration';
 
 const REFRESH_INTERVAL = 15_000;
-
-
-function useFlashOnChange(value: string | number, flashDuration = 600) {
-  const [flashing, setFlashing] = useState(false);
-  const prevRef = useRef(value);
-
-  useEffect(() => {
-    if (prevRef.current !== value) {
-      prevRef.current = value;
-      setFlashing(true);
-      const t = setTimeout(() => setFlashing(false), flashDuration);
-      return () => clearTimeout(t);
-    }
-  }, [value, flashDuration]);
-
-  return flashing;
-}
-
-
-function formatCompactNumber(value: number | string): string {
-  if (typeof value === 'string') {
-    value = parseFloat(value.replace(/[^0-9.-]+/g, ''));
-  }
-
-  if (isNaN(value) || value === 0) {
-    return 'N/A';
-  }
-
-  if (value >= 1e12) {
-    return (value / 1e12).toFixed(1) + 'T';
-  }
-  if (value >= 1e9) {
-    return (value / 1e9).toFixed(1) + 'B';
-  }
-  if (value >= 1e6) {
-    return (value / 1e6).toFixed(1) + 'M';
-  }
-  if (value >= 1e3) {
-    return (value / 1e3).toFixed(0) + 'K';
-  }
-  return value.toFixed(1);
-}
-
-function formatPrice(price: number | string): { display: string; isExponential: boolean; zeros?: number; rest?: string } {
-  // Handle N/A or invalid values
-  if (price === 'N/A' || price === null || price === undefined || price === '') {
-    return {
-      display: 'N/A',
-      isExponential: false,
-    };
-  }
-
-  // Convert to number if it's a string
-  let priceNum: number;
-  if (typeof price === 'string') {
-    // Remove any non-numeric characters except decimal point and minus sign
-    const cleanedPrice = price.replace(/[^0-9.-]/g, '');
-    priceNum = parseFloat(cleanedPrice);
-  } else {
-    priceNum = price;
-  }
-
-  // Check if conversion failed
-  if (isNaN(priceNum)) {
-    return {
-      display: 'N/A',
-      isExponential: false,
-    };
-  }
-
-  // Force decimal notation to check for leading zeros (prevents scientific notation issues)
-  const priceStr = priceNum.toFixed(20);
-
-  // Check for very small numbers with many leading zeros (more than 4 zeros)
-  if (priceStr.includes('.')) {
-    const decimalPart = priceStr.split('.')[1];
-    if (decimalPart) {
-      const leadingZeros = decimalPart.match(/^0+/)?.[0].length || 0;
-      // Use exponential formatting if more than 4 leading zeros
-      if (leadingZeros > 4) {
-        const restOfNumber = decimalPart.substring(leadingZeros).substring(0, 6); // Limit to 6 digits
-        return {
-          display: '$0.',
-          isExponential: true,
-          zeros: leadingZeros,
-          rest: restOfNumber,
-        };
-      }
-    }
-  }
-
-  // For regular numbers, format with appropriate decimal places
-  let formattedPrice: string;
-  if (priceNum >= 1) {
-    formattedPrice = priceNum.toFixed(2);
-  } else if (priceNum >= 0.01) {
-    formattedPrice = priceNum.toFixed(6);
-  } else {
-    formattedPrice = priceNum.toFixed(8);
-  }
-
-  return {
-    display: '$' + formattedPrice,
-    isExponential: false,
-  };
-}
 
 // Memoized row so only changed tokens re-render
 const TokenRow = React.memo(function TokenRow({ token }: { token: Token }) {
@@ -231,115 +111,13 @@ const TokenRow = React.memo(function TokenRow({ token }: { token: Token }) {
   );
 });
 
-// Memoized mobile card too
-const TokenCard = React.memo(function TokenCard({ token }: { token: Token }) {
-  const priceFlash = useFlashOnChange(token.price);
-  const changeFlash = useFlashOnChange(token.change24h ?? 'N/A');
-  const mcFlash = useFlashOnChange(token.marketCap);
-  const volFlash = useFlashOnChange(token.volume);
-  const liqFlash = useFlashOnChange(token.liquidity);
-
-  const { display, isExponential, zeros, rest } = formatPrice(token.price);
-  const priceDisplay = display === 'N/A' ? (
-    <span className="text-neutral-400">N/A</span>
-  ) : isExponential ? (
-    <>{display}0<sub>{zeros}</sub>{rest}</>
-  ) : display;
-
-  return (
-    <Link
-      href={`/${token.chain}/${token.address}`}
-      className="rounded-lg p-2 hover:border-orange-500 border-b border-orange-500 transition-all hover:shadow-lg hover:shadow-orange-500/20"
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <div className="relative flex-shrink-0">
-            <img
-              src={`/api/${token.chain}/logo/${token.address}`}
-              alt={token.symbol}
-              width={36}
-              height={36}
-              className="rounded-md"
-              onError={(e) => { (e.target as HTMLImageElement).src = '/logo.png'; }}
-            />
-            <img
-              src={`/${token.chain}-logo.png`}
-              alt={token.chain}
-              width={16}
-              height={16}
-              className="absolute -bottom-1 rounded-sm border-2 border-black"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-            />
-          </div>
-          <div className="flex flex-col min-w-0 flex-1">
-            <span className="text-white font-bold text-lg whitespace-nowrap truncate">{token.symbol.toUpperCase()}</span>
-            <span className="text-neutral-200 text-xs whitespace-nowrap truncate">{token.name}</span>
-          </div>
-        </div>
-
-        <div className="flex flex-col ml-3 gap-2">
-          <div className="flex flex-col items-end">
-            <div className="flex flex-row items-center gap-2 text-right flex-shrink-0">
-              <span
-                className="text-white font-semibold text-md whitespace-nowrap transition-opacity duration-300"
-                style={{ opacity: priceFlash ? 0.4 : 1 }}
-              >
-                {priceDisplay}
-              </span>
-              {token.change24h !== 'N/A' && token.change24h !== undefined && (() => {
-                const change = parseFloat(String(token.change24h));
-                const isPositive = change >= 0;
-                return (
-                  <span
-                    className={`text-sm transition-opacity duration-300 ${isPositive ? 'text-green-500' : 'text-red-500'}`}
-                    style={{ opacity: changeFlash ? 0.4 : 1 }}
-                  >
-                    {isPositive ? '+' : ''}{change.toFixed(2)}%
-                  </span>
-                );
-              })()}
-            </div>
-          </div>
-
-          <div className="flex gap-2 justify-between">
-            <div className="flex flex-row gap-1 items-center">
-              <div className="text-orange-500 text-xs font-medium">VOL</div>
-              <div
-                className="text-white text-xs font-semibold transition-opacity duration-300"
-                style={{ opacity: volFlash ? 0.4 : 1 }}
-              >
-                ${formatCompactNumber(token.volume)}
-              </div>
-            </div>
-            <div className="flex flex-row gap-1 items-center">
-              <div className="text-orange-500 text-xs font-medium">LIQ.</div>
-              <div
-                className="text-white text-xs font-semibold transition-opacity duration-300"
-                style={{ opacity: liqFlash ? 0.4 : 1 }}
-              >
-                ${formatCompactNumber(token.liquidity)}
-              </div>
-            </div>
-            <div className="flex flex-row gap-1 items-center">
-              <div className="text-orange-500 text-xs font-medium">MC</div>
-              <div
-                className="text-white text-xs font-semibold transition-opacity duration-300"
-                style={{ opacity: mcFlash ? 0.4 : 1 }}
-              >
-                ${formatCompactNumber(token.marketCap)}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Link>
-  );
-});
-
 export default function Home() {
     const [tokens, setTokens] = useState<Token[]>([]);
     const [loading, setLoading] = useState(true);
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
+    
+    // Restore scroll position when user navigates back
+    useScrollRestoration('homePageScroll');
 
     const fetchTokens = useCallback(async (isBackground = false) => {
       try {
@@ -417,7 +195,7 @@ export default function Home() {
         <Header />
         <div className="p-2">
           {loading ? (
-            <TokenLoadingSkeleton count={6} />
+            <TokenLoadingSkeleton count={15} />
           ) : tokens.length === 0 ? (
             <div className="flex items-center justify-center py-20">
               <div className="text-center">
