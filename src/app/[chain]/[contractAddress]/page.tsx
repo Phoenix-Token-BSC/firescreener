@@ -463,7 +463,7 @@ export default function TokenPage() {
                                 </div> */}
                 <div className={activeTab === "info" ? "" : "hidden"}>
                   <section className="px-2">
-                    <div className="flex flex-col bg-white/25 rounded-lg p-4 mb-2 justify-between md:items-end w-full">
+                    <div className="sticky top-[44px] z-10 flex flex-col bg-white rounded-lg p-4 mb-2 justify-between md:items-end w-full">
                       <div className="flex items-center justify-between">
                         <div className="flex flex-row items-center gap-2 flex-1 min-w-0">
                           <img
@@ -494,7 +494,7 @@ export default function TokenPage() {
                         </div>
                       </div>
                       {socialLinks && (
-                        <div className="flex flex-row gap-4 mt-2 items-center justify-between px-4 bg-white text-black p-4 rounded-lg">
+                        <div className="flex flex-row gap-4 mt-2 items-center justify-between px-4 bg-neutral-200 text-black p-4 rounded-lg">
                           <a
                             href={socialLinks.website}
                             target="_blank"
@@ -970,7 +970,7 @@ export default function TokenPage() {
                 >
                   {/* Left Side: Token Information */}
                   <div className="w-[35%] h-full overflow-y-auto pr-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                    <div className="flex flex-col gap-2 bg-black rounded-md p-4 mb-4">
+                    <div className="sticky top-[0px] z-10  flex flex-col gap-2 bg-white rounded-md p-4 mb-4">
                       <div className="flex flex-row items-center gap-2">
                         <img
                           src={`/api/${chain}/logo/${contractAddress}`}
@@ -990,7 +990,7 @@ export default function TokenPage() {
                       </div>
 
                       {socialLinks && (
-                        <div className="flex flex-row gap-4 mt-2 items-center justify-between px-4 bg-white text-black p-4 rounded-lg">
+                        <div className="flex flex-row gap-4 mt-2 items-center justify-between px-4 bg-neutral-200 text-black p-4 rounded-lg">
                           <a
                             href={socialLinks.website}
                             target="_blank"
