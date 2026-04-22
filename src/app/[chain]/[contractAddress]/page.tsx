@@ -471,24 +471,29 @@ export default function TokenPage() {
                                 </div> */}
                 <div className={activeTab === "info" ? "" : "hidden"}>
                   <section className="px-2">
-                    <div className="sticky top-[44px] z-10 flex flex-col bg-white rounded-lg p-4 mb-2 justify-between md:items-end w-full">
+                    <div className="sticky top-[60px] z-10 flex flex-col bg-white rounded-lg p-2 justify-between md:items-end w-full">
                       <div className="flex items-center justify-between">
                         <div className="flex flex-row items-center gap-2 flex-1 min-w-0">
                           <img
                             src={`/api/${chain}/logo/${contractAddress}`}
                             alt={`${tokenMetadata.symbol.toUpperCase()} Logo`}
-                            className="w-15 h-15 rounded-md object-contain flex-shrink-0"
+                            className="w-12 h-12 rounded-md object-contain flex-shrink-0"
                             onError={(e) => {
                               (e.target as HTMLImageElement).src = "/file.svg";
                               (e.target as HTMLImageElement).alt =
                                 "Default Logo";
                             }}
                           />
-                          <h1 className="text-2xl text-black md:text-3xl font-bold">
-                            {tokenMetadata.symbol.toUpperCase()}
-                          </h1>
+                          <div>
+                            <h1 className="text-xl text-black md:text-3xl font-bold">
+                              {tokenMetadata.symbol.toUpperCase()}
+                            </h1>
+                            <p className="text-sm text-gray-500">
+                              {tokenMetadata.name}
+                            </p>
+                          </div>
                         </div>
-                        <div className="mt-4 flex gap-2 items-center bg-neutral-900 mb-4 rounded-md p-2">
+                        <div className="flex gap-2 items-center bg-neutral-900 mb-4 rounded-md p-2">
                           <WatchlistButton
                             token={{
                               contract: contractAddress || "",
@@ -523,8 +528,8 @@ export default function TokenPage() {
 
                     <div className="flex flex-row items-center justify-between mb-4">
                       <div className="mt-4 flex flex-col rounded-md">
-                        <h1 className="text-sm">{tokenMetadata.name}</h1>
-                        <h1 className="font-bold text-2xl">
+                        {/* <h1 className="text-sm">{tokenMetadata.name}</h1> */}
+                        <h1 className="font-bold text-3xl">
                           ${" "}
                           {(() => {
                             const { display, isExponential } = formatPrice(

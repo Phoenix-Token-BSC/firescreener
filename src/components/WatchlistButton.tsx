@@ -34,12 +34,12 @@ const WatchlistButton: React.FC<WatchlistButtonProps> = ({ token, className = ""
     return (
         <button
             onClick={handleClick}
-            className={`flex items-center gap-2 p-2 rounded-md transition-all duration-200 hover:text-orange-500 ${className}`}
+            className={`flex items-center gap-2  rounded-md transition-all duration-200 hover:text-orange-500 ${className}`}
             title={watched ? "Remove from watchlist" : "Add to watchlist"}
         >
             <Star
                 className={`transition-all duration-200 ${watched ? "fill-orange-500 text-orange-500" : "text-gray-400 hover:text-orange-500"}`}
-                size={20}
+                size={15}
             />
             <span className={`md:block hidden ${watched ? "text-orange-500" : "text-gray-400 hover:text-orange-500"}`}>
                 {watched ? "Watchlisted" : "Add to watchlist"}
