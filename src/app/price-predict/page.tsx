@@ -12,8 +12,9 @@ interface TokenData {
   id: string;
   symbol: string;
   name: string;
-  price?: string;
-  marketCap?: string;
+  price?: string;       // always current price
+  athPrice?: string;    // set only when fetched in ATH mode
+  marketCap?: string;   // current MC in 'now' mode, ATH MC in 'ath' mode
   volume24h?: string;
   priceChange24h?: string;
   image?: string;
@@ -30,6 +31,8 @@ interface CoinGeckoMarketData {
   market_cap: number;
   total_volume: number;
   price_change_percentage_24h: number;
+  ath: number;
+  circulating_supply: number;
 }
 
 interface CoinGeckoCoinData {
@@ -42,7 +45,10 @@ interface CoinGeckoCoinData {
     market_cap: { usd: number; };
     total_volume: { usd: number; };
     price_change_percentage_24h: number;
-    ath_market_cap: { usd: number; };
+    ath: { usd: number; };
+    ath_market_cap: { usd: number | null; };
+    circulating_supply: number;
+    total_supply: number | null;
   };
 }
 
@@ -73,12 +79,6 @@ const formatMarketCap = (marketCap: string | undefined): string => {
   return `$${mc.toFixed(2)}`;
 };
 
-// Helper to convert data URL to Blob
-const dataUrlToBlob = async (url: string): Promise<Blob> => {
-  return await (await fetch(url)).blob();
-};
-
-
 const PriceComparison = () => {
   const [cryptoA, setCryptoA] = useState<string>('pht');
   const [cryptoB, setCryptoB] = useState<string>('wkc');
@@ -98,71 +98,79 @@ const PriceComparison = () => {
   const [isCapturing, setIsCapturing] = useState(false);
 
 
-  const fetchTokenData = useCallback(async (tokenId: string, timeframe: 'now' | 'ath' = 'now'): Promise<TokenData | null> => {
+  const fetchTokenData = useCallback(async (
+    tokenId: string,
+    timeframe: 'now' | 'ath' = 'now',
+    signal?: AbortSignal,
+  ): Promise<TokenData | null> => {
     const isPlatformToken = TOKENS.some(t => t.id === tokenId);
 
     if (isPlatformToken) {
-      // Find the contract address for the platform token
-      // Try to match by symbol (id) in the registry
       const tokenMeta = TOKEN_REGISTRY.find(
-        (t) => t.symbol.toLowerCase() === tokenId.toLowerCase() && t.chain === 'bsc'
+        t => t.symbol.toLowerCase() === tokenId.toLowerCase() && t.chain === 'bsc'
       );
-      if (!tokenMeta) {
-        console.error(`No contract address found for platform token: ${tokenId}`);
-        return null;
-      }
+      if (!tokenMeta) return null;
 
-      // If fetching ATH, try CoinGecko first (Dexscreener doesn't have ATH)
+      // ATH: CoinGecko only — DexScreener has no ATH data
       if (timeframe === 'ath') {
         try {
-          // Map internal chain ID to CoinGecko asset platform ID
-          // Currently only supporting BSC as per the regex filter above
-          const platformId = 'binance-smart-chain';
+          const response = await fetch(
+            `https://api.coingecko.com/api/v3/coins/binance-smart-chain/contract/${tokenMeta.address}`,
+            { signal }
+          );
+          if (!response.ok) throw new Error(`CoinGecko responded ${response.status}`);
+          const data: CoinGeckoCoinData = await response.json();
 
-          const response = await fetch(`https://api.coingecko.com/api/v3/coins/${platformId}/contract/${tokenMeta.address}`);
+          const athPrice = data.market_data.ath?.usd;
+          if (!athPrice) throw new Error('No ATH price in CoinGecko response');
 
-          if (response.ok) {
-            const data: CoinGeckoCoinData = await response.json();
-            const athMarketCap = data.market_data.ath_market_cap?.usd;
+          // Prefer actual historical ATH MC; fall back to ath_price × circulating (or total) supply
+          const athMarketCap =
+            data.market_data.ath_market_cap?.usd ||
+            (data.market_data.circulating_supply
+              ? athPrice * data.market_data.circulating_supply
+              : data.market_data.total_supply
+                ? athPrice * data.market_data.total_supply
+                : null);
 
-            // Only use this data if we actually got a valid ATH market cap
-            if (athMarketCap !== undefined && athMarketCap !== null) {
-              return {
-                id: tokenId,
-                symbol: data.symbol.toUpperCase(),
-                name: data.name,
-                // We use CoinGecko data for consistency if we're using their ATH
-                price: data.market_data.current_price.usd.toString(),
-                marketCap: athMarketCap.toString(),
-                volume24h: data.market_data.total_volume.usd.toString(),
-                priceChange24h: data.market_data.price_change_percentage_24h.toString(),
-                image: data.image.large,
-              };
-            }
-          }
+          if (!athMarketCap) throw new Error('Cannot compute ATH market cap — no supply data');
+
+          return {
+            id: tokenId,
+            symbol: data.symbol.toUpperCase(),
+            name: data.name,
+            price: data.market_data.current_price.usd.toString(),
+            athPrice: athPrice.toString(),
+            marketCap: athMarketCap.toString(),
+            volume24h: data.market_data.total_volume.usd.toString(),
+            priceChange24h: data.market_data.price_change_percentage_24h.toString(),
+            image: data.image.large,
+          };
         } catch (err) {
-          console.warn(`Failed to fetch ATH from CoinGecko for ${tokenId}, falling back to Dexscreener`, err);
-          // Continue to Dexscreener fallback
+          if ((err as Error).name === 'AbortError') return null;
+          console.warn(`ATH data unavailable from CoinGecko for ${tokenId}:`, err);
+          return null;
         }
       }
 
+      // Current price: DexScreener, best liquidity pair
       try {
-        // Fetch directly from Dexscreener API using the contract address
-        const url = `https://api.dexscreener.com/latest/dex/tokens/${tokenMeta.address}`;
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error(`Failed to fetch data from Dexscreener for ${tokenId}`);
-        }
+        const response = await fetch(
+          `https://api.dexscreener.com/latest/dex/tokens/${tokenMeta.address}`,
+          { signal }
+        );
+        if (!response.ok) throw new Error(`DexScreener responded ${response.status}`);
         const dexData = await response.json();
-        // Parse Dexscreener response (assume first pair is the most relevant)
-        const pair = dexData.pairs && dexData.pairs.length > 0 ? dexData.pairs[0] : null;
-        if (!pair) {
-          throw new Error(`No pair data found on Dexscreener for ${tokenId}`);
-        }
+        const pairs: any[] = dexData.pairs ?? [];
+        if (!pairs.length) throw new Error(`No pairs found on DexScreener for ${tokenId}`);
+        // Pick the pair with the highest liquidity to avoid stale/minor pools
+        const pair = pairs.sort(
+          (a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0)
+        )[0];
         return {
           id: tokenId,
-          symbol: pair.baseToken?.symbol || tokenMeta.symbol.toUpperCase() || '',
-          name: pair.baseToken?.name || tokenMeta.name || '',
+          symbol: pair.baseToken?.symbol || tokenMeta.symbol.toUpperCase(),
+          name: pair.baseToken?.name || tokenMeta.name,
           price: pair.priceUsd || '0',
           marketCap: pair.fdv || '0',
           volume24h: pair.volume?.h24 || '0',
@@ -170,60 +178,49 @@ const PriceComparison = () => {
           image: pair.baseToken?.logoURI || '',
         };
       } catch (err) {
-        console.error(`Error fetching Dexscreener data for ${tokenId}:`, err);
+        if ((err as Error).name === 'AbortError') return null;
+        console.error(`DexScreener fetch failed for ${tokenId}:`, err);
         return null;
       }
-    } else {
-      // It might be a coingecko token
-      try {
-        // Use CoinGecko Markets API as requested
-        const response = await fetch(
-          `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${tokenId}`
-        );
-        if (!response.ok) {
-          return null;
-        }
+    }
 
-        const dataArray = await response.json();
-        if (!Array.isArray(dataArray) || dataArray.length === 0) {
-          return null;
-        }
+    // CoinGecko token (top 100 / meme)
+    try {
+      const response = await fetch(
+        `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${tokenId}`,
+        { signal }
+      );
+      if (!response.ok) return null;
+      const dataArray = await response.json();
+      if (!Array.isArray(dataArray) || !dataArray.length) return null;
+      const data = dataArray[0];
 
-        const data = dataArray[0]; // Take the first result
-
-        let marketCapStr = data.market_cap.toString();
-
-        if (timeframe === 'ath') {
-          // Calculate ATH Market Cap: ATH Price * Circulating Supply
-          // Note: This is "Implied ATH Market Cap" based on current supply
-          const athPrice = data.ath;
-          const supply = data.circulating_supply;
-
-          if (athPrice && supply) {
-            marketCapStr = (athPrice * supply).toString();
-          } else {
-            // Fallback if data is missing, though unlikely for top tokens
-            marketCapStr = data.market_cap.toString();
-          }
-        }
-
-        return {
-          id: data.id,
-          symbol: data.symbol.toUpperCase(),
-          name: data.name,
-          price: data.current_price.toString(),
-          marketCap: marketCapStr,
-          volume24h: data.total_volume.toString(),
-          priceChange24h: data.price_change_percentage_24h.toString(),
-          image: data.image,
-          isTop100: true,
-          // We don't explicitly set isMeme here, it's inferred from the list logic or defaults
-        }
-
-      } catch (err) {
-        console.error(`Error fetching coingecko token ${tokenId}:`, err);
-        return null;
+      let marketCapStr = data.market_cap.toString();
+      let athPriceStr: string | undefined;
+      if (timeframe === 'ath' && data.ath) {
+        athPriceStr = data.ath.toString();
+        // ATH MC = ATH price × circulating supply (best available approximation from /coins/markets)
+        marketCapStr = data.circulating_supply
+          ? (data.ath * data.circulating_supply).toString()
+          : data.market_cap.toString();
       }
+
+      return {
+        id: data.id,
+        symbol: data.symbol.toUpperCase(),
+        name: data.name,
+        price: data.current_price.toString(),
+        athPrice: athPriceStr,
+        marketCap: marketCapStr,
+        volume24h: data.total_volume.toString(),
+        priceChange24h: data.price_change_percentage_24h.toString(),
+        image: data.image,
+        isTop100: true,
+      };
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') return null;
+      console.error(`CoinGecko fetch failed for ${tokenId}:`, err);
+      return null;
     }
   }, []);
 
@@ -244,7 +241,6 @@ const PriceComparison = () => {
       if (cachedData && cachedTimestamp) {
         const age = now - parseInt(cachedTimestamp);
         if (age < CACHE_DURATION) {
-          console.log('Using cached token lists');
           setTokens(JSON.parse(cachedData));
           setLoadingTokens(false);
           return;
@@ -267,7 +263,6 @@ const PriceComparison = () => {
         }
       } catch (e) {
         if (cachedData) {
-          console.log('Falling back to cached data due to error');
           setTokens(JSON.parse(cachedData));
           setLoadingTokens(false);
           return;
@@ -328,7 +323,6 @@ const PriceComparison = () => {
       // Final fallback to cache even if error
       const cachedData = localStorage.getItem(CACHE_KEY);
       if (cachedData) {
-        console.log('Using cached data after error');
         setTokens(JSON.parse(cachedData));
       } else {
         setError('Failed to load token lists. API rate limit likely reached. Please try again later.');
@@ -342,28 +336,39 @@ const PriceComparison = () => {
     fetchTokenLists();
   }, [fetchTokenLists]);
 
+  const tokensReady = tokens.length > 0;
+
   useEffect(() => {
+    if (!tokensReady) return;
+    const controller = new AbortController();
+
     const fetchInitialData = async () => {
       setLoading(true);
       setError(null);
       try {
         const [dataA, dataB] = await Promise.all([
-          fetchTokenData(cryptoA, 'now'),
-          fetchTokenData(cryptoB, timeframe)
+          fetchTokenData(cryptoA, 'now', controller.signal),
+          fetchTokenData(cryptoB, timeframe, controller.signal),
         ]);
+        if (controller.signal.aborted) return;
         setCryptoAData(dataA);
         setCryptoBData(dataB);
+        if (!dataB && timeframe === 'ath') {
+          setError('ATH market cap data is not available for this token on CoinGecko.');
+        }
       } catch (err) {
-        setError('Failed to fetch data. Please try again later.');
-        console.error('Error:', err);
+        if (!controller.signal.aborted) {
+          setError('Failed to fetch data. Please try again later.');
+          console.error('Fetch error:', err);
+        }
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     };
-    if (tokens.length > 0) {
-      fetchInitialData();
-    }
-  }, [cryptoA, cryptoB, fetchTokenData, tokens, timeframe]);
+
+    fetchInitialData();
+    return () => controller.abort();
+  }, [cryptoA, cryptoB, fetchTokenData, timeframe, tokensReady]);
 
 
   const calculateAdjustedPrice = useCallback((tokenA: TokenData | null, tokenB: TokenData | null): number => {
@@ -678,6 +683,10 @@ const PriceComparison = () => {
     const currentPrice = parseFloat(cryptoAData.price || '0');
     const potentialPrice = calculateAdjustedPrice(cryptoAData, cryptoBData);
     const multiplier = currentPrice > 0 ? potentialPrice / currentPrice : 0;
+    const isAth = timeframe === 'ath';
+
+    const formatPrice = (val: string | undefined) =>
+      parseFloat(val || '0').toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 8 });
 
     return (
       <div className="flex flex-col items-center w-full" ref={comparisonRef}>
@@ -687,7 +696,7 @@ const PriceComparison = () => {
             {cryptoAData.symbol} ({cryptoAData.name})
           </p>
           <p className="text-white/90 text-sm">
-            Price: ${currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}, Market Cap: {formatMarketCap(cryptoAData.marketCap)}
+            Price: ${formatPrice(cryptoAData.price)} &nbsp;·&nbsp; MC: {formatMarketCap(cryptoAData.marketCap)}
           </p>
         </div>
 
@@ -697,15 +706,22 @@ const PriceComparison = () => {
         <div className="w-full rounded-xl bg-black/30 px-4 py-3 mb-4">
           <p className="font-bold text-white text-base md:text-lg">
             {cryptoBData.symbol} ({cryptoBData.name})
+            {isAth && <span className="ml-2 text-xs font-normal bg-white/20 rounded px-1.5 py-0.5">ATH</span>}
           </p>
-          <p className="text-white/90 text-sm">
-            (Price: ${parseFloat(cryptoBData.price || '0').toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}, Market Cap {formatMarketCap(cryptoBData.marketCap)})
-          </p>
+          {isAth && cryptoBData.athPrice ? (
+            <p className="text-white/90 text-sm">
+              ATH Price: ${formatPrice(cryptoBData.athPrice)} &nbsp;·&nbsp; ATH MC: {formatMarketCap(cryptoBData.marketCap)}
+            </p>
+          ) : (
+            <p className="text-white/90 text-sm">
+              Price: ${formatPrice(cryptoBData.price)} &nbsp;·&nbsp; MC: {formatMarketCap(cryptoBData.marketCap)}
+            </p>
+          )}
         </div>
 
         {/* Prediction result */}
         <p className="text-white/95 text-sm md:text-base mb-1">
-          ${cryptoAData.symbol} AT ${cryptoBData.symbol} MARKETCAP
+          {cryptoAData.symbol} AT {cryptoBData.symbol} {isAth ? 'ATH ' : ''}MARKETCAP
         </p>
         <p className="text-white text-3xl md:text-5xl font-bold mb-1">
           ${potentialPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -806,12 +822,17 @@ const PriceComparison = () => {
             </button>
           </div>
           <a
-            href={`/bsc/${cryptoA}`}
+            href={(() => {
+              const meta = TOKEN_REGISTRY.find(
+                t => t.symbol.toLowerCase() === cryptoA && t.chain === 'bsc'
+              );
+              return meta ? `/bsc/${meta.address}` : '#';
+            })()}
             target="_blank"
             rel="noopener noreferrer"
             className="w-full py-3 bg-white text-black rounded-xl font-semibold text-center hover:bg-gray-100 transition-colors"
           >
-            View {cryptoAData?.symbol ?? 'PHT'}
+            View {cryptoAData?.symbol ?? 'Token'}
           </a>
         </div>
       </div>

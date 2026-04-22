@@ -6,7 +6,7 @@ import Header from '@/components/Header';
 import TokenLoadingSkeleton from '@/components/TokenLoadingSkeleton';
 import TokenCard from '@/components/TokenCard';
 import { useFlashOnChange, formatCompactNumber, formatPrice, Token } from '@/lib/tokenFormatting';
-import { useScrollRestoration } from '@/hooks/useScrollRestoration';
+import { useScrollRestoration, useSessionStorage, useShouldSkipInitialFetch } from '@/hooks/useScrollRestoration';
 
 const REFRESH_INTERVAL = 15_000;
 
@@ -112,8 +112,9 @@ const TokenRow = React.memo(function TokenRow({ token }: { token: Token }) {
 });
 
 export default function Home() {
-    const [tokens, setTokens] = useState<Token[]>([]);
+    const [tokens, setTokens] = useSessionStorage<Token[]>('homePageTokens', []);
     const [loading, setLoading] = useState(true);
+    const shouldSkipFetch = useShouldSkipInitialFetch('homePage');
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
     
     // Restore scroll position when user navigates back
@@ -138,7 +139,13 @@ export default function Home() {
         const sortedData = phtToken ? [phtToken, ...otherTokens] : data;
 
         setTokens(prev => {
-          if (!isBackground) return sortedData;
+          if (!isBackground) {
+            // Mark data as cached on initial fetch (client-side only)
+            if (typeof window !== 'undefined') {
+              sessionStorage.setItem('homePage-data', 'true');
+            }
+            return sortedData;
+          }
 
           // Merge: preserve order from prev, only update changed values.
           // This means React only re-renders rows whose props actually changed
@@ -170,7 +177,13 @@ export default function Home() {
     }, []);
 
     useEffect(() => {
-      fetchTokens(false);
+      // If we should skip initial fetch (returning visit with cached data), just restore scroll
+      if (shouldSkipFetch && tokens.length > 0) {
+        setLoading(false);
+      } else {
+        // First visit or no cached data, fetch tokens
+        fetchTokens(false);
+      }
 
       intervalRef.current = setInterval(() => {
         fetchTokens(true);
@@ -179,7 +192,7 @@ export default function Home() {
       return () => {
         if (intervalRef.current) clearInterval(intervalRef.current);
       };
-    }, [fetchTokens]);
+    }, [fetchTokens, shouldSkipFetch, tokens.length]);
 
     // Refresh on tab becoming visible again
     useEffect(() => {

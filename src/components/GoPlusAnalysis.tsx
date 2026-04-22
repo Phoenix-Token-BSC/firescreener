@@ -15,14 +15,29 @@ interface GoPlusSecurityData {
     can_take_back_ownership: string;
     is_mintable: string;
     hidden_owner: string;
-    transfer_tax: string;
+    sell_tax: string;
+    buy_tax: string;
     slippage_modifiable: string;
+    personal_slippage_modifiable: string;
     transfer_pausable: string;
     is_blacklisted: string;
     is_whitelisted: string;
+    is_honeypot: string;
+    is_open_source: string;
+    is_anti_whale: string;
+    anti_whale_modifiable: string;
     creator_address: string;
     creator_balance: string;
+    creator_percent: string;
+    owner_address: string;
+    owner_balance: string;
+    owner_percent: string;
+    holder_count: string;
+    lp_holder_count: string;
     lp_holders: LPHolder[];
+    total_supply: string;
+    token_name: string;
+    token_symbol: string;
 }
 
 interface GoPlusAnalysisProps {
@@ -34,14 +49,15 @@ const GoPlusAnalysis: React.FC<GoPlusAnalysisProps> = ({ chain, contractAddress 
     const [securityData, setSecurityData] = useState<GoPlusSecurityData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [isExpanded, setIsExpanded] = useState(false);
-
-    if (chain !== 'bsc') return null;
+    const [isExpanded, setIsExpanded] = useState(true);
 
     useEffect(() => {
+        if (chain !== 'bsc' || !contractAddress) {
+            setLoading(false);
+            return;
+        }
+        setLoading(true);
         const fetchSecurity = async () => {
-            if (!chain || !contractAddress) return;
-            setLoading(true);
             try {
                 const response = await fetch(`/api/${chain}/security/${contractAddress}`);
                 if (!response.ok) throw new Error('Failed to fetch security data');
@@ -57,6 +73,8 @@ const GoPlusAnalysis: React.FC<GoPlusAnalysisProps> = ({ chain, contractAddress 
 
         fetchSecurity();
     }, [chain, contractAddress]);
+
+    if (chain !== 'bsc') return null;
 
     if (loading) {
         return (
@@ -102,10 +120,11 @@ const GoPlusAnalysis: React.FC<GoPlusAnalysisProps> = ({ chain, contractAddress 
     const isBlacklisted = securityData.is_blacklisted === "1";
     const isWhitelisted = securityData.is_whitelisted === "1";
 
-    const transferTax = (parseFloat(securityData.transfer_tax || "0") * 100).toFixed(2);
+    const buyTax = (parseFloat(securityData.buy_tax || "0") * 100).toFixed(2);
+    const sellTax = (parseFloat(securityData.sell_tax || "0") * 100).toFixed(2);
     const creatorAddress = securityData.creator_address;
     const creatorBalance = parseFloat(securityData.creator_balance || "0").toFixed(4);
-    const lpHoldersCount = securityData.lp_holders?.length || 0;
+    const lpHoldersCount = securityData.lp_holder_count || securityData.lp_holders?.length || 0;
 
     return (
         <div className="bg-black/40 border border-white/10 rounded-xl overflow-hidden">
@@ -186,16 +205,16 @@ const GoPlusAnalysis: React.FC<GoPlusAnalysisProps> = ({ chain, contractAddress 
                         <div className="flex flex-col gap-1">
                             <div className="flex items-center gap-1 text-[10px] text-neutral-400 hover:text-white transition-colors">
                                 <BarChart3 size={12} className="text-white" />
-                                <span className="uppercase tracking-tighter">Transfer Tax</span>
+                                <span className="uppercase tracking-tighter">Buy / Sell Tax</span>
                             </div>
-                            <span className="text-sm font-bold text-white">{transferTax}%</span>
+                            <span className="text-sm font-bold text-white">{buyTax}% / {sellTax}%</span>
                         </div>
                         <div className="flex flex-col gap-1">
                             <div className="flex items-center gap-1 text-[10px] text-neutral-400">
                                 <Wallet size={12} className="text-white" />
                                 <span className="uppercase tracking-tighter">Creator Balance</span>
                             </div>
-                            <span className="text-sm font-bold text-white">{creatorBalance} {chain.toUpperCase()}</span>
+                            <span className="text-sm font-bold text-white">{creatorBalance} BNB</span>
                         </div>
                         <div className="flex flex-col gap-1">
                             <div className="flex items-center gap-1 text-[10px] text-neutral-400">

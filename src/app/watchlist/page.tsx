@@ -6,15 +6,15 @@ import Header from "@/components/Header";
 import { useWatchlist } from "@/hooks/useWatchlist";
 import { AnimatePresence } from "framer-motion";
 import { formatCompactNumber, formatPrice, Token } from "@/lib/tokenFormatting";
-import { useScrollRestoration } from "@/hooks/useScrollRestoration";
+import { useScrollRestoration, useShouldSkipInitialFetch } from "@/hooks/useScrollRestoration";
 import WatchlistTokenCard from "@/components/WatchlistTokenCard";
-import TokenLoadingSkeleton from "@/components/TokenLoadingSkeleton";
 
 export default function WatchlistPage() {
     const { watchlist, removeFromWatchlist } = useWatchlist();
     const [tokens, setTokens] = useState<Token[]>([]);
     const [loading, setLoading] = useState(true);
     const [mounted, setMounted] = useState(false);
+    const shouldSkipFetch = useShouldSkipInitialFetch('watchlistPage');
     
     // Restore scroll position when user navigates back
     useScrollRestoration('watchlistPageScroll');
@@ -70,6 +70,10 @@ export default function WatchlistPage() {
 
                 const fetchedTokens = await Promise.all(promises);
                 setTokens(fetchedTokens);
+                // Mark watchlist as cached (client-side only)
+                if (typeof window !== 'undefined') {
+                  sessionStorage.setItem('watchlistPage-data', 'true');
+                }
             } catch (error) {
                 console.error("Error fetching watchlist data:", error);
             } finally {
@@ -104,7 +108,13 @@ export default function WatchlistPage() {
                             {loading ? (
                                 <div className="flex items-center justify-center py-20">
                                     <div className="text-center">
-                                       <TokenLoadingSkeleton />
+                                        <div
+                                            className="animate-spin inline-block w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full"
+                                            role="status"
+                                        >
+                                            <span className="sr-only">Loading...</span>
+                                        </div>
+                                        <p className="text-white mt-4">Loading watchlist...</p>
                                     </div>
                                 </div>
                             ) : (
@@ -149,7 +159,9 @@ export default function WatchlistPage() {
                                     <tbody>
                                         {loading ? (
                                             <tr>
-                                                <TokenLoadingSkeleton />
+                                                <td colSpan={6} className="text-center py-10 text-white">
+                                                    Loading watchlist...
+                                                </td>
                                             </tr>
                                         ) : (
                                             tokens.map((token) => (

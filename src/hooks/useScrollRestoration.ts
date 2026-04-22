@@ -8,6 +8,9 @@ export function useScrollRestoration(key: string = 'scrollPosition') {
   const scrollPositionRef = useRef(0);
 
   useEffect(() => {
+    // Only run on client side
+    if (typeof window === 'undefined') return;
+
     // Restore scroll position when component mounts
     const restoreScroll = () => {
       const savedPosition = sessionStorage.getItem(key);
@@ -38,7 +41,9 @@ export function useScrollRestoration(key: string = 'scrollPosition') {
 
   // Return a function to manually save current scroll position
   return () => {
-    sessionStorage.setItem(key, String(window.scrollY));
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(key, String(window.scrollY));
+    }
   };
 }
 
@@ -48,6 +53,7 @@ export function useScrollRestoration(key: string = 'scrollPosition') {
  */
 export function useSessionStorage<T>(key: string, initialValue: T) {
   const [value, setValue] = useState<T>(() => {
+    // Only access sessionStorage on client side
     if (typeof window === 'undefined') {
       return initialValue;
     }
@@ -65,11 +71,34 @@ export function useSessionStorage<T>(key: string, initialValue: T) {
     try {
       const valueToStore = valueOrFn instanceof Function ? valueOrFn(value) : valueOrFn;
       setValue(valueToStore);
-      sessionStorage.setItem(key, JSON.stringify(valueToStore));
+      // Only access sessionStorage on client side
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(key, JSON.stringify(valueToStore));
+      }
     } catch (error) {
       console.error(`Error writing to sessionStorage key "${key}":`, error);
     }
   };
 
   return [value, setStoredValue] as const;
+}
+
+/**
+ * Hook to detect if user is returning to page without triggering re-fetch
+ * Uses a ref to check on first mount only - avoids re-render cycles
+ */
+export function useShouldSkipInitialFetch(pageKey: string): boolean {
+  const shouldSkipRef = useRef(false);
+  const initializedRef = useRef(false);
+
+  // Check only once on mount
+  if (!initializedRef.current) {
+    initializedRef.current = true;
+    // Only check sessionStorage on client side
+    if (typeof window !== 'undefined') {
+      shouldSkipRef.current = sessionStorage.getItem(`${pageKey}-data`) !== null;
+    }
+  }
+
+  return shouldSkipRef.current;
 }

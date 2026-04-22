@@ -1,17 +1,19 @@
 "use client";
-import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useRouter, useParams } from "next/navigation";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Header from "@/components/Header";
+import {
+  useScrollRestoration,
+  useSessionStorage,
+  useShouldSkipInitialFetch,
+} from "@/hooks/useScrollRestoration";
 import DataCard from "@/components/DataCard";
 import BurnsDisplay from "@/components/BurnHistory";
 import BurnIntervals from "@/components/BurnIntervals";
-import { FaCopy, FaGlobe, FaTelegramPlane } from "react-icons/fa";
-import { SiX } from "react-icons/si";
+import { FaCopy } from "react-icons/fa";
 import styles from "../styles.module.css";
 import Footer from "@/components/Footer";
-import Image from "next/image";
 import CurrencyConverter from "@/components/Converter";
-import PriceActionChart from "@/components/PriceActionChart";
 import {
   getTokenByAddress,
   isValidContractAddress,
@@ -19,7 +21,6 @@ import {
 } from "@/lib/tokenRegistry";
 import { useTrackActiveToken } from "@/hooks/useTrackActiveToken";
 import { useEmojiReactions } from "@/hooks/useEmojiReactions";
-import { Star } from "lucide-react";
 import WatchlistButton from "@/components/WatchlistButton";
 import NewPriceActionChart from "@/components/NewPriceActionChart";
 import SecurityAnalysis from "@/components/GoPlusAnalysis";
@@ -60,29 +61,35 @@ interface TokenData {
   txns: string | number;
 }
 
-// Define props interface
-interface TokenPageProps {
-  params: Promise<{ chain: string; contractAddress: string }>;
-}
+const REFRESH_INTERVAL = 15_000; // 15 seconds, same as home page
 
-export default function TokenPage({ params: paramsPromise }: TokenPageProps) {
+export default function TokenPage() {
   const router = useRouter();
-  const [chain, setChain] = useState<string | null>(null);
-  const [contractAddress, setContractAddress] = useState<string | null>(null);
-  const [tokenMetadata, setTokenMetadata] = useState<TokenMetadata | null>(
+  const routeParams = useParams<{ chain: string; contractAddress: string }>();
+  const chain = routeParams?.chain ?? null;
+  const contractAddress = routeParams?.contractAddress ?? null;
+
+  const cacheKey = contractAddress ?? 'init';
+
+  const [tokenMetadata, setTokenMetadata] = useSessionStorage<TokenMetadata | null>(
+    `tokenMeta-${cacheKey}`,
     null,
   );
-
-  const [tokenData, setTokenData] = useState<TokenData | null>(null);
-  const [socialLinks, setSocialLinks] = useState<{
+  const [tokenData, setTokenData] = useSessionStorage<TokenData | null>(
+    `tokenData-${cacheKey}`,
+    null,
+  );
+  const [socialLinks, setSocialLinks] = useSessionStorage<{
     website: string;
     twitter: string;
     telegram: string;
     scan: string;
-  } | null>(null);
+  } | null>(`tokenSocials-${cacheKey}`, null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("info");
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const shouldSkipFetch = useShouldSkipInitialFetch(`tokenPage-${cacheKey}`);
 
   // Emoji reactions synced with Supabase
   const {
@@ -95,52 +102,46 @@ export default function TokenPage({ params: paramsPromise }: TokenPageProps) {
   // Track this token as actively viewed for priority cache refresh
   useTrackActiveToken(contractAddress || undefined, chain || undefined);
 
-  const cryptocompareApiKey = process.env.CRYPTO_COMPARE_API_KEY;
-  console.log(cryptocompareApiKey);
+  // Restore scroll position when user navigates back
+  useScrollRestoration('tokenPageScroll');
 
-  useEffect(() => {
-    if (paramsPromise) {
-      Promise.resolve(paramsPromise).then((resolvedParams) => {
-        const { chain: paramChain, contractAddress: paramContractAddress } =
-          resolvedParams || {};
-        setChain(paramChain);
-        setContractAddress(paramContractAddress);
-      });
-    }
-  }, [paramsPromise]);
-
-  useEffect(() => {
-    async function fetchTokenData() {
+  // Convert fetchTokenData to useCallback for proper dependency management and reusability
+  const fetchTokenData = useCallback(
+    async (isBackground = false) => {
       if (!chain || !contractAddress) {
-        setError("Invalid chain or contract address");
-        setLoading(false);
-        return;
+        return; // params not yet resolved from the Promise, wait for re-run
       }
 
       const chainLower = chain.toLowerCase() as "bsc" | "sol" | "rwa" | "eth";
 
       // Validate contract address format
       if (!isValidContractAddress(contractAddress, chainLower)) {
-        router.push(
-          `/error?type=invalid_address&identifier=${encodeURIComponent(contractAddress)}&chain=${chainLower}`,
-        );
+        if (!isBackground) {
+          router.push(
+            `/error?type=invalid_address&identifier=${encodeURIComponent(contractAddress)}&chain=${chainLower}`,
+          );
+        }
         return;
       }
 
       // Get token metadata from registry
       const metadata = getTokenByAddress(contractAddress);
       if (!metadata) {
-        router.push(
-          `/error?type=token_not_found&identifier=${encodeURIComponent(contractAddress)}&chain=${chainLower}`,
-        );
+        if (!isBackground) {
+          router.push(
+            `/error?type=token_not_found&identifier=${encodeURIComponent(contractAddress)}&chain=${chainLower}`,
+          );
+        }
         return;
       }
 
       // Verify chain matches
       if (metadata.chain !== chainLower) {
-        router.push(
-          `/error?type=chain_mismatch&identifier=${encodeURIComponent(contractAddress)}&chain=${chainLower}`,
-        );
+        if (!isBackground) {
+          router.push(
+            `/error?type=chain_mismatch&identifier=${encodeURIComponent(contractAddress)}&chain=${chainLower}`,
+          );
+        }
         return;
       }
 
@@ -217,20 +218,62 @@ export default function TokenPage({ params: paramsPromise }: TokenPageProps) {
           txns: priceData?.txns || "N/A",
         });
         setSocialLinks(socialData || null);
+
+        // Mark data as cached on initial fetch (client-side only)
+        if (!isBackground && typeof window !== 'undefined') {
+          sessionStorage.setItem(`tokenPage-${contractAddress}-data`, 'true');
+        }
       } catch (err: unknown) {
-        const errorMessage =
-          err instanceof Error ? err.message : "Failed to fetch token data";
-        console.error("Error fetching token data:", errorMessage);
-        setError(errorMessage);
+        // Background failure: keep stale data, no UI impact
+        if (!isBackground) {
+          const errorMessage =
+            err instanceof Error ? err.message : "Failed to fetch token data";
+          console.error("Error fetching token data:", errorMessage);
+          setError(errorMessage);
+        }
       } finally {
-        setLoading(false);
+        if (!isBackground) {
+          setLoading(false);
+        }
       }
+    },
+    [chain, contractAddress, router],
+  );
+
+  // Smart fetch logic: Always fetch on first load, then skip if returning with valid cached data
+  useEffect(() => {
+    const hasValidCachedData = tokenData !== null &&
+      tokenMetadata !== null &&
+      (typeof tokenData.price !== 'string' || tokenData.price !== 'N/A');
+
+    if (shouldSkipFetch && hasValidCachedData) {
+      // Returning visit with valid cached data - skip fetch and restore
+      setLoading(false);
+    } else {
+      // First load/reload or no valid cached data - always fetch fresh
+      fetchTokenData(false);
     }
 
-    if (chain && contractAddress) {
-      fetchTokenData();
-    }
-  }, [chain, contractAddress, router]);
+    // Set up background refresh interval
+    intervalRef.current = setInterval(() => {
+      fetchTokenData(true);
+    }, REFRESH_INTERVAL);
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [shouldSkipFetch, fetchTokenData]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Refresh on tab becoming visible again
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        fetchTokenData(true);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [fetchTokenData]);
 
   // Formatting functions
   const formatPrice = (
@@ -585,7 +628,11 @@ export default function TokenPage({ params: paramsPromise }: TokenPageProps) {
                     <div className="flex flex-col gap-2 border border-white p-4 mt-4 rounded-xl">
                       <p className="text-md">Contract Address</p>
                       <h1 className="text-xl font-bold text-orange-500 flex gap-2">
-                        <span>{formatEvmAddress(tokenData.contract)}</span>
+                        <span>
+                          {chain?.toLowerCase() === 'sol'
+                            ? `${tokenData.contract.slice(0, 8)}...${tokenData.contract.slice(-8)}`
+                            : formatEvmAddress(tokenData.contract)}
+                        </span>
                         <button onClick={() => copyAddress(tokenData.contract)}>
                           <FaCopy size={20} fill="#ffffff" />
                         </button>
@@ -996,7 +1043,7 @@ export default function TokenPage({ params: paramsPromise }: TokenPageProps) {
 
                     <div className="flex flex-col gap-2 bg-neutral-900 border-2 border-neutral-600 p-4 mt-4 rounded-xl">
                       <p className="text-md">Contract Address</p>
-                      <h1 className="text-lgfont-bold text-orange-500 flex gap-2">
+                      <h1 className="text-lg font-bold text-orange-500 flex gap-2">
                         <span>{tokenData.contract}</span>
                         <button onClick={() => copyAddress(tokenData.contract)}>
                           <FaCopy size={20} fill="#ffffff" />

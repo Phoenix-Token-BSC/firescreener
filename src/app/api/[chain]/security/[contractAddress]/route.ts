@@ -41,16 +41,21 @@ export async function GET(
             return NextResponse.json({ error: 'Invalid contract address format' }, { status: 400 });
         }
 
-        // Call GoPlus SDK
-        // Usage: GoPlus.tokenSecurity(chainId, [address], timeout)
-        const res = await GoPlus.tokenSecurity(goPlusChainId, [contractAddress]);
+        // Call GoPlus SDK with a 10s timeout
+        const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('GoPlus API timed out after 10s')), 10_000)
+        );
+        const res = await Promise.race([
+            GoPlus.tokenSecurity(goPlusChainId, [contractAddress]),
+            timeoutPromise,
+        ]);
 
         if (res.code !== 1) {
-            return NextResponse.json({ error: res.message || 'GoPlus API error' }, { status: 500 });
+            return NextResponse.json({ error: res.message || 'GoPlus API error' }, { status: 502 });
         }
 
-        // The SDK returns a record where the key is the address
-        const securityData = res.result[contractAddress.toLowerCase()] || res.result[contractAddress];
+        // The SDK returns a record where the key is the lowercase address
+        const securityData = res.result[contractAddress.toLowerCase()] ?? res.result[contractAddress];
 
         if (!securityData) {
             return NextResponse.json({ error: 'No security data found for this token' }, { status: 404 });
@@ -59,9 +64,10 @@ export async function GET(
         return NextResponse.json(securityData);
 
     } catch (error) {
-        console.error('GoPlus Security API error:', error);
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        console.error('GoPlus Security API error:', message);
         return NextResponse.json(
-            { error: 'Failed to fetch security data' },
+            { error: `Failed to fetch security data: ${message}` },
             { status: 500 }
         );
     }
