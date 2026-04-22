@@ -88,6 +88,7 @@ export default function TokenPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("info");
+  const [isScrolled, setIsScrolled] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const shouldSkipFetch = useShouldSkipInitialFetch(`tokenPage-${cacheKey}`);
 
@@ -104,6 +105,13 @@ export default function TokenPage() {
 
   // Restore scroll position when user navigates back
   useScrollRestoration('tokenPageScroll');
+
+  // Collapse socials in sticky header once user scrolls away from top
+  useEffect(() => {
+    const onScroll = () => setIsScrolled(window.scrollY > 10);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   // Convert fetchTokenData to useCallback for proper dependency management and reusability
   const fetchTokenData = useCallback(
@@ -494,35 +502,21 @@ export default function TokenPage() {
                         </div>
                       </div>
                       {socialLinks && (
-                        <div className="flex flex-row gap-4 mt-2 items-center justify-between px-4 bg-neutral-200 text-black p-4 rounded-lg">
-                          <a
-                            href={socialLinks.website}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <p className="text-sm">Website</p>
-                          </a>
-                          <a
-                            href={socialLinks.twitter}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <p className="text-sm">X(Twitter)</p>
-                          </a>
-                          <a
-                            href={socialLinks.telegram}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <p className="text-sm">Telegram</p>
-                          </a>
-                          <a
-                            href={socialLinks.scan}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <p className="text-sm">Explorer</p>
-                          </a>
+                        <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isScrolled ? 'max-h-0 opacity-0 mt-0' : 'max-h-24 opacity-100 mt-2'}`}>
+                          <div className="flex flex-row gap-4 items-center justify-between px-4 bg-neutral-200 text-black p-4 rounded-lg">
+                            <a href={socialLinks.website} target="_blank" rel="noopener noreferrer">
+                              <p className="text-sm">Website</p>
+                            </a>
+                            <a href={socialLinks.twitter} target="_blank" rel="noopener noreferrer">
+                              <p className="text-sm">X(Twitter)</p>
+                            </a>
+                            <a href={socialLinks.telegram} target="_blank" rel="noopener noreferrer">
+                              <p className="text-sm">Telegram</p>
+                            </a>
+                            <a href={socialLinks.scan} target="_blank" rel="noopener noreferrer">
+                              <p className="text-sm">Explorer</p>
+                            </a>
+                          </div>
                         </div>
                       )}
                     </div>
