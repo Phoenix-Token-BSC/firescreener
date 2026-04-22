@@ -51,7 +51,12 @@ interface CrosshairPrice {
     price: number;
 }
 
-const TOTAL_DAYS = 90;
+const TIMEFRAMES = [
+    { label: "1D", days: 1 },
+    { label: "7D", days: 7 },
+    { label: "30D", days: 30 },
+    { label: "90D", days: 90 },
+] as const;
 
 function getPlatformId(chain: SupportedChain): string {
     return chain === "bsc" ? "binance-smart-chain" : "ethereum" ;
@@ -127,14 +132,16 @@ export default function PriceActionChart({
     const [data, setData] = useState<CandlestickData[] | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState<boolean>(true);
+    const [selectedTimeframe, setSelectedTimeframe] = useState<number>(1);
     const [priceTicks, setPriceTicks] = useState<PriceTick[]>([]);
-    const [crosshairInfo, setCrosshairInfo] = useState<{
-        time: string; open: string; high: string; low: string; close: string;
-    } | null>(null);
 
     // Get CryptoCompare API key from environment variable
     const cryptocompareApiKey = process.env.CRYPTOCOMPARE_API_KEY || "a2908b51095ddf69552f5dd2caabe3f9a12d2507f8ed32987008c936c1caff61";
     const moralisApiKey = process.env.MORALIS_API_KEY; // User confirmed key is in env
+
+    const coingeckoUrl = `https://api.coingecko.com/api/v3/coins/${getPlatformId(chain)}/contract/${encodeURIComponent(
+        contractAddress
+    )}/market_chart?vs_currency=usd&days=${selectedTimeframe}`;
 
     // Fetch data with fallback logic, retries, and abort handling
     useEffect(() => {
@@ -209,7 +216,7 @@ export default function PriceActionChart({
 
         // Fetch from internal RWA price-data route
         async function fetchFromRWA(signal: AbortSignal): Promise<CandlestickData[]> {
-            const selector = 'Y'; // always fetch max (90 days)
+            const selector = selectedTimeframe <= 1 ? 'D' : selectedTimeframe <= 7 ? 'W' : 'Y';
             const url = `/api/rwa/price-data/${encodeURIComponent(contractAddress)}?selector=${encodeURIComponent(selector)}`;
             console.log('Fetching from RWA internal API:', url);
 
@@ -297,7 +304,7 @@ export default function PriceActionChart({
                     // Map timeframe days to CoinGecko valid OHLC days: 1, 7, 14, 30, 90, 180, 365, max
                     // We have 1, 7, 30, 90 -> direct match
                     try {
-                        const ohlcData = await fetchOHLC(coinId, TOTAL_DAYS, signal);
+                        const ohlcData = await fetchOHLC(coinId, selectedTimeframe, signal);
                         console.log('Loaded real OHLC data from CoinGecko');
                         return ohlcData;
                     } catch (ohlcErr) {
@@ -309,7 +316,7 @@ export default function PriceActionChart({
             }
 
             // 2. Fallback to market_chart (legacy method) with precision=full
-            const fallbackUrl = `https://api.coingecko.com/api/v3/coins/${getPlatformId(chain)}/contract/${encodeURIComponent(contractAddress)}/market_chart?vs_currency=usd&days=${TOTAL_DAYS}&precision=full`;
+            const fallbackUrl = `${coingeckoUrl}&precision=full`;
             console.log('Fetching from CoinGecko (fallback):', fallbackUrl);
 
             const maxAttempts = 3;
@@ -358,10 +365,32 @@ export default function PriceActionChart({
                 throw new Error('GeckoTerminal not supported for this chain');
             }
 
-            // 90 days at 4-hour resolution: 540 candles (gives good detail for 24h initial view)
-            const timeframe = 'hour';
-            const aggregate = 4;
-            const limit = 540;
+            // 2. Determine timeframe params
+            // - 1D (24h): minute, aggregate 5 (5-minute, ~300 points)
+            // - 7D: hour, aggregate 1 (1-hour, 168 points)
+            // - 30D: hour, aggregate 4 (4-hour, 180 points)
+            // - 90D: day, aggregate 1 (Daily, 90 points)
+            let timeframe = 'day';
+            let aggregate = 1;
+            let limit = 100;
+
+            if (selectedTimeframe <= 1) {
+                timeframe = 'minute';
+                aggregate = 5;
+                limit = 300; // ~25 hours
+            } else if (selectedTimeframe <= 7) {
+                timeframe = 'hour';
+                aggregate = 1;
+                limit = 168; // 7 days
+            } else if (selectedTimeframe <= 30) {
+                timeframe = 'hour';
+                aggregate = 4;
+                limit = 180; // 30 days
+            } else {
+                timeframe = 'day';
+                aggregate = 1;
+                limit = selectedTimeframe;
+            }
 
             const url = `https://api.geckoterminal.com/api/v2/networks/${network}/tokens/${contractAddress}/ohlcv/${timeframe}?aggregate=${aggregate}&limit=${limit}&currency=usd&token=base`;
             console.log('Fetching OHLC from GeckoTerminal:', url);
@@ -380,10 +409,7 @@ export default function PriceActionChart({
 
             // GeckoTerminal format: [timestamp, open, high, low, close, volume]
             const candlesticks: CandlestickData[] = ohlcvList.map((d: number[]) => ({
-                time: d[0], // Already in seconds? No, documentation says Unix timestamp. Usually seconds. 
-                // Wait, double check. Usually seconds. API docs say "Timestamp".
-                // Let's assume seconds based on standard APIs, but if it's ms we might need to adjust.
-                // Actually, GeckoTerminal usually returns seconds.
+                time: d[0],
                 open: d[1],
                 high: d[2],
                 low: d[3],
@@ -429,9 +455,27 @@ export default function PriceActionChart({
             const pairAddress = await fetchMoralisPairAddress(signal, chainHex);
             if (!pairAddress) throw new Error('No trading pair found on Moralis');
 
-            // 90 days at 4h resolution
-            const timeframe = '4h';
-            const limit = 540;
+            // 3. Determine timeframe and limit
+            // 1D -> 5m (limit 300)
+            // 7D -> 1h (limit 168)
+            // 30D -> 4h (limit 180)
+            // 90D -> 1d (limit 90)
+            let timeframe = '1d';
+            let limit = 100;
+
+            if (selectedTimeframe <= 1) {
+                timeframe = '5m';
+                limit = 300;
+            } else if (selectedTimeframe <= 7) {
+                timeframe = '1h';
+                limit = 168;
+            } else if (selectedTimeframe <= 30) {
+                timeframe = '4h';
+                limit = 180;
+            } else {
+                timeframe = '1d';
+                limit = selectedTimeframe;
+            }
 
             const url = `https://deep-index.moralis.io/api/v2.2/pairs/${pairAddress}/ohlc?chain=${chainHex}&timeframe=${timeframe}&currency=usd&limit=${limit}`;
             console.log('Fetching OHLC from Moralis:', url);
@@ -467,8 +511,8 @@ export default function PriceActionChart({
         // Fetch from CryptoCompare - already has OHLC data
         async function fetchFromCryptoCompare(signal: AbortSignal): Promise<CandlestickData[]> {
             const symbol = getSymbolFromChain(chain);
-            const endpoint = getHistoEndpoint(TOTAL_DAYS);
-            const limit = getHistoLimit(TOTAL_DAYS);
+            const endpoint = getHistoEndpoint(selectedTimeframe);
+            const limit = getHistoLimit(selectedTimeframe);
 
             let url = `https://min-api.cryptocompare.com/data/v2/${endpoint}?fsym=${symbol}&tsym=USD&limit=${limit}`;
 
@@ -527,7 +571,7 @@ export default function PriceActionChart({
             try {
                 setLoading(true);
                 setError(null);
-                const key = `${chain}:${contractAddress}:${TOTAL_DAYS}`;
+                const key = `${chain}:${contractAddress}:${selectedTimeframe}`;
 
                 // Serve stale cache immediately if present
                 const cached = cacheRef.current.get(key);
@@ -553,7 +597,11 @@ export default function PriceActionChart({
                             // Hardcoded Supabase Functions host (direct call)
                             const supabaseBase = 'https://enpdzndcjxlzupmxpmms.supabase.co';
 
-                            const timeframeParam = '3m'; // always 90 days
+                            let timeframeParam = '1y';
+                            if (selectedTimeframe <= 1) timeframeParam = '1d';
+                            else if (selectedTimeframe <= 7) timeframeParam = '7d';
+                            else if (selectedTimeframe <= 30) timeframeParam = '30d';
+                            else if (selectedTimeframe <= 90) timeframeParam = '3m';
 
                             const url = `${supabaseBase}/functions/v1/token-analysis-api?chain=${encodeURIComponent(chain)}&token=${encodeURIComponent(contractAddress)}&timeframe=${encodeURIComponent(timeframeParam)}`;
                             console.log('Fetching from Supabase (direct) in NewPriceActionChart:', url);
@@ -671,7 +719,7 @@ export default function PriceActionChart({
             cancelled = true;
             abortController.abort();
         };
-    }, [contractAddress, chain, cryptocompareApiKey]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [coingeckoUrl, contractAddress, selectedTimeframe, chain, cryptocompareApiKey]);
 
     // Create and update chart
     useEffect(() => {
@@ -736,39 +784,7 @@ export default function PriceActionChart({
             candlestickSeries.setData(
                 data.map(d => ({ ...d, time: d.time as Time }))
             );
-
-            // Set initial view to last 24 hours so user sees today; they can scroll back 90 days
-            const lastCandle = data[data.length - 1];
-            if (lastCandle) {
-                chart.timeScale().setVisibleRange({
-                    from: (lastCandle.time - 86400) as Time,
-                    to: lastCandle.time as Time,
-                });
-            } else {
-                chart.timeScale().fitContent();
-            }
-
-            // ─── Crosshair OHLC + date overlay ───────────────────────
-            chart.subscribeCrosshairMove((param) => {
-                if (!param.time || !param.seriesData) {
-                    setCrosshairInfo(null);
-                    return;
-                }
-                const candle = param.seriesData.get(candlestickSeries) as any;
-                if (!candle) { setCrosshairInfo(null); return; }
-                const date = new Date(Number(param.time) * 1000);
-                setCrosshairInfo({
-                    time: date.toLocaleString('en-US', {
-                        month: 'short', day: 'numeric', year: 'numeric',
-                        hour: '2-digit', minute: '2-digit',
-                    }),
-                    open: formatChartPrice(candle.open),
-                    high: formatChartPrice(candle.high),
-                    low: formatChartPrice(candle.low),
-                    close: formatChartPrice(candle.close),
-                });
-                requestAnimationFrame(updatePriceTicks);
-            });
+            chart.timeScale().fitContent();
 
             // ─── Custom right-side price labels ───────────────────────
             const updatePriceTicks = () => {
@@ -776,16 +792,15 @@ export default function PriceActionChart({
 
                 const priceScale = candlestickSeriesRef.current.priceScale();
 
-                // NEW: use getVisibleRange() instead of getVisiblePriceRange()
                 const range = priceScale.getVisibleRange();
 
-                if (!range) return; // no visible range yet (chart not rendered)
+                if (!range) return;
 
                 const { from, to } = range;
 
                 if (from === null || to === null || from >= to) return;
 
-                const tickCount = 6; // adjust as you like (5–7 looks good)
+                const tickCount = 6;
                 const step = (to - from) / (tickCount - 1);
                 const ticks: PriceTick[] = [];
 
@@ -793,7 +808,6 @@ export default function PriceActionChart({
                     const price = from + step * i;
                     const y = candlestickSeriesRef.current.priceToCoordinate(price);
 
-                    // Only include ticks that are actually inside the chart area
                     if (y !== null && y >= 0 && y <= chartContainerRef.current!.clientHeight) {
                         ticks.push({ y, price });
                     }
@@ -804,6 +818,10 @@ export default function PriceActionChart({
 
             // Update on zoom / scroll / resize
             chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
+                requestAnimationFrame(updatePriceTicks);
+            });
+
+            chart.subscribeCrosshairMove(() => {
                 requestAnimationFrame(updatePriceTicks);
             });
 
@@ -859,19 +877,20 @@ export default function PriceActionChart({
 
     return (
         <div className="rounded-lg border border-neutral-700 bg-neutral-900/40 p-4">
-            {/* Crosshair OHLC info bar */}
-            <div className="flex items-center gap-3 mb-3 min-h-[20px] text-xs font-mono">
-                {crosshairInfo ? (
-                    <>
-                        <span className="text-neutral-400">{crosshairInfo.time}</span>
-                        <span className="text-neutral-300">O <span className="text-white">{crosshairInfo.open}</span></span>
-                        <span className="text-neutral-300">H <span className="text-green-400">{crosshairInfo.high}</span></span>
-                        <span className="text-neutral-300">L <span className="text-red-400">{crosshairInfo.low}</span></span>
-                        <span className="text-neutral-300">C <span className="text-white">{crosshairInfo.close}</span></span>
-                    </>
-                ) : (
-                    <span className="text-neutral-500 text-xs">Hover over a candle · 90-day history · scroll to explore</span>
-                )}
+            {/* Timeframe buttons — moved ABOVE the chart */}
+            <div className="flex justify-start items-center gap-2 mb-4">
+                {TIMEFRAMES.map((tf) => (
+                    <button
+                        key={tf.days}
+                        onClick={() => setSelectedTimeframe(tf.days)}
+                        className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${selectedTimeframe === tf.days
+                                ? "bg-orange-600 text-white shadow-sm"
+                                : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+                            }`}
+                    >
+                        {tf.label}
+                    </button>
+                ))}
             </div>
 
             {/* Chart container + custom price labels */}
