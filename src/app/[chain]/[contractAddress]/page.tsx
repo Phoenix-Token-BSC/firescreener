@@ -476,7 +476,7 @@ export default function TokenPage() {
                                 "Default Logo";
                             }}
                           />
-                          <h1 className="text-2xl md:text-3xl font-bold">
+                          <h1 className="text-2xl text-black md:text-3xl font-bold">
                             {tokenMetadata.symbol.toUpperCase()}
                           </h1>
                         </div>
@@ -981,10 +981,10 @@ export default function TokenPage() {
                             (e.target as HTMLImageElement).alt = "Default Logo";
                           }}
                         />
-                        <h1 className="text-2xl break-words">
+                        <h1 className="text-black text-2xl break-words">
                           {tokenMetadata.name}
                         </h1>
-                        <h1 className="uppercase font-bold text-2xl">
+                        <h1 className="uppercase text-black font-bold text-2xl">
                           {tokenMetadata.symbol}
                         </h1>
                       </div>
