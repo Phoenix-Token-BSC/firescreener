@@ -549,6 +549,32 @@ export default function TokenPage() {
                     <div className="mt-4 flex flex-col gap-4">
                       <VolumeTxnsInfo chain={chain?.toLowerCase() as "bsc" | "eth"} contractAddress={contractAddress} />
                     </div>
+                    <div className="mt-4 flex flex-row bg-black/35 justify-between gap-2 items-center rounded-md p-4">
+                      <div className="flex flex-col items-center">
+                        <span className="text-xs text-gray-400">1h</span>
+                        <span className={`px-2 py-1 rounded ${String(tokenData.priceChange1h).startsWith("-") ? "text-red-400" : "text-green-400"}`}>
+                          {tokenData.priceChange1h}%
+                        </span>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <span className="text-xs text-gray-400">3h</span>
+                        <span className={`px-2 py-1 rounded ${String(tokenData.priceChange3h).startsWith("-") ? "text-red-500" : "text-green-500"}`}>
+                          {tokenData.priceChange3h}%
+                        </span>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <span className="text-xs text-gray-400">6h</span>
+                        <span className={`px-2 py-1 rounded ${String(tokenData.priceChange6h).startsWith("-") ? "text-red-600" : "text-green-600"}`}>
+                          {tokenData.priceChange6h}%
+                        </span>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <span className="text-xs text-gray-400">24h</span>
+                        <span className={`px-2 py-1 rounded ${String(tokenData.priceChange24h).startsWith("-") ? "text-red-700" : "text-green-700"}`}>
+                          {tokenData.priceChange24h}%
+                        </span>
+                      </div>
+                    </div>
 
                     <div className="flex flex-col gap-2 border border-white p-4 mt-4 rounded-xl">
                       <p className="text-md">Contract Address</p>
@@ -829,32 +855,7 @@ export default function TokenPage() {
                         contractAddress={contractAddress}
                       />
                     )}
-                    <div className="mt-4 flex flex-row bg-black/35 justify-between gap-2 items-center rounded-md p-4">
-                      <div className="flex flex-col items-center">
-                        <span className="text-xs text-gray-400">1h</span>
-                        <span className={`px-2 py-1 rounded ${String(tokenData.priceChange1h).startsWith("-") ? "text-red-400" : "text-green-400"}`}>
-                          {tokenData.priceChange1h}%
-                        </span>
-                      </div>
-                      <div className="flex flex-col items-center">
-                        <span className="text-xs text-gray-400">3h</span>
-                        <span className={`px-2 py-1 rounded ${String(tokenData.priceChange3h).startsWith("-") ? "text-red-500" : "text-green-500"}`}>
-                          {tokenData.priceChange3h}%
-                        </span>
-                      </div>
-                      <div className="flex flex-col items-center">
-                        <span className="text-xs text-gray-400">6h</span>
-                        <span className={`px-2 py-1 rounded ${String(tokenData.priceChange6h).startsWith("-") ? "text-red-600" : "text-green-600"}`}>
-                          {tokenData.priceChange6h}%
-                        </span>
-                      </div>
-                      <div className="flex flex-col items-center">
-                        <span className="text-xs text-gray-400">24h</span>
-                        <span className={`px-2 py-1 rounded ${String(tokenData.priceChange24h).startsWith("-") ? "text-red-700" : "text-green-700"}`}>
-                          {tokenData.priceChange24h}%
-                        </span>
-                      </div>
-                    </div>
+                    
                   </section>
                 </div>
 
