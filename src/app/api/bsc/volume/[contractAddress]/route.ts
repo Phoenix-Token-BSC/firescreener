@@ -9,14 +9,16 @@ interface VolumeResponse {
   volumeTotal: string;
   volumeBuys: string;
   volumeSells: string;
+  buysCount: number;
+  sellsCount: number;
 }
 
 interface ErrorResponse {
   error: string;
 }
 
-const MORALIS_ANALYTICS_URL = "https://deep-index.moralis.io/api/v2.2/tokens";
 const DEXSCREENER_API_URL = "https://api.dexscreener.com/latest/dex/tokens";
+const TXN_API_BASE = "https://enpdzndcjxlzupmxpmms.supabase.co/functions/v1/token-analysis-api";
 
 export async function GET(
   _request: NextRequest,
@@ -28,14 +30,6 @@ export async function GET(
 
     if (!contractAddress) {
       return NextResponse.json({ error: "Missing contract address" }, { status: 400 });
-    }
-
-    const MORALIS_API_KEY = process.env.MORALIS_API_KEY;
-    if (!MORALIS_API_KEY) {
-      return NextResponse.json(
-        { error: "Moralis API key not configured" },
-        { status: 500 }
-      );
     }
 
     const addressLower = contractAddress.toLowerCase();
@@ -58,43 +52,41 @@ export async function GET(
 
     const tokenAddress = tokenMetadata.address;
 
-    // Fetch Moralis Token Analytics (returns buy/sell volume directly)
-    const analyticsRes = await fetch(
-      `${MORALIS_ANALYTICS_URL}/${tokenAddress}/analytics?chain=bsc`,
-      {
-        headers: { "X-API-Key": MORALIS_API_KEY, Accept: "application/json" },
-      }
-    );
+    const txnUrl = `${TXN_API_BASE}?chain=bsc&token=${tokenAddress}&timeframe=24h`;
+
+    const [txnRes, dsRes] = await Promise.all([
+      fetch(txnUrl),
+      fetch(`${DEXSCREENER_API_URL}/${tokenAddress}`),
+    ]);
 
     let volumeBuys = 0;
     let volumeSells = 0;
+    let buysCount = 0;
+    let sellsCount = 0;
 
-    if (analyticsRes.ok) {
-      const analytics = await analyticsRes.json();
-      const buy24 = analytics.totalBuyVolume?.["24h"];
-      const sell24 = analytics.totalSellVolume?.["24h"];
-      volumeBuys = typeof buy24 === "number" ? buy24 : parseFloat(buy24) || 0;
-      volumeSells = typeof sell24 === "number" ? sell24 : parseFloat(sell24) || 0;
+    if (txnRes.ok) {
+      const txnData = await txnRes.json();
+      const bs = txnData?.buySell;
+      volumeBuys = parseFloat(bs?.buyVolumeUsd) || 0;
+      volumeSells = parseFloat(bs?.sellVolumeUsd) || 0;
+      buysCount = parseInt(bs?.buysCount) || 0;
+      sellsCount = parseInt(bs?.sellsCount) || 0;
     }
 
-    // Use DexScreener for aggregated 24h volume
-    const dsRes = await fetch(`${DEXSCREENER_API_URL}/${tokenAddress}`);
     let volumeTotal = volumeBuys + volumeSells;
     if (dsRes.ok) {
       const dsData = await dsRes.json();
-      const pair = dsData?.pairs?.[0];
-      const h24 = pair?.volume?.h24;
-      if (typeof h24 === "string" && parseFloat(h24) > 0) {
-        volumeTotal = parseFloat(h24);
-      } else if (typeof h24 === "number" && h24 > 0) {
-        volumeTotal = h24;
-      }
+      const h24 = dsData?.pairs?.[0]?.volume?.h24;
+      const parsed = parseFloat(h24);
+      if (parsed > 0) volumeTotal = parsed;
     }
 
     return NextResponse.json({
       volumeTotal: volumeTotal.toFixed(2),
       volumeBuys: volumeBuys.toFixed(2),
       volumeSells: volumeSells.toFixed(2),
+      buysCount,
+      sellsCount,
     });
   } catch (error) {
     console.error("Volume API error:", error);
