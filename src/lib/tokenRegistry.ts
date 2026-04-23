@@ -154,7 +154,7 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
   { address: "0xC284A77838D09784C79061BA57B7203F8CBF76d9", symbol: "zonic", name: "Zion Token", chain: "bsc", isBurn: false },
   { address: "0x61Fc93c7C070B32B1b1479B86056d8Ec1D7125BD", symbol: "bc400", name: "BITCOIN CULTIVATOR 400", chain: "bsc", isBurn: false },
   { address: "0x591DF09AF60366298FE31C4590a9230585D34FBd", symbol: "bnc", name: "BULLNANCE", chain: "bsc", isBurn: false },
-  { address: "0x199A88E5BFacc9eAB72913c5F05Ca75D1f30234f", symbol: "jct", name: "JustCat Token", chain: "bsc", isBurn: false },
+  { address: "0x199A88E5BFacc9eAB72913c5F05Ca75D1f30234f", symbol: "jct", name: "JustCat Token", chain: "bsc", isBurn: true },
   { address: "0xa98283c7e78e7604960f672b3d609d0c5e594ed0", symbol: "RICH", name: "RichSea Token", chain: "bsc", isBurn: true },
   { address: "0xf1c599e9a5fbdea408a7409c0176a2fe42c64444", symbol: "hachiko", name: "Hachiko Inu", chain: "bsc", isBurn: false },
   { address: "0x63852B25cFabFE4EaB380df29A68663656f757EA", symbol: "jiti", name: "JITI", chain: "bsc", isBurn: false },
