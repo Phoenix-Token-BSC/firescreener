@@ -111,6 +111,17 @@ const TokenRow = React.memo(function TokenRow({ token }: { token: Token }) {
   );
 });
 
+function sortTokens(tokens: Token[]): Token[] {
+  const pht = tokens.find(t => t.symbol.toLowerCase() === 'pht');
+  const rest = tokens.filter(t => t.symbol.toLowerCase() !== 'pht');
+  const sortedRest = [...rest].sort((a, b) => {
+    const mcA = parseFloat(String(a.marketCap).replace(/[^0-9.-]/g, '')) || 0;
+    const mcB = parseFloat(String(b.marketCap).replace(/[^0-9.-]/g, '')) || 0;
+    return mcB - mcA;
+  });
+  return pht ? [pht, ...sortedRest] : sortedRest;
+}
+
 export default function Home() {
     const [tokens, setTokens] = useSessionStorage<Token[]>('homePageTokens', []);
     const [loading, setLoading] = useState(true);
@@ -134,27 +145,22 @@ export default function Home() {
         }
         const data: Token[] = await response.json();
 
-        const phtToken = data.find(t => t.symbol.toLowerCase() === 'pht');
-        const otherTokens = data.filter(t => t.symbol.toLowerCase() !== 'pht');
-        const sortedData = phtToken ? [phtToken, ...otherTokens] : data;
+        const sortedData = sortTokens(data);
 
         setTokens(prev => {
           if (!isBackground) {
-            // Mark data as cached on initial fetch (client-side only)
             if (typeof window !== 'undefined') {
               sessionStorage.setItem('homePage-data', 'true');
             }
             return sortedData;
           }
 
-          // Merge: preserve order from prev, only update changed values.
-          // This means React only re-renders rows whose props actually changed
-          // (React.memo handles the bailout).
+          // Merge: update changed values, then re-sort by market cap.
+          // Unchanged tokens keep the same object reference → React.memo skips re-render.
           const incoming = new Map(sortedData.map(t => [t.address, t]));
-          return prev.map(t => {
+          const updated = prev.map(t => {
             const fresh = incoming.get(t.address);
             if (!fresh) return t;
-            // Return same object reference if nothing changed → React.memo skips re-render
             const changed =
               t.price !== fresh.price ||
               t.marketCap !== fresh.marketCap ||
@@ -163,6 +169,7 @@ export default function Home() {
               t.change24h !== fresh.change24h;
             return changed ? fresh : t;
           });
+          return sortTokens(updated);
         });
       } catch (error) {
         // Background failure: keep stale data, no UI impact

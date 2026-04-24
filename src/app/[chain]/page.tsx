@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, use } from 'react';
+import React, { useState, useEffect, useRef, useCallback, use } from 'react';
 import Header from '@/components/Header';
 import TokenCard from '@/components/TokenCard';
 import TokenLoadingSkeleton from '@/components/TokenLoadingSkeleton';
@@ -23,6 +23,15 @@ interface PageProps {
   }>;
 }
 
+const REFRESH_INTERVAL = 15_000;
+
+function sortByMarketCap(tokens: Token[]): Token[] {
+  return [...tokens].sort((a, b) => {
+    const mcA = parseFloat(String(a.marketCap).replace(/[^0-9.-]/g, '')) || 0;
+    const mcB = parseFloat(String(b.marketCap).replace(/[^0-9.-]/g, '')) || 0;
+    return mcB - mcA;
+  });
+}
 
 export default function ChainPage({ params }: PageProps) {
   const resolvedParams = use(params);
@@ -31,38 +40,73 @@ export default function ChainPage({ params }: PageProps) {
   const [tokens, setTokens] = useState<Token[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    async function fetchTokens() {
-      try {
+  const fetchTokens = useCallback(async (isBackground = false) => {
+    try {
+      if (!isBackground) {
         setLoading(true);
         setError(null);
-
-        // Fetch all tokens
-        const response = await fetch('/api/tokens');
-        if (!response.ok) {
-          throw new Error('Failed to fetch tokens');
-        }
-        const data: Token[] = await response.json();
-
-        // Filter tokens by chain
-        const filteredTokens = data.filter((token) => token.chain.toLowerCase() === chain);
-
-        if (filteredTokens.length === 0) {
-          setError(`No tokens found for chain: ${chain.toUpperCase()}`);
-        }
-
-        setTokens(filteredTokens);
-      } catch (error) {
-        console.error('Error fetching tokens:', error);
-        setError('Failed to load tokens. Please try again later.');
-      } finally {
-        setLoading(false);
       }
-    }
 
-    fetchTokens();
+      const response = await fetch('/api/tokens');
+      if (!response.ok) throw new Error('Failed to fetch tokens');
+      const data: Token[] = await response.json();
+
+      const filtered = data.filter(t => t.chain.toLowerCase() === chain);
+
+      if (!isBackground && filtered.length === 0) {
+        setError(`No tokens found for chain: ${chain.toUpperCase()}`);
+      }
+
+      setTokens(prev => {
+        if (!isBackground) return sortByMarketCap(filtered);
+
+        // Merge: update changed values then re-sort by market cap.
+        // Unchanged tokens keep same object reference → React.memo skips re-render.
+        const incoming = new Map(filtered.map(t => [t.address, t]));
+        const updated = prev.map(t => {
+          const fresh = incoming.get(t.address);
+          if (!fresh) return t;
+          const changed =
+            t.price !== fresh.price ||
+            t.marketCap !== fresh.marketCap ||
+            t.volume !== fresh.volume ||
+            t.liquidity !== fresh.liquidity ||
+            t.change24h !== fresh.change24h;
+          return changed ? fresh : t;
+        });
+        return sortByMarketCap(updated);
+      });
+    } catch (err) {
+      if (!isBackground) {
+        console.error('Error fetching tokens:', err);
+        setError('Failed to load tokens. Please try again later.');
+      }
+    } finally {
+      if (!isBackground) setLoading(false);
+    }
   }, [chain]);
+
+  useEffect(() => {
+    fetchTokens(false);
+
+    intervalRef.current = setInterval(() => {
+      fetchTokens(true);
+    }, REFRESH_INTERVAL);
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [fetchTokens]);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') fetchTokens(true);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [fetchTokens]);
 
   return (
     <div className="container mx-auto">
