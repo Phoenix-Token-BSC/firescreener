@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { ShieldAlert, Info, AlertCircle, CheckCircle2, XCircle, Lock, Unlock, Eye, EyeOff, Scale, Code } from 'lucide-react';
+import { Info, AlertCircle, CheckCircle2, XCircle, Eye, EyeOff, Scale, Code } from 'lucide-react';
 
 interface GoPlusSecurityData {
     is_honeypot: string;
@@ -36,14 +36,14 @@ const HoneypotAnalysis: React.FC<HoneypotAnalysisProps> = ({ chain, contractAddr
     const [error, setError] = useState<string | null>(null);
     const [isExpanded, setIsExpanded] = useState(false);
 
-    if (chain !== 'bsc') return null;
-
     useEffect(() => {
+        if (chain !== 'bsc' || !contractAddress) {
+            setLoading(false);
+            return;
+        }
         const fetchSecurity = async () => {
-            if (!chain || !contractAddress) return;
             setLoading(true);
             try {
-                // Using the same security API as SecurityAnalysis.tsx
                 const response = await fetch(`/api/${chain}/security/${contractAddress}`);
                 if (!response.ok) throw new Error('Failed to fetch security data');
                 const data = await response.json();
@@ -58,6 +58,8 @@ const HoneypotAnalysis: React.FC<HoneypotAnalysisProps> = ({ chain, contractAddr
 
         fetchSecurity();
     }, [chain, contractAddress]);
+
+    if (chain !== 'bsc') return null;
 
     if (loading) {
         return (

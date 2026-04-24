@@ -49,7 +49,7 @@ const GoPlusAnalysis: React.FC<GoPlusAnalysisProps> = ({ chain, contractAddress 
     const [securityData, setSecurityData] = useState<GoPlusSecurityData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [isExpanded, setIsExpanded] = useState(true);
+    const [isExpanded, setIsExpanded] = useState(false);
 
     useEffect(() => {
         if (chain !== 'bsc' || !contractAddress) {
@@ -229,7 +229,7 @@ const GoPlusAnalysis: React.FC<GoPlusAnalysisProps> = ({ chain, contractAddress 
                                 <span className="uppercase tracking-tighter">Creator</span>
                             </div>
                             <span className="text-[11px] font-bold text-white truncate max-w-[120px]" title={creatorAddress}>
-                                {creatorAddress.slice(0, 6)}...{creatorAddress.slice(-4)}
+                                {creatorAddress ? `${creatorAddress.slice(0, 6)}...${creatorAddress.slice(-4)}` : '—'}
                             </span>
                         </div>
                     </div>

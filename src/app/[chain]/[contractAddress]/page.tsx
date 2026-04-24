@@ -28,6 +28,7 @@ import TokenInfo from "@/components/TokenInfo";
 import VolumeTxnsInfo from "@/components/VolumeTxnsInfo";
 import LoadingWithLogo from "@/components/LoadingWithLogo";
 import TokenStatsGrid from "@/components/TokenStatsGrid";
+import WaraGuardAnalysis from "@/components/WaraGuardAnalysis";
 
 // Define types for token data and intervals
 interface TokenData {
@@ -638,10 +639,11 @@ export default function TokenPage() {
 
                     {chain && contractAddress && (
                       <>
-                        <div className="mt-8 flex flex-col border-2 border-orange-500 p-4 rounded-xl gap-2">
-                          <h1 className="text-xl font-bold">
-                            SECURITY ANALYSIS
-                          </h1>
+                        <div className="mt-8 flex flex-col border-2 border-orange-500 p-2 rounded-xl gap-2">
+                          <WaraGuardAnalysis
+                            chain={chain}
+                            contractAddress={contractAddress}
+                          />
                           <SecurityAnalysis
                             chain={chain}
                             contractAddress={contractAddress}
@@ -1110,17 +1112,14 @@ export default function TokenPage() {
                       </section>
                     )}
 
-                    {/* {chain && contractAddress && (
-                                            <>
-                                                <div className="mt-8 flex flex-col border-2 border-orange-500 p-4 rounded-xl gap-2">
-                                                    <div className="flex items-center justify-between flex-wrap gap-2">
-                                                        <h1 className="text-xl font-bold">SECURITY ANALYSIS</h1>
-                                                    </div>
-                                                    <SecurityAnalysis chain={chain} contractAddress={contractAddress} />
-                                                    <HoneypotAnalysis chain={chain} contractAddress={contractAddress} />
-                                                </div>
-                                            </>
-                                        )} */}
+                    {chain && contractAddress && (
+                      <div className="mt-8 flex flex-col border-2 border-orange-500 p-4 rounded-xl gap-2">
+                        <h1 className="text-xl font-bold">SECURITY ANALYSIS</h1>
+                        <WaraGuardAnalysis chain={chain} contractAddress={contractAddress} />
+                        <SecurityAnalysis chain={chain} contractAddress={contractAddress} />
+                        <HoneypotAnalysis chain={chain} contractAddress={contractAddress} />
+                      </div>
+                    )}
 
                     <div className="flex mt-8 gap-4 md:gap-8 md:w-full items-center justify-center mb-4 flex-wrap">
                       <div
