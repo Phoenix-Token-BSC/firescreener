@@ -231,10 +231,10 @@ const WaraGuardAnalysis: React.FC<WaraGuardAnalysisProps> = ({ chain, contractAd
                             Icon={safety.ownershipRenounced ? CheckCircle2 : AlertTriangle}
                         />
                         <SafetyTag
-                            label={safety.isContractVerified ? 'Contract not verified' : 'Contract Verified'}
-                            safe={!safety.isContractVerified}
-                            danger={safety.isContractVerified}
-                            Icon={safety.isContractVerified ? XCircle : CheckCircle2}
+                            label={safety.isContractVerified ? 'Contract Verified' : 'Contract Not Verified'}
+                            safe={safety.isContractVerified}
+                            danger={!safety.isContractVerified}
+                            Icon={safety.isContractVerified ? CheckCircle2 : XCircle}
                         />
                         <SafetyTag
                             label={safety.hasMintFunction ? 'Mint Function' : 'No Mint Function'}

@@ -24,7 +24,6 @@ import WatchlistButton from "@/components/WatchlistButton";
 import NewPriceActionChart from "@/components/NewPriceActionChart";
 import SecurityAnalysis from "@/components/GoPlusAnalysis";
 import HoneypotAnalysis from "@/components/HoneypotAnalysis";
-import TokenInfo from "@/components/TokenInfo";
 import VolumeTxnsInfo from "@/components/VolumeTxnsInfo";
 import LoadingWithLogo from "@/components/LoadingWithLogo";
 import TokenStatsGrid from "@/components/TokenStatsGrid";
@@ -87,7 +86,7 @@ export default function TokenPage() {
     telegram: string;
     scan: string;
   } | null>(`tokenSocials-${cacheKey}`, null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(tokenData === null || tokenMetadata === null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("info");
   const [isScrolled, setIsScrolled] = useState(false);
@@ -261,8 +260,7 @@ export default function TokenPage() {
       (typeof tokenData.price !== 'string' || tokenData.price !== 'N/A');
 
     if (shouldSkipFetch && hasValidCachedData) {
-      // Returning visit with valid cached data - skip fetch and restore
-      setLoading(false);
+      // Returning visit — loading already initialized to false from sessionStorage
     } else {
       // First load/reload or no valid cached data - always fetch fresh
       fetchTokenData(false);
@@ -288,80 +286,6 @@ export default function TokenPage() {
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [fetchTokenData]);
-
-  // Formatting functions
-  const formatPrice = (
-    price: string | number,
-  ): { display: string; isExponential: boolean } => {
-    try {
-      if (price === null || price === undefined || price === "N/A")
-        return { display: "N/A", isExponential: false };
-      const num = parseFloat(price.toString());
-      if (isNaN(num)) return { display: "N/A", isExponential: false };
-
-      const strNum = num.toFixed(20);
-      const decimalParts = strNum.split(".");
-      const integerPart = decimalParts[0];
-      const decimalPart = decimalParts[1] || "0";
-
-      let leadingZeros = 0;
-      let significantDigitsStart = 0;
-      for (let i = 0; i < decimalPart.length; i++) {
-        if (decimalPart[i] === "0") {
-          leadingZeros++;
-        } else {
-          significantDigitsStart = i;
-          break;
-        }
-      }
-
-      if (leadingZeros > 4 && integerPart === "0") {
-        const exponent = leadingZeros;
-        const significantDigits = decimalPart
-          .slice(significantDigitsStart)
-          .replace(/0+$/, "");
-        return {
-          display: `0.0 ${exponent} ${significantDigits}`,
-          isExponential: true,
-        };
-      }
-
-      const maxDecimals = Math.abs(num) < 1 ? 6 : 5;
-      const formatted = num
-        .toLocaleString("en-US", {
-          minimumFractionDigits: 0,
-          maximumFractionDigits: maxDecimals,
-          useGrouping: Math.abs(num) >= 1000,
-        })
-        .replace(/\.?0+$/, "");
-      return { display: formatted, isExponential: false };
-    } catch (error) {
-      console.error("Error in formatPrice:", error);
-      return { display: "N/A", isExponential: false };
-    }
-  };
-
-  const formatLargeNumber = (
-    value: string | number,
-    defaultValue: string = "N/A",
-  ): string => {
-    try {
-      if (value === null || value === undefined || value === "")
-        return defaultValue;
-      const num = parseFloat(value.toString());
-      if (isNaN(num)) return defaultValue;
-
-      return new Intl.NumberFormat("en-US", {
-        notation: "compact",
-        compactDisplay: "short",
-        minimumFractionDigits: 0,
-        maximumFractionDigits: num >= 1000000 ? 1 : 0,
-      }).format(num);
-    } catch (error) {
-      console.error("Error in formatLargeNumber:", error);
-      return defaultValue;
-    }
-  };
 
   const formatWholeNumber = (number: string | number): string => {
     try {
@@ -423,23 +347,6 @@ export default function TokenPage() {
 
   // Check if token has burns enabled
   const showBurns = tokenMetadata?.isBurn;
-
-  // Dev logging to verify burn visibility
-  useEffect(() => {
-    if (process.env.NODE_ENV === "development") {
-      try {
-        // const reg = tokenMetadata?.address ? getTokenByAddress(tokenMetadata.address) : undefined;
-        // console.log('[TokenPage] Burn visibility debug:', {
-        //     contractAddress,
-        //     tokenMetadata,
-        //     registryLookup: reg,
-        //     showBurns
-        // });
-      } catch (e) {
-        console.error("Failed registry lookup in TokenPage debug:", e);
-      }
-    }
-  }, [contractAddress, tokenMetadata, showBurns]);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -947,13 +854,6 @@ export default function TokenPage() {
 
                     </div>
 
-
-                    <div className="mb-4">
-                      <TokenInfo
-                        chain={chain?.toLowerCase() as "bsc" | "eth"}
-                        contractAddress={contractAddress}
-                      />
-                    </div>
 
                     <div className="flex flex-col justify-center gap-4">
                       <VolumeTxnsInfo
