@@ -68,15 +68,29 @@ export function useSessionStorage<T>(key: string, initialValue: T) {
   });
 
   const setStoredValue = (valueOrFn: T | ((val: T) => T)) => {
-    try {
-      const valueToStore = valueOrFn instanceof Function ? valueOrFn(value) : valueOrFn;
-      setValue(valueToStore);
-      // Only access sessionStorage on client side
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem(key, JSON.stringify(valueToStore));
+    if (valueOrFn instanceof Function) {
+      // Use React's functional update so `prev` is always the current state,
+      // not a stale closure value captured at hook-creation time.
+      setValue(prev => {
+        const next = (valueOrFn as (val: T) => T)(prev);
+        try {
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem(key, JSON.stringify(next));
+          }
+        } catch (error) {
+          console.error(`Error writing to sessionStorage key "${key}":`, error);
+        }
+        return next;
+      });
+    } else {
+      try {
+        setValue(valueOrFn);
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem(key, JSON.stringify(valueOrFn));
+        }
+      } catch (error) {
+        console.error(`Error writing to sessionStorage key "${key}":`, error);
       }
-    } catch (error) {
-      console.error(`Error writing to sessionStorage key "${key}":`, error);
     }
   };
 

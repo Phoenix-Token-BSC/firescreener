@@ -162,7 +162,12 @@ export default function TokenPage() {
         isBurn: metadata.isBurn === true,
       };
 
-      setTokenMetadata(enhancedMetadata);
+      // Only update metadata on the initial (non-background) fetch — it comes from the
+      // local registry and never changes, so calling setTokenMetadata on every background
+      // tick is wasteful and can trigger stale-closure issues.
+      if (!isBackground) {
+        setTokenMetadata(enhancedMetadata);
+      }
 
       try {
         // Use the token symbol for API calls (for backward compatibility with existing APIs)
@@ -201,38 +206,48 @@ export default function TokenPage() {
           nativePriceData,
         ] = responses;
 
-        setTokenData({
-          price: priceData?.price || "N/A",
-          totalSupply: metricsData?.totalSupply || "N/A",
-          cSupply: metricsData?.circulatingSupply || "N/A",
-          lSupply: metricsData?.lockedSupply || "N/A",
-          holders: holdersData?.totalHolders || "N/A",
-          marketCap: priceData?.marketCap || "N/A",
-          fdv: priceData?.fdv || "N/A",
-          volume: priceData?.volume || "N/A",
-          burn5min: burnsData?.burn5min || "No burns",
-          burn15min: burnsData?.burn15min || "No burns",
-          burn30min: burnsData?.burn30min || "No burns",
-          burn1h: burnsData?.burn1h || "No burns",
-          burn3h: burnsData?.burn3h || "No burns",
-          burn6h: burnsData?.burn6h || "No burns",
-          burn12h: burnsData?.burn12h || "No burns",
-          burn24h: burnsData?.burn24h || "No burns",
-          totalburnt: metricsData?.burnedSupply || "N/A",
-          priceChange24h: priceData?.change24h || "N/A",
-          priceChange6h: priceData?.change6h || "N/A",
-          priceChange3h: priceData?.change3h || "N/A",
-          priceChange1h: priceData?.change1h || "N/A",
-          liquidity: priceData?.liquidity || "N/A",
-          profile: descriptionData?.header_image || profileData?.profileImage || "N/A",
-          contract: contractAddress,
-          description: descriptionData?.description || "N/A",
-          holdersCount: holdersCount?.holder_count || "N/A",
-          txns: priceData?.txns || "N/A",
-          nativePriceUSD: nativePriceData?.price ?? null,
-          nativeSymbol: nativePriceData?.symbol ?? '',
-        });
-        setSocialLinks(socialData || null);
+        // On background refresh, skip the update if the critical price API failed —
+        // that means the backend is under load and we shouldn't replace good data with N/A.
+        const priceApiOk = !!priceData?.price;
+        if (!isBackground || priceApiOk) {
+          setTokenData({
+            price: priceData?.price || "N/A",
+            totalSupply: metricsData?.totalSupply || "N/A",
+            cSupply: metricsData?.circulatingSupply || "N/A",
+            lSupply: metricsData?.lockedSupply || "N/A",
+            holders: holdersData?.totalHolders || "N/A",
+            marketCap: priceData?.marketCap || "N/A",
+            fdv: priceData?.fdv || "N/A",
+            volume: priceData?.volume || "N/A",
+            burn5min: burnsData?.burn5min || "No burns",
+            burn15min: burnsData?.burn15min || "No burns",
+            burn30min: burnsData?.burn30min || "No burns",
+            burn1h: burnsData?.burn1h || "No burns",
+            burn3h: burnsData?.burn3h || "No burns",
+            burn6h: burnsData?.burn6h || "No burns",
+            burn12h: burnsData?.burn12h || "No burns",
+            burn24h: burnsData?.burn24h || "No burns",
+            totalburnt: metricsData?.burnedSupply || "N/A",
+            priceChange24h: priceData?.change24h || "N/A",
+            priceChange6h: priceData?.change6h || "N/A",
+            priceChange3h: priceData?.change3h || "N/A",
+            priceChange1h: priceData?.change1h || "N/A",
+            liquidity: priceData?.liquidity || "N/A",
+            profile: descriptionData?.header_image || profileData?.profileImage || "N/A",
+            contract: contractAddress,
+            description: descriptionData?.description || "N/A",
+            holdersCount: holdersCount?.holder_count || "N/A",
+            txns: priceData?.txns || "N/A",
+            nativePriceUSD: nativePriceData?.price ?? null,
+            nativeSymbol: nativePriceData?.symbol ?? '',
+          });
+        }
+        // Never clear social links on a background refresh — keep the last known values.
+        if (socialData) {
+          setSocialLinks(socialData);
+        } else if (!isBackground) {
+          setSocialLinks(null);
+        }
         if (descriptionData?.is_burn !== null && descriptionData?.is_burn !== undefined) {
           setTokenMetadata(prev => prev ? { ...prev, isBurn: Boolean(descriptionData.is_burn) } : prev);
         }
@@ -538,7 +553,6 @@ export default function TokenPage() {
                             <p className="text-sm">Explorer</p>
                           </a>
                         </div>
-
                       )}
 
                       <p className="text-md">Contract Address</p>
