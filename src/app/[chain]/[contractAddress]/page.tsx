@@ -28,6 +28,7 @@ import VolumeTxnsInfo from "@/components/VolumeTxnsInfo";
 import LoadingWithLogo from "@/components/LoadingWithLogo";
 import TokenStatsGrid from "@/components/TokenStatsGrid";
 import WaraGuardAnalysis from "@/components/WaraGuardAnalysis";
+import Link from "next/link";
 
 // Define types for token data and intervals
 interface TokenData {
@@ -90,6 +91,7 @@ export default function TokenPage() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("info");
   const [isScrolled, setIsScrolled] = useState(false);
+  const [headerImageBroken, setHeaderImageBroken] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const shouldSkipFetch = useShouldSkipInitialFetch(`tokenPage-${cacheKey}`);
 
@@ -222,7 +224,7 @@ export default function TokenPage() {
           priceChange3h: priceData?.change3h || "N/A",
           priceChange1h: priceData?.change1h || "N/A",
           liquidity: priceData?.liquidity || "N/A",
-          profile: profileData?.profileImage || "N/A",
+          profile: descriptionData?.header_image || profileData?.profileImage || "N/A",
           contract: contractAddress,
           description: descriptionData?.description || "N/A",
           holdersCount: holdersCount?.holder_count || "N/A",
@@ -231,6 +233,9 @@ export default function TokenPage() {
           nativeSymbol: nativePriceData?.symbol ?? '',
         });
         setSocialLinks(socialData || null);
+        if (descriptionData?.is_burn !== null && descriptionData?.is_burn !== undefined) {
+          setTokenMetadata(prev => prev ? { ...prev, isBurn: Boolean(descriptionData.is_burn) } : prev);
+        }
 
         // Mark data as cached on initial fetch (client-side only)
         if (!isBackground && typeof window !== 'undefined') {
@@ -286,6 +291,32 @@ export default function TokenPage() {
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [fetchTokenData]);
+
+  // Always fetch description fresh — bypasses sessionStorage so dev portal
+  // updates are reflected immediately without a hard refresh
+  useEffect(() => {
+    if (!chain || !contractAddress) return;
+    fetch(`/api/${chain}/description/${contractAddress}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((data) => {
+        if (!data) return;
+        setTokenData((prev) =>
+          prev
+            ? {
+              ...prev,
+              description: data.description || prev.description,
+              profile: data.header_image || prev.profile,
+            }
+            : prev,
+        );
+        if (data.is_burn !== null && data.is_burn !== undefined) {
+          setTokenMetadata((prev) =>
+            prev ? { ...prev, isBurn: Boolean(data.is_burn) } : prev,
+          );
+        }
+      });
+  }, [chain, contractAddress]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const formatWholeNumber = (number: string | number): string => {
     try {
@@ -347,6 +378,8 @@ export default function TokenPage() {
 
   // Check if token has burns enabled
   const showBurns = tokenMetadata?.isBurn;
+  const headerImage = tokenData?.profile && tokenData.profile !== "N/A" ? tokenData.profile : null;
+  const showHeaderImage = !!headerImage && !headerImageBroken;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -384,7 +417,13 @@ export default function TokenPage() {
                                 </div> */}
                 <div className={activeTab === "info" ? "" : "hidden"}>
                   <section className="px-2">
-                    <div className="mb-4 sticky top-[60px] z-10 flex flex-col bg-white rounded-lg p-2 justify-between md:items-end w-full">
+                    {showHeaderImage && (
+                      <div className="w-full h-32 rounded-xl overflow-hidden">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={headerImage!} alt="Token banner" className="w-full h-full object-cover" onError={() => setHeaderImageBroken(true)} />
+                      </div>
+                    )}
+                    <div className={`mb-4 sticky top-[60px] z-10 flex flex-col bg-white rounded-lg p-2 justify-between md:items-end w-full transition-shadow duration-200 ${isScrolled ? "shadow-lg" : ""}`}>
                       <div className="flex items-center justify-between">
                         <div className="flex flex-row items-center gap-2 flex-1 min-w-0">
                           <img
@@ -419,24 +458,6 @@ export default function TokenPage() {
                           />
                         </div>
                       </div>
-                      {socialLinks && (
-                        <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isScrolled ? 'max-h-0 opacity-0 mt-0' : 'max-h-24 opacity-100 mt-2'}`}>
-                          <div className="flex flex-row gap-4 items-center justify-between px-4 bg-neutral-200 text-black p-4 rounded-lg">
-                            <a href={socialLinks.website} target="_blank" rel="noopener noreferrer">
-                              <p className="text-sm">Website</p>
-                            </a>
-                            <a href={socialLinks.twitter} target="_blank" rel="noopener noreferrer">
-                              <p className="text-sm">X(Twitter)</p>
-                            </a>
-                            <a href={socialLinks.telegram} target="_blank" rel="noopener noreferrer">
-                              <p className="text-sm">Telegram</p>
-                            </a>
-                            <a href={socialLinks.scan} target="_blank" rel="noopener noreferrer">
-                              <p className="text-sm">Explorer</p>
-                            </a>
-                          </div>
-                        </div>
-                      )}
                     </div>
 
                     <TokenStatsGrid
@@ -452,7 +473,7 @@ export default function TokenPage() {
                       nativeSymbol={tokenData.nativeSymbol}
                     />
 
-                  
+
 
                     <div className="mt-4 flex flex-col gap-4">
                       <VolumeTxnsInfo chain={chain?.toLowerCase() as "bsc" | "eth"} contractAddress={contractAddress} />
@@ -485,6 +506,41 @@ export default function TokenPage() {
                     </div>
 
                     <div className="flex flex-col gap-2 border border-white p-4 mt-4 rounded-xl">
+                      <div>
+                        <div className="flex justify-between items-center mb-2">
+                          <h1 className="font-bold text-xl text-orange-500 mb-1">Description</h1>
+                            <Link href="/dev/auth" className="rounded-xl text-sm bg-orange-500 p-2">Update Token Info</Link>
+                        </div>
+                        {tokenData.description && tokenData.description !== "N/A" ? (
+                          <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">{tokenData.description}</p>
+                        ) : (
+                          <p className="text-sm text-gray-500">
+                            No description yet.{" "}
+                            <Link href="/dev" className="text-orange-500 underline underline-offset-2">
+                              Claim this token
+                            </Link>
+                          </p>
+                        )}
+                      </div>
+
+                      {socialLinks && (
+                        <div className="flex flex-row gap-4 items-center justify-between px-4 bg-neutral-200 text-black p-4 rounded-lg">
+                          <a href={socialLinks.website} target="_blank" rel="noopener noreferrer">
+                            <p className="text-sm">Website</p>
+                          </a>
+                          <a href={socialLinks.twitter} target="_blank" rel="noopener noreferrer">
+                            <p className="text-sm">X(Twitter)</p>
+                          </a>
+                          <a href={socialLinks.telegram} target="_blank" rel="noopener noreferrer">
+                            <p className="text-sm">Telegram</p>
+                          </a>
+                          <a href={socialLinks.scan} target="_blank" rel="noopener noreferrer">
+                            <p className="text-sm">Explorer</p>
+                          </a>
+                        </div>
+
+                      )}
+
                       <p className="text-md">Contract Address</p>
                       <h1 className="text-xl font-bold text-orange-500 flex gap-2">
                         <span>
@@ -499,7 +555,7 @@ export default function TokenPage() {
                     </div>
 
 
-              
+
                     {/* 
                                         <div className="mt-4 flex flex-row bg-neutral-900 justify-between gap-2 items-center border-2 border-orange-500 rounded-md p-4">
                                             <div className="flex flex-col items-center">
@@ -545,22 +601,11 @@ export default function TokenPage() {
                                         </div> */}
 
                     {chain && contractAddress && (
-                      <>
-                        <div className="mt-8 flex flex-col border-2 border-orange-500 p-2 rounded-xl gap-2">
-                          <WaraGuardAnalysis
-                            chain={chain}
-                            contractAddress={contractAddress}
-                          />
-                          <SecurityAnalysis
-                            chain={chain}
-                            contractAddress={contractAddress}
-                          />
-                          <HoneypotAnalysis
-                            chain={chain}
-                            contractAddress={contractAddress}
-                          />
-                        </div>
-                      </>
+                      <div className="mt-8 flex flex-col gap-2">
+                        <WaraGuardAnalysis chain={chain} contractAddress={contractAddress} />
+                        <SecurityAnalysis chain={chain} contractAddress={contractAddress} />
+                        <HoneypotAnalysis chain={chain} contractAddress={contractAddress} />
+                      </div>
                     )}
 
                     <div className="flex-1">
@@ -651,8 +696,8 @@ export default function TokenPage() {
                           !hasReactedToday && submitEmojiReaction(1)
                         }
                         className={`border-2 flex flex-col items-center gap-1 border-orange-500 p-3 md:p-4 aspect-square rounded-lg transition-all duration-200 ${hasReactedToday
-                            ? "opacity-50 cursor-not-allowed"
-                            : "hover:bg-orange-500 hover:bg-opacity-10 transform hover:scale-110 cursor-pointer"
+                          ? "opacity-50 cursor-not-allowed"
+                          : "hover:bg-orange-500 hover:bg-opacity-10 transform hover:scale-110 cursor-pointer"
                           }`}
                         title={
                           hasReactedToday
@@ -670,8 +715,8 @@ export default function TokenPage() {
                           !hasReactedToday && submitEmojiReaction(2)
                         }
                         className={`border-2 flex flex-col items-center gap-1 border-orange-500 p-3 md:p-4 aspect-square rounded-lg transition-all duration-200 ${hasReactedToday
-                            ? "opacity-50 cursor-not-allowed"
-                            : "hover:bg-orange-500 hover:bg-opacity-10 transform hover:scale-110 cursor-pointer"
+                          ? "opacity-50 cursor-not-allowed"
+                          : "hover:bg-orange-500 hover:bg-opacity-10 transform hover:scale-110 cursor-pointer"
                           }`}
                         title={
                           hasReactedToday
@@ -689,8 +734,8 @@ export default function TokenPage() {
                           !hasReactedToday && submitEmojiReaction(3)
                         }
                         className={`border-2 flex flex-col items-center gap-1 border-orange-500 p-3 md:p-4 aspect-square rounded-lg transition-all duration-200 ${hasReactedToday
-                            ? "opacity-50 cursor-not-allowed"
-                            : "hover:bg-orange-500 hover:bg-opacity-10 transform hover:scale-110 cursor-pointer"
+                          ? "opacity-50 cursor-not-allowed"
+                          : "hover:bg-orange-500 hover:bg-opacity-10 transform hover:scale-110 cursor-pointer"
                           }`}
                         title={
                           hasReactedToday
@@ -708,8 +753,8 @@ export default function TokenPage() {
                           !hasReactedToday && submitEmojiReaction(4)
                         }
                         className={`border-2 flex flex-col items-center gap-1 border-orange-500 p-3 md:p-4 aspect-square rounded-lg transition-all duration-200 ${hasReactedToday
-                            ? "opacity-50 cursor-not-allowed"
-                            : "hover:bg-orange-500 hover:bg-opacity-10 transform hover:scale-110 cursor-pointer"
+                          ? "opacity-50 cursor-not-allowed"
+                          : "hover:bg-orange-500 hover:bg-opacity-10 transform hover:scale-110 cursor-pointer"
                           }`}
                         title={
                           hasReactedToday
@@ -727,8 +772,8 @@ export default function TokenPage() {
                           !hasReactedToday && submitEmojiReaction(5)
                         }
                         className={`border-2 flex flex-col items-center gap-1 border-orange-500 p-3 md:p-4 aspect-square rounded-lg transition-all duration-200 ${hasReactedToday
-                            ? "opacity-50 cursor-not-allowed"
-                            : "hover:bg-orange-500 hover:bg-opacity-10 transform hover:scale-110 cursor-pointer"
+                          ? "opacity-50 cursor-not-allowed"
+                          : "hover:bg-orange-500 hover:bg-opacity-10 transform hover:scale-110 cursor-pointer"
                           }`}
                         title={
                           hasReactedToday
@@ -764,7 +809,7 @@ export default function TokenPage() {
                         contractAddress={contractAddress}
                       />
                     )}
-                    
+
                   </section>
                 </div>
 
@@ -800,7 +845,13 @@ export default function TokenPage() {
                 >
                   {/* Left Side: Token Information */}
                   <div className="w-[35%] h-full overflow-y-auto pr-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                    <div className="sticky top-[0px] z-10  flex flex-col gap-2 bg-white rounded-md p-4 mb-4">
+                    {showHeaderImage && (
+                      <div className="w-full h-36 rounded-xl overflow-hidden mb-4 shrink-0">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={headerImage!} alt="Token banner" className="w-full h-full object-cover" onError={() => setHeaderImageBroken(true)} />
+                      </div>
+                    )}
+                    <div className="sticky top-[0px] z-10 flex flex-col gap-2 bg-white rounded-md p-4 mb-4">
                       <div className="flex flex-row items-center gap-2">
                         <img
                           src={`/api/${chain}/logo/${contractAddress}`}
@@ -818,6 +869,47 @@ export default function TokenPage() {
                           {tokenMetadata.symbol}
                         </h1>
                       </div>
+                    </div>
+
+                    {chain && contractAddress && (
+                      <div className="mt-8 flex flex-col  gap-2">
+                        <WaraGuardAnalysis chain={chain} contractAddress={contractAddress} />
+                        <SecurityAnalysis chain={chain} contractAddress={contractAddress} />
+                        <HoneypotAnalysis chain={chain} contractAddress={contractAddress} />
+                      </div>
+                    )}
+
+
+
+                    <div className="mt-4 flex flex-col justify-center gap-4">
+                      <VolumeTxnsInfo
+                        chain={chain?.toLowerCase() as "bsc" | "eth"}
+                        contractAddress={contractAddress}
+                      />
+                    </div>
+
+
+
+                    <div className="flex flex-col gap-2 bg-neutral-900 border-2 border-neutral-600 p-4 mt-4 rounded-xl">
+                    {tokenData.description && tokenData.description !== "N/A" ? (
+                        <div className="mt-2 bg-neutral-900 border border-neutral-700 p-4 rounded-xl">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <p className="text-xs text-gray-500 uppercase tracking-wider">About</p>
+                            <Link href="/dev/auth" className="text-xs rounded-lg bg-orange-500 px-2 py-1 text-white font-medium">Update Token Info</Link>
+                          </div>
+                          <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">{tokenData.description}</p>
+                        </div>
+                      ) : (
+                        <div className="mt-2 border border-dashed border-neutral-700 p-4 rounded-xl">
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="text-sm text-gray-500">No description yet.</p>
+                            <Link href="/dev/auth" className="text-xs rounded-lg bg-orange-500 px-2 py-1 text-white font-medium">Update Token Info</Link>
+                          </div>
+                          <Link href="/dev" className="text-sm text-orange-500 underline underline-offset-2">
+                            Claim this token on the dev portal
+                          </Link>
+                        </div>
+                      )}
 
                       {socialLinks && (
                         <div className="flex flex-row gap-4 mt-2 items-center justify-between px-4 bg-neutral-200 text-black p-4 rounded-lg">
@@ -852,19 +944,6 @@ export default function TokenPage() {
                         </div>
                       )}
 
-                    </div>
-
-
-                    <div className="flex flex-col justify-center gap-4">
-                      <VolumeTxnsInfo
-                        chain={chain?.toLowerCase() as "bsc" | "eth"}
-                        contractAddress={contractAddress}
-                      />
-                    </div>
-
-
-
-                    <div className="flex flex-col gap-2 bg-neutral-900 border-2 border-neutral-600 p-4 mt-4 rounded-xl">
                       <p className="text-md">Contract Address</p>
                       <h1 className="text-lg font-bold text-orange-500 flex gap-2">
                         <span>{tokenData.contract}</span>
@@ -1012,23 +1091,15 @@ export default function TokenPage() {
                       </section>
                     )}
 
-                    {chain && contractAddress && (
-                      <div className="mt-8 flex flex-col border-2 border-orange-500 p-4 rounded-xl gap-2">
-                        <h1 className="text-xl font-bold">SECURITY ANALYSIS</h1>
-                        <WaraGuardAnalysis chain={chain} contractAddress={contractAddress} />
-                        <SecurityAnalysis chain={chain} contractAddress={contractAddress} />
-                        <HoneypotAnalysis chain={chain} contractAddress={contractAddress} />
-                      </div>
-                    )}
-
+                    
                     <div className="flex mt-8 gap-4 md:gap-8 md:w-full items-center justify-center mb-4 flex-wrap">
                       <div
                         onClick={() =>
                           !hasReactedToday && submitEmojiReaction(1)
                         }
                         className={`border-2 flex flex-col items-center gap-1 border-orange-500 p-3 md:p-4 aspect-square rounded-lg transition-all duration-200 ${hasReactedToday
-                            ? "opacity-50 cursor-not-allowed"
-                            : "hover:bg-orange-500 hover:bg-opacity-10 transform hover:scale-110 cursor-pointer"
+                          ? "opacity-50 cursor-not-allowed"
+                          : "hover:bg-orange-500 hover:bg-opacity-10 transform hover:scale-110 cursor-pointer"
                           }`}
                         title={
                           hasReactedToday
@@ -1046,8 +1117,8 @@ export default function TokenPage() {
                           !hasReactedToday && submitEmojiReaction(2)
                         }
                         className={`border-2 flex flex-col items-center gap-1 border-orange-500 p-3 md:p-4 aspect-square rounded-lg transition-all duration-200 ${hasReactedToday
-                            ? "opacity-50 cursor-not-allowed"
-                            : "hover:bg-orange-500 hover:bg-opacity-10 transform hover:scale-110 cursor-pointer"
+                          ? "opacity-50 cursor-not-allowed"
+                          : "hover:bg-orange-500 hover:bg-opacity-10 transform hover:scale-110 cursor-pointer"
                           }`}
                         title={
                           hasReactedToday
@@ -1065,8 +1136,8 @@ export default function TokenPage() {
                           !hasReactedToday && submitEmojiReaction(3)
                         }
                         className={`border-2 flex flex-col items-center gap-1 border-orange-500 p-3 md:p-4 aspect-square rounded-lg transition-all duration-200 ${hasReactedToday
-                            ? "opacity-50 cursor-not-allowed"
-                            : "hover:bg-orange-500 hover:bg-opacity-10 transform hover:scale-110 cursor-pointer"
+                          ? "opacity-50 cursor-not-allowed"
+                          : "hover:bg-orange-500 hover:bg-opacity-10 transform hover:scale-110 cursor-pointer"
                           }`}
                         title={
                           hasReactedToday
@@ -1084,8 +1155,8 @@ export default function TokenPage() {
                           !hasReactedToday && submitEmojiReaction(4)
                         }
                         className={`border-2 flex flex-col items-center gap-1 border-orange-500 p-3 md:p-4 aspect-square rounded-lg transition-all duration-200 ${hasReactedToday
-                            ? "opacity-50 cursor-not-allowed"
-                            : "hover:bg-orange-500 hover:bg-opacity-10 transform hover:scale-110 cursor-pointer"
+                          ? "opacity-50 cursor-not-allowed"
+                          : "hover:bg-orange-500 hover:bg-opacity-10 transform hover:scale-110 cursor-pointer"
                           }`}
                         title={
                           hasReactedToday
@@ -1103,8 +1174,8 @@ export default function TokenPage() {
                           !hasReactedToday && submitEmojiReaction(5)
                         }
                         className={`border-2 flex flex-col items-center gap-1 border-orange-500 p-3 md:p-4 aspect-square rounded-lg transition-all duration-200 ${hasReactedToday
-                            ? "opacity-50 cursor-not-allowed"
-                            : "hover:bg-orange-500 hover:bg-opacity-10 transform hover:scale-110 cursor-pointer"
+                          ? "opacity-50 cursor-not-allowed"
+                          : "hover:bg-orange-500 hover:bg-opacity-10 transform hover:scale-110 cursor-pointer"
                           }`}
                         title={
                           hasReactedToday

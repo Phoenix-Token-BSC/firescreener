@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getTokenByAddress, getTokenBySymbol, isValidContractAddress } from "@/lib/tokenRegistry";
+import { isValidContractAddress } from "@/lib/tokenRegistry";
 import { supabase } from "@/lib/supabase";
 
 interface RouteParams {
@@ -43,6 +43,8 @@ export async function GET(
       if (!error && data) {
         return NextResponse.json({
           description: data.description || "",
+          is_burn: data.is_burn ?? null,
+          header_image: data.header_image || null,
         });
       }
     } catch (sbError) {
