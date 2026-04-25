@@ -39,9 +39,9 @@ export default function RootLayout({
       >
         <Header />
         <main>{children}</main>
+        {/* <script defer src="https://cloud.umami.is/script.js" data-website-id="23de30be-d6d1-4152-b10c-7442a99240ce"></script> */}
+        <Analytics />
       </body>
-      {/* <script defer src="https://cloud.umami.is/script.js" data-website-id="23de30be-d6d1-4152-b10c-7442a99240ce"></script> */}
-      <Analytics />
     </html>
   );
 }

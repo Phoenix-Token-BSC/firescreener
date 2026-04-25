@@ -85,7 +85,9 @@ export default function TokenPage() {
     telegram: string;
     scan: string;
   } | null>(`tokenSocials-${cacheKey}`, null);
-  const [loading, setLoading] = useState<boolean>(tokenData === null || tokenMetadata === null);
+  // Always true on first render so server and client initial renders match.
+  // A useEffect below sets it to false once sessionStorage data is available.
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("info");
   const [isScrolled, setIsScrolled] = useState(false);
@@ -198,6 +200,17 @@ export default function TokenPage() {
           nativePriceData,
         ] = responses;
 
+        // All individual fetches use .catch(() => null), so Promise.all never throws.
+        // Guard here: if every critical API failed, don't overwrite valid displayed data.
+        const hasAnyMeaningfulData = priceData || metricsData || holdersData;
+        if (!hasAnyMeaningfulData) {
+          if (!isBackground) {
+            setError("Failed to receive token data from server");
+            setLoading(false);
+          }
+          return;
+        }
+
         setTokenData({
           price: priceData?.price || "N/A",
           totalSupply: metricsData?.totalSupply || "N/A",
@@ -236,7 +249,6 @@ export default function TokenPage() {
           sessionStorage.setItem(`tokenPage-${contractAddress}-data`, 'true');
         }
       } catch (err: unknown) {
-        // Background failure: keep stale data, no UI impact
         if (!isBackground) {
           const errorMessage =
             err instanceof Error ? err.message : "Failed to fetch token data";
@@ -252,20 +264,36 @@ export default function TokenPage() {
     [chain, contractAddress, router],
   );
 
-  // Smart fetch logic: Always fetch on first load, then skip if returning with valid cached data
+  // Turn off loading once sessionStorage data has been hydrated into state.
+  // Covers the returning-user path where the initial fetch is skipped.
   useEffect(() => {
-    const hasValidCachedData = tokenData !== null &&
-      tokenMetadata !== null &&
-      (typeof tokenData.price !== 'string' || tokenData.price !== 'N/A');
+    if (tokenData !== null && tokenMetadata !== null) {
+      setLoading(false);
+    }
+  }, [tokenData, tokenMetadata]);
 
-    if (shouldSkipFetch && hasValidCachedData) {
-      // Returning visit — loading already initialized to false from sessionStorage
-    } else {
-      // First load/reload or no valid cached data - always fetch fresh
+  // Smart fetch logic: skip the initial fetch when returning with valid cached data.
+  // tokenData/tokenMetadata start null (hydrated via useEffect), so we read
+  // sessionStorage directly here instead of checking React state.
+  useEffect(() => {
+    const hasCachedData = (() => {
+      try {
+        const raw = sessionStorage.getItem(`tokenData-${cacheKey}`);
+        if (!raw) return false;
+        const parsed: TokenData = JSON.parse(raw);
+        return (
+          sessionStorage.getItem(`tokenMeta-${cacheKey}`) !== null &&
+          (typeof parsed.price !== 'string' || parsed.price !== 'N/A')
+        );
+      } catch {
+        return false;
+      }
+    })();
+
+    if (!(shouldSkipFetch && hasCachedData)) {
       fetchTokenData(false);
     }
 
-    // Set up background refresh interval
     intervalRef.current = setInterval(() => {
       fetchTokenData(true);
     }, REFRESH_INTERVAL);
@@ -273,7 +301,7 @@ export default function TokenPage() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [shouldSkipFetch, fetchTokenData]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [shouldSkipFetch, fetchTokenData, cacheKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Refresh on tab becoming visible again
   useEffect(() => {
