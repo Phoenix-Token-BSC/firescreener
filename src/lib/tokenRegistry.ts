@@ -130,7 +130,7 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
   { address: "0x456B1049bA12f906326891486B2BA93e46Ae0369", symbol: "shibc", name: "AIShibCeo", chain: "bsc", isBurn: true },
   { address: "0xFeD56F9Cd29F44e7C61c396DAc95cb3ed33d3546", symbol: "pcat", name: "Phenomenal Cat", chain: "bsc", isBurn: true },
   { address: "0x2056d14A4116A7165cfeb7D79dB760a06b57DBCa", symbol: "egw", name: "Eagles Wings", chain: "bsc", isBurn: false },
-  { address: "0xCa7930478492CDe4Be997FA898Cd1a6AfB8F41A1", symbol: "1000pdf", name: "1000PDF", chain: "bsc", isBurn: true },
+  { address: "0x2913458065DA63E2ac21C348F6543c528dD135Db", symbol: "1000pdf", name: "1000PDF", chain: "bsc", isBurn: true },
   { address: "0xe9E3CDB871D315fEE80aF4c9FcD4886782694856", symbol: "aidove", name: "AiDove", chain: "bsc", isBurn: true },
   { address: "0x360f2cf415d9be6e82a7252681ac116fb63d2fa2", symbol: "hmt", name: "HawkMoon Token", chain: "bsc", isBurn: true },
   { address: "0x14A2db256Ef18c4f7165d5E48f65a528b4155100", symbol: "rbcat", name: "Russian Blue Cat", chain: "bsc", isBurn: false },

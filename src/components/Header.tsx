@@ -750,11 +750,11 @@ export default function Header() {
                         Watchlist
                     </Link>
                     <Link
-                        href="https://www.phoenixtoken.community"
+                        href="/new-listing"
                         className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
                         onClick={toggleMenu}
                     >
-                        Phoenix Token
+                        Add Your Token
                     </Link>
                     {/* <Link
                         href="/auth/login"

@@ -1,7 +1,6 @@
 "use client";
 import { useRouter, useParams } from "next/navigation";
 import { useState, useEffect, useRef, useCallback } from "react";
-import Header from "@/components/Header";
 import {
   useScrollRestoration,
   useSessionStorage,
@@ -350,7 +349,7 @@ export default function TokenPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header />
+
       <main className="flex-1 px-3 md:px-8 mt-8">
         {loading ? (
           <LoadingWithLogo tokenSymbol={tokenMetadata?.symbol} />
