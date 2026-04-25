@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Lock, Globe, Send, ImagePlus, Flame,
-  LogOut, LayoutDashboard, X, Loader2, Link2,
+  LogOut, LayoutDashboard, X, Loader2, Link2, Plus, ChevronLeft,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
@@ -31,21 +31,29 @@ interface TokenEditable {
   telegram: string;
 }
 
+interface TokenEntry {
+  readOnly: TokenReadOnly;
+  form: TokenEditable;
+}
+
 // ─── Cache ────────────────────────────────────────────────────────────────────
 
 const CACHE_KEY = "pht-dev-token-cache";
 
 interface TokenCache {
   userId: string;
-  readOnly: TokenReadOnly | null;
-  formData: Omit<TokenEditable, "headerImageFile">;
+  tokens: Array<{ readOnly: TokenReadOnly; formData: Omit<TokenEditable, "headerImageFile"> }>;
+  activeIdx: number;
   pageState: "ready" | "no-token";
 }
 
 function loadCache(): TokenCache | null {
   try {
     const raw = localStorage.getItem(CACHE_KEY);
-    return raw ? (JSON.parse(raw) as TokenCache) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.tokens)) return null;
+    return parsed as TokenCache;
   } catch { return null; }
 }
 
@@ -61,6 +69,20 @@ const DEFAULT_FORM: TokenEditable = {
   description: "", headerImage: null, headerImageFile: null,
   isBurn: false, website: "", twitter: "", telegram: "",
 };
+
+function entryToCache(e: TokenEntry): TokenCache["tokens"][number] {
+  return {
+    readOnly: e.readOnly,
+    formData: {
+      description: e.form.description,
+      headerImage: e.form.headerImage,
+      isBurn: e.form.isBurn,
+      website: e.form.website,
+      twitter: e.form.twitter,
+      telegram: e.form.telegram,
+    },
+  };
+}
 
 const CHAIN_COLOURS: Record<Chain, string> = {
   bsc:  "bg-yellow-500/15 text-yellow-400 border-yellow-500/25",
@@ -174,7 +196,15 @@ function BurnToggle({ value, onChange }: { value: boolean; onChange: (v: boolean
 
 // ─── Claim Token Panel ────────────────────────────────────────────────────────
 
-function ClaimTokenPanel({ session, onClaimed }: { session: Session; onClaimed: () => void }) {
+function ClaimTokenPanel({
+  session,
+  onClaimed,
+  onCancel,
+}: {
+  session: Session;
+  onClaimed: (claimedAddress: string) => void;
+  onCancel?: () => void;
+}) {
   const [address, setAddress] = useState("");
   const [chain, setChain] = useState<Chain>("bsc");
   const [loading, setLoading] = useState(false);
@@ -187,7 +217,6 @@ function ClaimTokenPanel({ session, onClaimed }: { session: Session; onClaimed: 
 
     const normalizedAddress = address.trim().toLowerCase();
 
-    // Check the token exists and is unclaimed
     const { data: existing, error: fetchErr } = await supabase
       .from("tokens")
       .select("developer_id")
@@ -198,15 +227,6 @@ function ClaimTokenPanel({ session, onClaimed }: { session: Session; onClaimed: 
     if (fetchErr || !existing) { setError("Token not found in registry"); setLoading(false); return; }
     if (existing.developer_id) { setError("Token is already claimed"); setLoading(false); return; }
 
-    // Check this dev doesn't already own a token
-    const { data: owned } = await supabase
-      .from("tokens")
-      .select("address")
-      .eq("developer_id", session.user.id)
-      .single();
-
-    if (owned) { setError("Your account already has a linked token"); setLoading(false); return; }
-
     const { error: claimErr } = await supabase
       .from("tokens")
       .update({ developer_id: session.user.id })
@@ -214,19 +234,25 @@ function ClaimTokenPanel({ session, onClaimed }: { session: Session; onClaimed: 
       .eq("chain", chain);
 
     if (claimErr) { setError(claimErr.message); setLoading(false); return; }
-    onClaimed();
+    onClaimed(normalizedAddress);
   }
 
   return (
-    <div className="flex-1 flex items-center justify-center p-6">
+    <div className="flex-1 flex items-center justify-center p-4 sm:p-6">
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md bg-white/5 border border-white/10 rounded-2xl p-8">
+        className="w-full max-w-md bg-white/5 border border-white/10 rounded-2xl p-5 sm:p-8">
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-white/8 flex items-center justify-center">
+          {onCancel && (
+            <button type="button" onClick={onCancel}
+              className="text-white/40 hover:text-white transition-colors shrink-0">
+              <ChevronLeft size={20} />
+            </button>
+          )}
+          <div className="w-10 h-10 rounded-xl bg-white/8 flex items-center justify-center shrink-0">
             <Link2 size={18} className="text-white/60" />
           </div>
           <div>
-            <h2 className="text-white font-bold text-lg">Claim your token</h2>
+            <h2 className="text-white font-bold text-lg">Claim a token</h2>
             <p className="text-xs text-white/40">Link a token to this developer account</p>
           </div>
         </div>
@@ -260,7 +286,7 @@ function ClaimTokenPanel({ session, onClaimed }: { session: Session; onClaimed: 
         </form>
 
         <p className="text-center text-xs text-white/25 mt-5">
-          Token must exist in the Firescreener registry and not already be claimed.
+          Token must exist in the PHT registry and not already be claimed.
         </p>
       </motion.div>
     </div>
@@ -272,9 +298,9 @@ function ClaimTokenPanel({ session, onClaimed }: { session: Session; onClaimed: 
 export default function DevDashboard() {
   const router = useRouter();
   const [session, setSession] = useState<Session | null>(null);
-  const [tokenReadOnly, setTokenReadOnly] = useState<TokenReadOnly | null>(null);
-  const [form, setForm] = useState<TokenEditable>(DEFAULT_FORM);
-  const [pageState, setPageState] = useState<"loading" | "no-token" | "error" | "ready">("loading");
+  const [tokens, setTokens] = useState<TokenEntry[]>([]);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [pageState, setPageState] = useState<"loading" | "no-token" | "claiming" | "error" | "ready">("loading");
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -289,9 +315,13 @@ export default function DevDashboard() {
       setSession(session);
 
       const cache = loadCache();
-      if (cache && cache.userId === session.user.id) {
-        setTokenReadOnly(cache.readOnly);
-        setForm({ ...cache.formData, headerImageFile: null });
+      if (cache && cache.userId === session.user.id && cache.tokens.length > 0) {
+        const entries: TokenEntry[] = cache.tokens.map(ct => ({
+          readOnly: ct.readOnly,
+          form: { ...ct.formData, headerImageFile: null },
+        }));
+        setTokens(entries);
+        setActiveIdx(Math.min(cache.activeIdx, entries.length - 1));
         setPageState(cache.pageState);
         fetchToken(session, true);
       } else {
@@ -309,9 +339,9 @@ export default function DevDashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
-  // ── Fetch linked token ────────────────────────────────────────────────────
+  // ── Fetch all linked tokens ───────────────────────────────────────────────
 
-  async function fetchToken(s: Session, background = false) {
+  async function fetchToken(s: Session, background = false, focusAddress?: string) {
     if (!background) { setPageState("loading"); setFetchError(null); }
 
     try {
@@ -319,34 +349,48 @@ export default function DevDashboard() {
         .from("tokens")
         .select("address, symbol, name, chain, description, header_image, is_burn, website, twitter, telegram, scan")
         .eq("developer_id", s.user.id)
-        .single();
+        .order("name", { ascending: true });
 
-      if (error || !data) {
-        // PGRST116 = no rows found → show claim panel
-        if (error?.code === "PGRST116" || !data) {
-          setPageState("no-token");
-          saveCache({ userId: s.user.id, readOnly: null, formData: DEFAULT_FORM, pageState: "no-token" });
-        } else if (!background) {
-          setFetchError((error as { message?: string } | null)?.message ?? "Failed to load token data");
-          setPageState("error");
-        }
+      if (error) {
+        if (!background) { setFetchError(error.message); setPageState("error"); }
         return;
       }
 
-      const readOnly: TokenReadOnly = { name: data.name, address: data.address, symbol: data.symbol, chain: data.chain as Chain };
-      const formData: Omit<TokenEditable, "headerImageFile"> = {
-        description: data.description || "",
-        headerImage: data.header_image || null,
-        isBurn: data.is_burn ?? false,
-        website: data.website || "",
-        twitter: data.twitter || "",
-        telegram: data.telegram || "",
-      };
+      if (!data || data.length === 0) {
+        setTokens([]);
+        setPageState("no-token");
+        saveCache({ userId: s.user.id, tokens: [], activeIdx: 0, pageState: "no-token" });
+        return;
+      }
 
-      setTokenReadOnly(readOnly);
-      setForm({ ...formData, headerImageFile: null });
+      const entries: TokenEntry[] = data.map(row => ({
+        readOnly: { name: row.name, address: row.address, symbol: row.symbol, chain: row.chain as Chain },
+        form: {
+          description: row.description || "",
+          headerImage: row.header_image || null,
+          headerImageFile: null,
+          isBurn: row.is_burn ?? false,
+          website: row.website || "",
+          twitter: row.twitter || "",
+          telegram: row.telegram || "",
+        },
+      }));
+
+      setTokens(entries);
       setPageState("ready");
-      saveCache({ userId: s.user.id, readOnly, formData, pageState: "ready" });
+
+      const newIdx = focusAddress
+        ? Math.max(0, entries.findIndex(e => e.readOnly.address === focusAddress))
+        : background ? undefined : 0;
+
+      if (newIdx !== undefined) setActiveIdx(newIdx);
+
+      saveCache({
+        userId: s.user.id,
+        tokens: entries.map(entryToCache),
+        activeIdx: newIdx ?? 0,
+        pageState: "ready",
+      });
     } catch (err) {
       if (!background) {
         setFetchError(err instanceof Error ? err.message : "Failed to load token data");
@@ -355,30 +399,43 @@ export default function DevDashboard() {
     }
   }
 
-  // ── Save ──────────────────────────────────────────────────────────────────
+  // ── Active token helpers ──────────────────────────────────────────────────
 
-  function patch(partial: Partial<TokenEditable>) {
-    setForm((prev) => ({ ...prev, ...partial }));
+  const activeToken = tokens[activeIdx] ?? null;
+
+  function switchToken(idx: number) {
+    setActiveIdx(idx);
     setSaved(false);
     setSaveError(null);
   }
 
+  function patch(partial: Partial<TokenEditable>) {
+    setTokens(prev => prev.map((t, i) =>
+      i === activeIdx ? { ...t, form: { ...t.form, ...partial } } : t
+    ));
+    setSaved(false);
+    setSaveError(null);
+  }
+
+  // ── Save ──────────────────────────────────────────────────────────────────
+
   async function handleSubmit(e: { preventDefault: () => void }) {
     e.preventDefault();
-    if (!session || !tokenReadOnly) return;
+    if (!session || !activeToken) return;
+    const { readOnly, form } = activeToken;
     setSaving(true);
     setSaveError(null);
 
     let headerImageUrl = form.headerImage;
 
     if (form.headerImageFile) {
-      const accessToken = session.access_token;
       const fd = new FormData();
       fd.append("file", form.headerImageFile);
+      fd.append("address", readOnly.address);
 
       const res = await fetch("/api/dev/upload-header", {
         method: "POST",
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: { Authorization: `Bearer ${session.access_token}` },
         body: fd,
       });
 
@@ -388,7 +445,6 @@ export default function DevDashboard() {
         setSaving(false);
         return;
       }
-
       headerImageUrl = json.url;
     }
 
@@ -402,28 +458,24 @@ export default function DevDashboard() {
         twitter: form.twitter,
         telegram: form.telegram,
       })
-      .eq("developer_id", session.user.id);
+      .eq("developer_id", session.user.id)
+      .eq("address", readOnly.address)
+      .eq("chain", readOnly.chain);
 
     if (saveErr) {
       setSaveError(saveErr.message);
     } else {
       patch({ headerImageFile: null, headerImage: headerImageUrl });
       setSaved(true);
-      if (tokenReadOnly) {
-        saveCache({
-          userId: session.user.id,
-          readOnly: tokenReadOnly,
-          formData: {
-            description: form.description,
-            headerImage: headerImageUrl,
-            isBurn: form.isBurn,
-            website: form.website,
-            twitter: form.twitter,
-            telegram: form.telegram,
-          },
-          pageState: "ready",
-        });
-      }
+      const updatedEntries = tokens.map((t, i) =>
+        i === activeIdx ? { ...t, form: { ...t.form, headerImageFile: null, headerImage: headerImageUrl } } : t
+      );
+      saveCache({
+        userId: session.user.id,
+        tokens: updatedEntries.map(entryToCache),
+        activeIdx,
+        pageState: "ready",
+      });
     }
 
     setSaving(false);
@@ -442,14 +494,35 @@ export default function DevDashboard() {
 
       {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-40 w-60 flex flex-col bg-black/30 border-r border-white/8 transition-transform duration-200 lg:static lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        <div className="flex items-center gap-2 px-5 py-5 border-b border-white/8">
-          <span className="text-xl font-bold uppercase text-white">Dev Portal</span>
+        <div className="flex items-center justify-between px-5 py-5 border-b border-white/8">
+          <div className="flex items-center gap-2">
+            <span className="text-white font-black text-xl tracking-tight">PHT</span>
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-white/30">Dev Portal</span>
+          </div>
+          <button className="lg:hidden text-white/40 hover:text-white transition-colors" onClick={() => setSidebarOpen(false)}>
+            <X size={18} />
+          </button>
         </div>
-        <nav className="flex-1 px-3 py-4">
-          <button className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-white/8 text-white text-sm font-medium">
+        <nav className="flex-1 px-3 py-4 flex flex-col gap-1">
+          <button
+            onClick={() => pageState === "claiming" ? setPageState(tokens.length > 0 ? "ready" : "no-token") : undefined}
+            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-white/8 text-white text-sm font-medium">
             <LayoutDashboard size={16} />
             Token Info
+            {tokens.length > 1 && (
+              <span className="ml-auto text-[10px] font-bold bg-white/10 px-1.5 py-0.5 rounded-full text-white/50">
+                {tokens.length}
+              </span>
+            )}
           </button>
+          {(pageState === "ready" || pageState === "claiming") && (
+            <button
+              onClick={() => setPageState("claiming")}
+              className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors text-white/40 hover:text-white text-sm">
+              <Plus size={15} />
+              Claim Another Token
+            </button>
+          )}
         </nav>
         <div className="px-3 py-4 border-t border-white/8">
           {session && (
@@ -471,28 +544,54 @@ export default function DevDashboard() {
       <div className="flex-1 flex flex-col min-w-0">
 
         {/* Top bar */}
-        <header className="flex items-center gap-3 px-5 py-4 border-b border-white/8 bg-black/10">
-          <button className="lg:hidden text-white/50 hover:text-white transition-colors" onClick={() => setSidebarOpen(true)}>
-            <div className="flex flex-col gap-1">
-              <span className="block w-5 h-0.5 bg-current" />
-              <span className="block w-5 h-0.5 bg-current" />
-              <span className="block w-5 h-0.5 bg-current" />
+        <header className="flex items-center gap-3 px-4 sm:px-5 py-4 border-b border-white/8 bg-black/10">
+          <button className="lg:hidden text-white/50 hover:text-white transition-colors shrink-0" onClick={() => setSidebarOpen(true)}>
+            <div className="flex flex-col gap-[5px]">
+              <span className="block w-5 h-0.5 bg-current rounded-full" />
+              <span className="block w-5 h-0.5 bg-current rounded-full" />
+              <span className="block w-5 h-0.5 bg-current rounded-full" />
             </div>
           </button>
 
-          <span className="text-white font-semibold text-sm flex-1">Token Info</span>
+          <span className="text-white font-semibold text-sm flex-1 min-w-0">
+            {pageState === "claiming" ? "Claim a Token" : "Token Info"}
+          </span>
 
-          {tokenReadOnly && (
-            <div className="hidden sm:flex items-center gap-2 text-xs text-white/30">
-              <span className="font-bold text-white/60">{tokenReadOnly.symbol.toUpperCase()}</span>
-              <span>·</span>
-              <span className="font-mono">{tokenReadOnly.address.slice(0, 6)}…{tokenReadOnly.address.slice(-4)}</span>
-              <span className={`ml-1 text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase ${CHAIN_COLOURS[tokenReadOnly.chain]}`}>
-                {tokenReadOnly.chain}
+          {activeToken && pageState === "ready" && (
+            <div className="flex items-center gap-1.5 sm:gap-2 text-xs text-white/30 shrink-0">
+              <span className="font-bold text-white/60">{activeToken.readOnly.symbol.toUpperCase()}</span>
+              <span className="hidden sm:inline">·</span>
+              <span className="hidden sm:inline font-mono">{activeToken.readOnly.address.slice(0, 6)}…{activeToken.readOnly.address.slice(-4)}</span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase ${CHAIN_COLOURS[activeToken.readOnly.chain]}`}>
+                {activeToken.readOnly.chain}
               </span>
             </div>
           )}
         </header>
+
+        {/* Token tabs (when multiple tokens) */}
+        {pageState === "ready" && tokens.length > 1 && (
+          <div className="flex items-center gap-1 px-4 sm:px-5 py-2 border-b border-white/8 overflow-x-auto [&::-webkit-scrollbar]:hidden">
+            {tokens.map((t, i) => (
+              <button key={t.readOnly.address} onClick={() => switchToken(i)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+                  i === activeIdx
+                    ? "bg-white/10 text-white"
+                    : "text-white/35 hover:text-white/60 hover:bg-white/5"
+                }`}>
+                {t.readOnly.symbol.toUpperCase()}
+                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border uppercase ${CHAIN_COLOURS[t.readOnly.chain]}`}>
+                  {t.readOnly.chain}
+                </span>
+              </button>
+            ))}
+            <button onClick={() => setPageState("claiming")}
+              className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-white/25 hover:text-white/50 transition-colors whitespace-nowrap ml-1">
+              <Plus size={12} />
+              Add
+            </button>
+          </div>
+        )}
 
         {/* Content */}
         <AnimatePresence mode="wait">
@@ -523,32 +622,46 @@ export default function DevDashboard() {
           {/* No token linked */}
           {pageState === "no-token" && session && (
             <motion.div key="no-token" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex flex-col">
-              <ClaimTokenPanel session={session} onClaimed={() => { clearCache(); fetchToken(session, false); }} />
+              <ClaimTokenPanel
+                session={session}
+                onClaimed={(addr) => { clearCache(); fetchToken(session, false, addr); }}
+              />
+            </motion.div>
+          )}
+
+          {/* Claim another token */}
+          {pageState === "claiming" && session && (
+            <motion.div key="claiming" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex flex-col">
+              <ClaimTokenPanel
+                session={session}
+                onClaimed={(addr) => { clearCache(); fetchToken(session, false, addr); }}
+                onCancel={() => setPageState(tokens.length > 0 ? "ready" : "no-token")}
+              />
             </motion.div>
           )}
 
           {/* Form */}
-          {pageState === "ready" && tokenReadOnly && (
-            <motion.form key="form" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25 }} onSubmit={handleSubmit}
+          {pageState === "ready" && activeToken && (
+            <motion.form key={`form-${activeToken.readOnly.address}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }} onSubmit={handleSubmit}
               className="flex-1 overflow-y-auto">
-              <div className="max-w-2xl mx-auto px-5 py-8 flex flex-col gap-8">
+              <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col gap-6 sm:gap-8">
 
                 {/* Identity (read-only) */}
                 <section className="flex flex-col gap-4">
                   <h2 className="text-white font-semibold text-base">Token Identity</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <ReadOnlyField label="Name"   value={tokenReadOnly.name} />
-                    <ReadOnlyField label="Symbol" value={tokenReadOnly.symbol.toUpperCase()} />
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                    <ReadOnlyField label="Name"   value={activeToken.readOnly.name} />
+                    <ReadOnlyField label="Symbol" value={activeToken.readOnly.symbol.toUpperCase()} />
                   </div>
-                  <ReadOnlyField label="Contract Address" value={tokenReadOnly.address} mono />
+                  <ReadOnlyField label="Contract Address" value={activeToken.readOnly.address} mono />
                   <div className="flex flex-col gap-1.5">
                     <div className="flex items-center gap-1.5 text-xs text-white/40 font-medium uppercase tracking-wider">
                       <Lock size={11} /> Chain
                     </div>
                     <div className="bg-white/[0.03] border border-white/8 rounded-xl px-4 py-3 flex items-center">
-                      <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border uppercase tracking-widest ${CHAIN_COLOURS[tokenReadOnly.chain]}`}>
-                        {tokenReadOnly.chain}
+                      <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border uppercase tracking-widest ${CHAIN_COLOURS[activeToken.readOnly.chain]}`}>
+                        {activeToken.readOnly.chain}
                       </span>
                     </div>
                   </div>
@@ -563,16 +676,16 @@ export default function DevDashboard() {
                     <FieldLabel>Description</FieldLabel>
                     <textarea
                       placeholder="Describe your token — what it does, its mission, community, etc."
-                      value={form.description}
+                      value={activeToken.form.description}
                       onChange={(e) => patch({ description: e.target.value })}
                       rows={4}
                       maxLength={500}
                       className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/25 outline-none resize-none focus:border-white/30 transition-colors"
                     />
-                    <p className="text-right text-[11px] text-white/25">{form.description.length} / 500</p>
+                    <p className="text-right text-[11px] text-white/25">{activeToken.form.description.length} / 500</p>
                   </div>
                   <HeaderImagePicker
-                    preview={form.headerImage}
+                    preview={activeToken.form.headerImage}
                     onChange={(file, url) => patch({ headerImageFile: file, headerImage: url })}
                     onClear={() => patch({ headerImage: null, headerImageFile: null })}
                   />
@@ -583,7 +696,7 @@ export default function DevDashboard() {
                 {/* Features */}
                 <section className="flex flex-col gap-4">
                   <h2 className="text-white font-semibold text-base">Features</h2>
-                  <BurnToggle value={form.isBurn} onChange={(v) => patch({ isBurn: v })} />
+                  <BurnToggle value={activeToken.form.isBurn} onChange={(v) => patch({ isBurn: v })} />
                 </section>
 
                 <div className="border-t border-white/8" />
@@ -594,40 +707,38 @@ export default function DevDashboard() {
                   <div className="flex flex-col gap-1.5">
                     <FieldLabel>Website</FieldLabel>
                     <InputField icon={<Globe size={15} />} placeholder="https://yourtoken.io"
-                      value={form.website} onChange={(v) => patch({ website: v })} />
+                      value={activeToken.form.website} onChange={(v) => patch({ website: v })} />
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <FieldLabel>X / Twitter</FieldLabel>
                     <InputField
                       icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" className="text-white/35"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622 5.91-5.622Zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>}
-                      placeholder="yourhandle" prefix="x.com/" value={form.twitter} onChange={(v) => patch({ twitter: v })} />
+                      placeholder="yourhandle" prefix="x.com/" value={activeToken.form.twitter} onChange={(v) => patch({ twitter: v })} />
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <FieldLabel>Telegram</FieldLabel>
                     <InputField icon={<Send size={15} />} placeholder="yourchannel"
-                      prefix="t.me/" value={form.telegram} onChange={(v) => patch({ telegram: v })} />
+                      prefix="t.me/" value={activeToken.form.telegram} onChange={(v) => patch({ telegram: v })} />
                   </div>
                 </section>
 
                 {/* Actions */}
-                <div className="flex items-center justify-between pt-2 pb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2 pb-6 sm:pb-4">
                   <AnimatePresence>
                     {saveError && (
-                      <motion.p initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
-                        className="text-sm text-red-400">{saveError}</motion.p>
+                      <motion.p initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                        className="text-sm text-red-400 sm:flex-1">{saveError}</motion.p>
                     )}
                     {saved && !saveError && (
-                      <motion.p initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
-                        className="text-sm text-green-400">Changes saved</motion.p>
+                      <motion.p initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                        className="text-sm text-green-400 sm:flex-1">Changes saved</motion.p>
                     )}
                   </AnimatePresence>
-                  <div className="ml-auto">
-                    <button type="submit" disabled={saving}
-                      className="flex items-center justify-center gap-2 bg-white text-[#360606] font-bold text-sm rounded-xl py-3 px-6 hover:bg-white/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
-                      {saving && <Loader2 size={14} className="animate-spin" />}
-                      {saving ? "Saving..." : saved ? "Saved!" : "Save Changes"}
-                    </button>
-                  </div>
+                  <button type="submit" disabled={saving}
+                    className="w-full sm:w-auto sm:ml-auto flex items-center justify-center gap-2 bg-white text-[#360606] font-bold text-sm rounded-xl py-3 px-6 hover:bg-white/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+                    {saving && <Loader2 size={14} className="animate-spin" />}
+                    {saving ? "Saving..." : saved ? "Saved!" : "Save Changes"}
+                  </button>
                 </div>
 
               </div>

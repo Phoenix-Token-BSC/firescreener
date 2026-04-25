@@ -34,7 +34,10 @@ export async function POST(req: NextRequest) {
 
   // Parse multipart form
   const form = await req.formData().catch(() => null);
-  const file = form?.get("file");
+  if (!form) {
+    return NextResponse.json({ error: "No file provided" }, { status: 400 });
+  }
+  const file = form.get("file");
   if (!file || !(file instanceof Blob)) {
     return NextResponse.json({ error: "No file provided" }, { status: 400 });
   }
@@ -47,13 +50,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "File exceeds 2 MB limit" }, { status: 400 });
   }
 
+  const addressField = form.get("address");
+  const targetAddress = typeof addressField === "string" ? addressField.trim().toLowerCase() : null;
+  if (!targetAddress) {
+    return NextResponse.json({ error: "No token address provided" }, { status: 400 });
+  }
+
   const db = adminClient();
 
-  // Look up the token linked to this developer to build the storage path
+  // Verify the developer owns this specific token
   const { data: tokenRow, error: tokenErr } = await db
     .from("tokens")
     .select("address, chain")
     .eq("developer_id", user.id)
+    .eq("address", targetAddress)
     .single();
 
   if (tokenErr || !tokenRow) {
