@@ -26,8 +26,7 @@ export default function DevAuthPage() {
       <div className="w-full max-w-sm">
         {/* Logo / branding */}
         <div className="text-center mb-10">
-          <span className="text-white font-black text-3xl tracking-tight">PHT</span>
-          <span className="ml-2 text-xs font-semibold uppercase tracking-widest text-white/30 align-middle">
+          <span className="ml-2 text-2xl font-bold uppercast text-white align-middle">
             Dev Portal
           </span>
         </div>
