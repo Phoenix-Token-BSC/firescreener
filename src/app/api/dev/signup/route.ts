@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Redis } from "@upstash/redis";
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -18,13 +18,7 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.STMP_MAIL,
-    pass: process.env.STMP_PASSWORD,
-  },
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 function otpKey(email: string) {
   return `dev-otp:${email.toLowerCase()}`;
@@ -65,14 +59,14 @@ export async function POST(req: NextRequest) {
   // Store code + userId together so verify can confirm without listUsers()
   await redis.set(otpKey(email), JSON.stringify({ code, userId: created.user.id }), { ex: OTP_TTL_SEC });
 
-  try {
-    await transporter.sendMail({
-      from: `"FireScreener" <${process.env.STMP_MAIL}>`,
-      to: email,
-      subject: "Your FireScreener verification code",
-      html: buildEmail(username, code),
-    });
-  } catch (mailErr) {
+  const { error: mailErr } = await resend.emails.send({
+    from: "FireScreener <team@firescreener.com>",
+    to: email,
+    subject: "Your FireScreener verification code",
+    html: buildEmail(username, code),
+  });
+
+  if (mailErr) {
     console.error("[dev/signup] Email delivery failed:", mailErr);
   }
 
