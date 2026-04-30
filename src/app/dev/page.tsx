@@ -2,12 +2,13 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { FileText, Globe, Flame, ImagePlus, ArrowRight, ShieldCheck } from "lucide-react";
+import { FileText, Globe, Flame, ImagePlus, ArrowRight, ShieldCheck, Camera } from "lucide-react";
 
 const FEATURES = [
   { icon: <FileText size={18} />, title: "Token Description", body: "Write a public description that appears on your token's page." },
   { icon: <Globe size={18} />, title: "Links & Socials", body: "Set your website, X/Twitter, and Telegram so users can find your community." },
   { icon: <Flame size={18} />, title: "Burn Tracking", body: "Toggle burn stats visibility to surface supply deflation on your page." },
+  { icon: <Camera size={18} />, title: "Token Logo", body: "Upload your token logo so it appears across the tracker." },
   { icon: <ImagePlus size={18} />, title: "Header Image", body: "Upload a header banner that personalises your token profile." },
   { icon: <ShieldCheck size={18} />, title: "Verified Profile", body: "Claimed profiles are marked verified, building trust with your community." },
 ];

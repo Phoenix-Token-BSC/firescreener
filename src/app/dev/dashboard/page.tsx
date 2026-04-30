@@ -25,6 +25,7 @@ interface TokenEditable {
   description: string;
   headerImage: string | null;
   headerImageFile: File | null;
+  logoFile: File | null;
   isBurn: boolean;
   website: string;
   twitter: string;
@@ -42,7 +43,7 @@ const CACHE_KEY = "pht-dev-token-cache";
 
 interface TokenCache {
   userId: string;
-  tokens: Array<{ readOnly: TokenReadOnly; formData: Omit<TokenEditable, "headerImageFile"> }>;
+  tokens: Array<{ readOnly: TokenReadOnly; formData: Omit<TokenEditable, "headerImageFile" | "logoFile"> }>;
   activeIdx: number;
   pageState: "ready" | "no-token";
 }
@@ -67,7 +68,7 @@ function clearCache() {
 
 const DEFAULT_FORM: TokenEditable = {
   description: "", headerImage: null, headerImageFile: null,
-  isBurn: false, website: "", twitter: "", telegram: "",
+  logoFile: null, isBurn: false, website: "", twitter: "", telegram: "",
 };
 
 function entryToCache(e: TokenEntry): TokenCache["tokens"][number] {
@@ -175,6 +176,7 @@ function HeaderImagePicker({ preview, onChange, onClear }: {
     </div>
   );
 }
+
 
 function BurnToggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -318,7 +320,7 @@ export default function DevDashboard() {
       if (cache && cache.userId === session.user.id && cache.tokens.length > 0) {
         const entries: TokenEntry[] = cache.tokens.map(ct => ({
           readOnly: ct.readOnly,
-          form: { ...ct.formData, headerImageFile: null },
+          form: { ...ct.formData, headerImageFile: null, logoFile: null },
         }));
         setTokens(entries);
         setActiveIdx(Math.min(cache.activeIdx, entries.length - 1));
@@ -369,6 +371,7 @@ export default function DevDashboard() {
           description: row.description || "",
           headerImage: row.header_image || null,
           headerImageFile: null,
+          logoFile: null,
           isBurn: row.is_burn ?? false,
           website: row.website || "",
           twitter: row.twitter || "",
@@ -425,6 +428,28 @@ export default function DevDashboard() {
     const { readOnly, form } = activeToken;
     setSaving(true);
     setSaveError(null);
+
+    // Upload logo if a new file was picked
+    if (form.logoFile) {
+      const fd = new FormData();
+      fd.append("file", form.logoFile);
+      fd.append("address", readOnly.address);
+
+      const res = await fetch("/api/dev/upload-logo", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: fd,
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        setSaveError("Logo upload failed: " + (json.error ?? res.statusText));
+        setSaving(false);
+        return;
+      }
+
+      patch({ logoFile: null });
+    }
 
     let headerImageUrl = form.headerImage;
 
@@ -672,6 +697,42 @@ export default function DevDashboard() {
                 {/* About */}
                 <section className="flex flex-col gap-4">
                   <h2 className="text-white font-semibold text-base">About</h2>
+                
+                  {/* Token Logo */}
+                  <div className="flex flex-col gap-1.5">
+                    <FieldLabel>Token Logo</FieldLabel>
+                    <label className="flex items-center gap-4 bg-white/5 border border-white/10 rounded-xl px-4 py-3 cursor-pointer hover:bg-white/[0.07] transition-colors">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={activeToken.form.logoFile
+                          ? URL.createObjectURL(activeToken.form.logoFile)
+                          : `/api/${activeToken.readOnly.chain}/logo/${activeToken.readOnly.address}`}
+                        alt="logo"
+                        className="w-18 h-18 rounded-full object-cover bg-white/10 shrink-0"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3C/svg%3E"; }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-white font-medium">
+                          {activeToken.form.logoFile ? activeToken.form.logoFile.name : "Token Logo"}
+                        </p>
+                        <p className="text-xs text-white/40 mt-0.5">
+                          {activeToken.form.logoFile ? "Will upload on save · " : "PNG, JPG, WEBP — max 2 MB · "}
+                          <span className="underline underline-offset-2">
+                            {activeToken.form.logoFile ? "change" : "browse"}
+                          </span>
+                        </p>
+                      </div>
+                      {activeToken.form.logoFile && (
+                        <button type="button"
+                          onClick={(e) => { e.preventDefault(); patch({ logoFile: null }); }}
+                          className="shrink-0 text-white/30 hover:text-white transition-colors">
+                          <X size={15} />
+                        </button>
+                      )}
+                      <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden"
+                        onChange={(e) => { const f = e.target.files?.[0]; if (f) patch({ logoFile: f }); }} />
+                    </label>
+                  </div>
                   <div className="flex flex-col gap-1.5">
                     <FieldLabel>Description</FieldLabel>
                     <textarea
