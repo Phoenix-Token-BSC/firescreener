@@ -766,7 +766,6 @@ const PriceComparison = () => {
 
   return (
     <div className="min-h-screen text-white">
-      <Header />
       <div className="max-w-lg mx-auto px-4 py-6 md:py-8">
         {/* Header */}
         <h1 className="text-4xl md:text-5xl uppercase font-bold text-center mb-2" style={{ color: '#FF7F27' }}>
