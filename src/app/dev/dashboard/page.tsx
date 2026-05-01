@@ -308,6 +308,7 @@ export default function DevDashboard() {
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [logoTimestamp, setLogoTimestamp] = useState(0);
 
   // ── Auth ──────────────────────────────────────────────────────────────────
 
@@ -449,6 +450,7 @@ export default function DevDashboard() {
       }
 
       patch({ logoFile: null });
+      setLogoTimestamp(Date.now());
     }
 
     let headerImageUrl = form.headerImage;
@@ -706,7 +708,7 @@ export default function DevDashboard() {
                       <img
                         src={activeToken.form.logoFile
                           ? URL.createObjectURL(activeToken.form.logoFile)
-                          : `/api/${activeToken.readOnly.chain}/logo/${activeToken.readOnly.address}`}
+                          : `/api/${activeToken.readOnly.chain}/logo/${activeToken.readOnly.address}${logoTimestamp ? `?v=${logoTimestamp}` : ""}`}
                         alt="logo"
                         className="w-18 h-18 rounded-full object-cover bg-white/10 shrink-0"
                         onError={(e) => { (e.currentTarget as HTMLImageElement).src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3C/svg%3E"; }}
