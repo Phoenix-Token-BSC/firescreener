@@ -24,6 +24,7 @@ import NewPriceActionChart from "@/components/NewPriceActionChart";
 import SecurityAnalysis from "@/components/GoPlusAnalysis";
 import HoneypotAnalysis from "@/components/HoneypotAnalysis";
 import VolumeTxnsInfo from "@/components/VolumeTxnsInfo";
+import TransactionsData from "@/components/TransactionsData";
 import LoadingWithLogo from "@/components/LoadingWithLogo";
 import TokenStatsGrid from "@/components/TokenStatsGrid";
 import WaraGuardAnalysis from "@/components/WaraGuardAnalysis";
@@ -791,7 +792,10 @@ export default function TokenPage() {
                         contractAddress={contractAddress}
                       />
                     )}
-                    
+                    <TransactionsData
+                      chain={chain?.toLowerCase() ?? null}
+                      contractAddress={contractAddress}
+                    />
                   </section>
                 </div>
 
@@ -1036,6 +1040,10 @@ export default function TokenPage() {
                         contractAddress={contractAddress}
                       />
                     )}
+                    <TransactionsData
+                      chain={chain?.toLowerCase() ?? null}
+                      contractAddress={contractAddress}
+                    />
 
                     {/* Bottom Section: Burns (if enabled) */}
                     {showBurns && (

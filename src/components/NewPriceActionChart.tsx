@@ -59,7 +59,7 @@ const TIMEFRAMES = [
 ] as const;
 
 function getPlatformId(chain: SupportedChain): string {
-    return chain === "bsc" ? "binance-smart-chain" : "ethereum" ;
+    return chain === "bsc" ? "binance-smart-chain" : "ethereum";
 }
 
 function getSymbolFromChain(chain: SupportedChain): string {
@@ -592,63 +592,63 @@ export default function PriceActionChart({
                     }
                 }
 
-                        // Prefer Supabase Token Analysis function for BSC / ETH when available
-                        async function fetchFromSupabase(signal: AbortSignal): Promise<CandlestickData[]> {
-                            // Hardcoded Supabase Functions host (direct call)
-                            const supabaseBase = 'https://enpdzndcjxlzupmxpmms.supabase.co';
+                // Prefer Supabase Token Analysis function for BSC / ETH when available
+                async function fetchFromSupabase(signal: AbortSignal): Promise<CandlestickData[]> {
+                    // Hardcoded Supabase Functions host (direct call)
+                    const supabaseBase = 'https://enpdzndcjxlzupmxpmms.supabase.co';
 
-                            let timeframeParam = '1y';
-                            if (selectedTimeframe <= 1) timeframeParam = '1d';
-                            else if (selectedTimeframe <= 7) timeframeParam = '7d';
-                            else if (selectedTimeframe <= 30) timeframeParam = '30d';
-                            else if (selectedTimeframe <= 90) timeframeParam = '3m';
+                    let timeframeParam = '1y';
+                    if (selectedTimeframe <= 1) timeframeParam = '1d';
+                    else if (selectedTimeframe <= 7) timeframeParam = '7d';
+                    else if (selectedTimeframe <= 30) timeframeParam = '30d';
+                    else if (selectedTimeframe <= 90) timeframeParam = '3m';
 
-                            const url = `${supabaseBase}/functions/v1/token-analysis-api?chain=${encodeURIComponent(chain)}&token=${encodeURIComponent(contractAddress)}&timeframe=${encodeURIComponent(timeframeParam)}`;
-                            console.log('Fetching from Supabase (direct) in NewPriceActionChart:', url);
+                    const url = `${supabaseBase}/functions/v1/token-analysis-api?chain=${encodeURIComponent(chain)}&token=${encodeURIComponent(contractAddress)}&timeframe=${encodeURIComponent(timeframeParam)}`;
+                    console.log('Fetching from Supabase (direct) in NewPriceActionChart:', url);
 
-                            const resp = await fetch(url, { signal, cache: 'no-store' });
-                            if (!resp.ok) {
-                                throw new Error(`Supabase API failed: ${resp.status}`);
-                            }
+                    const resp = await fetch(url, { signal, cache: 'no-store' });
+                    if (!resp.ok) {
+                        throw new Error(`Supabase API failed: ${resp.status}`);
+                    }
 
-                            const json = await resp.json();
-                            const candles = json?.priceChart?.candles;
-                            if (!Array.isArray(candles) || candles.length === 0) {
-                                throw new Error('No price data from Supabase');
-                            }
+                    const json = await resp.json();
+                    const candles = json?.priceChart?.candles;
+                    if (!Array.isArray(candles) || candles.length === 0) {
+                        throw new Error('No price data from Supabase');
+                    }
 
-                            // Normalize and convert to CandlestickData[] (time in seconds)
-                            const normalized = candles
-                                .map((c: any) => {
-                                    const rawTime = Number(c.time);
-                                    // if ms -> convert to seconds
-                                    let timeSec = rawTime;
-                                    if (rawTime > 1e12) timeSec = Math.floor(rawTime / 1000);
-                                    else if (rawTime > 1e9) timeSec = rawTime;
-                                    else if (rawTime <= 1e9) timeSec = rawTime; // assume seconds
+                    // Normalize and convert to CandlestickData[] (time in seconds)
+                    const normalized = candles
+                        .map((c: any) => {
+                            const rawTime = Number(c.time);
+                            // if ms -> convert to seconds
+                            let timeSec = rawTime;
+                            if (rawTime > 1e12) timeSec = Math.floor(rawTime / 1000);
+                            else if (rawTime > 1e9) timeSec = rawTime;
+                            else if (rawTime <= 1e9) timeSec = rawTime; // assume seconds
 
-                                    const open = Number(c.open ?? c.o ?? c[1] ?? c.close ?? 0);
-                                    const high = Number(c.high ?? c.h ?? c[2] ?? c.close ?? 0);
-                                    const low = Number(c.low ?? c.l ?? c[3] ?? c.close ?? 0);
-                                    const close = Number(c.close ?? c.c ?? c[4] ?? 0);
-                                    return { time: Math.floor(timeSec), open, high, low, close } as CandlestickData;
-                                })
-                                .filter((d: any) => Number.isFinite(d.time) && Number.isFinite(d.close));
+                            const open = Number(c.open ?? c.o ?? c[1] ?? c.close ?? 0);
+                            const high = Number(c.high ?? c.h ?? c[2] ?? c.close ?? 0);
+                            const low = Number(c.low ?? c.l ?? c[3] ?? c.close ?? 0);
+                            const close = Number(c.close ?? c.c ?? c[4] ?? 0);
+                            return { time: Math.floor(timeSec), open, high, low, close } as CandlestickData;
+                        })
+                        .filter((d: any) => Number.isFinite(d.time) && Number.isFinite(d.close));
 
-                            // sort and dedupe
-                            normalized.sort((a: CandlestickData, b: CandlestickData) => a.time - b.time);
-                            const dedup: CandlestickData[] = [];
-                            for (const nd of normalized) {
-                                const last = dedup[dedup.length - 1];
-                                if (last && last.time === nd.time) {
-                                    dedup[dedup.length - 1] = nd; // replace with latest
-                                } else {
-                                    dedup.push(nd);
-                                }
-                            }
-
-                            return processData(dedup);
+                    // sort and dedupe
+                    normalized.sort((a: CandlestickData, b: CandlestickData) => a.time - b.time);
+                    const dedup: CandlestickData[] = [];
+                    for (const nd of normalized) {
+                        const last = dedup[dedup.length - 1];
+                        if (last && last.time === nd.time) {
+                            dedup[dedup.length - 1] = nd; // replace with latest
+                        } else {
+                            dedup.push(nd);
                         }
+                    }
+
+                    return processData(dedup);
+                }
 
                 // Try Supabase function first for BSC/ETH (canonical analysis), then GeckoTerminal
                 if (chain === 'bsc' || chain === 'eth') {
@@ -876,68 +876,71 @@ export default function PriceActionChart({
     }, [data, loading]);
 
     return (
-        <div className="rounded-lg border border-neutral-700 bg-neutral-900/40 p-4">
-            {/* Timeframe buttons — moved ABOVE the chart */}
-            <div className="flex justify-start items-center gap-2 mb-4">
-                {TIMEFRAMES.map((tf) => (
-                    <button
-                        key={tf.days}
-                        onClick={() => setSelectedTimeframe(tf.days)}
-                        className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${selectedTimeframe === tf.days
+        <div>
+            <h1 className="font-bold text-xl md:text-2xl text-orange-500">{tokenSymbol} Chart</h1>
+            <div className="rounded-lg border border-neutral-700 bg-neutral-900/40 p-4">
+                {/* Timeframe buttons — moved ABOVE the chart */}
+                <div className="flex justify-start items-center gap-2 mb-4">
+                    {TIMEFRAMES.map((tf) => (
+                        <button
+                            key={tf.days}
+                            onClick={() => setSelectedTimeframe(tf.days)}
+                            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${selectedTimeframe === tf.days
                                 ? "bg-orange-600 text-white shadow-sm"
                                 : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
-                            }`}
-                    >
-                        {tf.label}
-                    </button>
-                ))}
-            </div>
-
-            {/* Chart container + custom price labels */}
-            <div className="relative">
-                {/* Always-visible price labels on the right */}
-                <div
-                    className="absolute right-0 top-0 bottom-0 w-20 pointer-events-none z-10 flex flex-col justify-between"
-                    aria-hidden="true"
-                >
-                    {priceTicks.map((tick, i) => (
-                        <div
-                            key={i}
-                            className="text-right text-xs font-mono text-neutral-400 pr-2"
-                            style={{
-                                transform: `translateY(${tick.y}px)`,
-                                position: 'absolute',
-                                right: 0,
-                                width: '100%',
-                            }}
+                                }`}
                         >
-                            {formatChartPrice(tick.price)}
-                        </div>
+                            {tf.label}
+                        </button>
                     ))}
                 </div>
 
-                {/* Main chart area */}
-                <div
-                    ref={chartContainerRef}
-                    className="w-full h-[360px] min-h-[320px]"
-                />
-
-                {loading && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-neutral-400">
-                        Loading price data...
+                {/* Chart container + custom price labels */}
+                <div className="relative">
+                    {/* Always-visible price labels on the right */}
+                    <div
+                        className="absolute right-0 top-0 bottom-0 w-20 pointer-events-none z-10 flex flex-col justify-between"
+                        aria-hidden="true"
+                    >
+                        {priceTicks.map((tick, i) => (
+                            <div
+                                key={i}
+                                className="text-right text-xs font-mono text-neutral-400 pr-2"
+                                style={{
+                                    transform: `translateY(${tick.y}px)`,
+                                    position: 'absolute',
+                                    right: 0,
+                                    width: '100%',
+                                }}
+                            >
+                                {formatChartPrice(tick.price)}
+                            </div>
+                        ))}
                     </div>
-                )}
 
-                {!loading && (!data || data.length === 0) && (
-                    <div className="absolute inset-0 flex items-center justify-center text-neutral-500">
-                        No price data available
-                    </div>
-                )}
-            </div>
+                    {/* Main chart area */}
+                    <div
+                        ref={chartContainerRef}
+                        className="w-full h-[360px] min-h-[320px]"
+                    />
 
-            {/* {error && (
+                    {loading && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-neutral-400">
+                            Loading price data...
+                        </div>
+                    )}
+
+                    {!loading && (!data || data.length === 0) && (
+                        <div className="absolute inset-0 flex items-center justify-center text-neutral-500">
+                            No price data available
+                        </div>
+                    )}
+                </div>
+
+                {/* {error && (
                 <div className="mt-3 text-red-400 text-sm text-center">{error}</div>
             )} */}
+            </div>
         </div>
     );
 }
