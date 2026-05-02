@@ -24,6 +24,7 @@ import NewPriceActionChart from "@/components/NewPriceActionChart";
 import SecurityAnalysis from "@/components/GoPlusAnalysis";
 import HoneypotAnalysis from "@/components/HoneypotAnalysis";
 import VolumeTxnsInfo from "@/components/VolumeTxnsInfo";
+import AthAtlInfo from "@/components/AthAtlInfo";
 import LoadingWithLogo from "@/components/LoadingWithLogo";
 import TokenStatsGrid from "@/components/TokenStatsGrid";
 import WaraGuardAnalysis from "@/components/WaraGuardAnalysis";
@@ -483,6 +484,9 @@ export default function TokenPage() {
 
                     <div className="mt-4 flex flex-col gap-4">
                       <VolumeTxnsInfo chain={chain?.toLowerCase() as "bsc" | "eth"} contractAddress={contractAddress} />
+                    </div>
+                    <div className="mt-4 flex flex-col gap-4">
+                      <AthAtlInfo chain={chain?.toLowerCase()} contractAddress={contractAddress} />
                     </div>
                     <div className="mt-4 flex flex-row bg-black/35 justify-between gap-2 items-center rounded-md p-4">
                       <div className="flex flex-col items-center">
