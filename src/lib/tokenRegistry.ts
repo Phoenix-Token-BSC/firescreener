@@ -185,6 +185,7 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
   { address: "0xbe231A8492487aAe6096278A97050FAe6B9d5BEc", symbol: "weth", name: "Wrapped Ether", chain: "rwa", isBurn: false },
 
   { address: "0x4200000623d0242cccd4e907008583dcb4af6472", symbol: "estee", name: "SHIBSTEE", chain: "eth", isBurn: false },
+  {address: "0x45604b6C05ac7d0045741EdaF95739D514461FB5", symbol: "bofe", name: "Book Of Frog", chain: "eth", isBurn: false },
 
 ];
 

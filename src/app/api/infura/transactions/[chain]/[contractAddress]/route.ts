@@ -58,11 +58,12 @@ export async function GET(
     }
 
     const hasProvider =
-      process.env.INFURA_API_KEY ||
-      process.env.ALCHEMY_API_KEY ||
       process.env.ANKR_API_KEY ||
+      process.env.DRPC_API_KEY ||
+      process.env.INFURA_API_KEY ||
       process.env.QUICKNODE_ETH_URL ||
-      process.env.QUICKNODE_BSC_URL;
+      process.env.QUICKNODE_BSC_URL ||
+      process.env.ALCHEMY_API_KEY;
     if (!hasProvider) {
       return NextResponse.json({ error: "No RPC provider configured" }, { status: 503 });
     }
@@ -177,8 +178,9 @@ export async function GET(
     await redis.set(cacheKey, response, { ex: INITIAL_CACHE_TTL });
     return NextResponse.json(response);
   } catch (error) {
-    const msg = error instanceof Error ? error.message : "Unknown error";
-    console.error("Infura transactions error:", msg);
-    return NextResponse.json({ error: "Failed to fetch transactions" }, { status: 500 });
+    const msg = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : undefined;
+    console.error("Infura transactions error:", msg, stack);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

@@ -22,6 +22,11 @@ const ANKR_RPC: Record<string, string> = {
   bsc: "https://rpc.ankr.com/bsc",
 };
 
+const DRPC_RPC: Record<string, string> = {
+  eth: "https://lb.drpc.live/eth",
+  bsc: "https://lb.drpc.live/bsc",
+};
+
 // Approximate block time per chain in seconds
 const SECS_PER_BLOCK: Record<string, number> = {
   eth: 12,
@@ -32,9 +37,10 @@ const SECS_PER_BLOCK: Record<string, number> = {
 // wraps them in a FallbackProvider (quorum=1) so the first healthy
 // node to respond wins.  Priority order: Infura → Alchemy → Ankr → QuickNode.
 export function getProvider(chain: string): ethers.AbstractProvider {
-  const infuraKey   = process.env.INFURA_API_KEY;
-  const alchemyKey  = process.env.ALCHEMY_API_KEY;
-  const ankrKey     = process.env.ANKR_API_KEY;
+  const ankrKey      = process.env.ANKR_API_KEY;
+  const drpcKey      = process.env.DRPC_API_KEY;
+  const infuraKey    = process.env.INFURA_API_KEY;
+  const alchemyKey   = process.env.ALCHEMY_API_KEY;
   // QuickNode embeds the key in the URL subdomain — store the full URL per chain
   const quicknodeUrl = chain === "eth"
     ? process.env.QUICKNODE_ETH_URL
@@ -43,25 +49,25 @@ export function getProvider(chain: string): ethers.AbstractProvider {
   type Candidate = { provider: ethers.JsonRpcProvider; priority: number; stallTimeout: number };
   const candidates: Candidate[] = [];
 
-  if (infuraKey && INFURA_RPC[chain]) {
+  if (ankrKey && ANKR_RPC[chain]) {
     candidates.push({
-      provider: new ethers.JsonRpcProvider(`${INFURA_RPC[chain]}/${infuraKey}`),
+      provider: new ethers.JsonRpcProvider(`${ANKR_RPC[chain]}/${ankrKey}`),
       priority: 1,
       stallTimeout: 3000,
     });
   }
 
-  if (alchemyKey && ALCHEMY_RPC[chain]) {
+  if (drpcKey && DRPC_RPC[chain]) {
     candidates.push({
-      provider: new ethers.JsonRpcProvider(`${ALCHEMY_RPC[chain]}/${alchemyKey}`),
+      provider: new ethers.JsonRpcProvider(`${DRPC_RPC[chain]}/${drpcKey}`),
       priority: 2,
       stallTimeout: 3000,
     });
   }
 
-  if (ankrKey && ANKR_RPC[chain]) {
+  if (infuraKey && INFURA_RPC[chain]) {
     candidates.push({
-      provider: new ethers.JsonRpcProvider(`${ANKR_RPC[chain]}/${ankrKey}`),
+      provider: new ethers.JsonRpcProvider(`${INFURA_RPC[chain]}/${infuraKey}`),
       priority: 3,
       stallTimeout: 3000,
     });
@@ -71,6 +77,14 @@ export function getProvider(chain: string): ethers.AbstractProvider {
     candidates.push({
       provider: new ethers.JsonRpcProvider(quicknodeUrl),
       priority: 4,
+      stallTimeout: 3000,
+    });
+  }
+
+  if (alchemyKey && ALCHEMY_RPC[chain]) {
+    candidates.push({
+      provider: new ethers.JsonRpcProvider(`${ALCHEMY_RPC[chain]}/${alchemyKey}`),
+      priority: 5,
       stallTimeout: 3000,
     });
   }
