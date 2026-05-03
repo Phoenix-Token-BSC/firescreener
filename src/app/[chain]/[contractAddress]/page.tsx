@@ -482,12 +482,7 @@ export default function TokenPage() {
 
                   
 
-                    <div className="mt-4 flex flex-col gap-4">
-                      <VolumeTxnsInfo chain={chain?.toLowerCase() as "bsc" | "eth"} contractAddress={contractAddress} />
-                    </div>
-                    <div className="mt-4 flex flex-col gap-4">
-                      <AthAtlInfo chain={chain?.toLowerCase()} contractAddress={contractAddress} />
-                    </div>
+                   
                     <div className="mt-4 flex flex-row bg-black/35 justify-between gap-2 items-center rounded-md p-4">
                       <div className="flex flex-col items-center">
                         <span className="text-xs text-gray-400">1h</span>
@@ -527,6 +522,12 @@ export default function TokenPage() {
                           <FaCopy size={20} fill="#ffffff" />
                         </button>
                       </h1>
+                      <div className="mt-4 flex flex-col gap-4">
+                      <VolumeTxnsInfo chain={chain?.toLowerCase() as "bsc" | "eth"} contractAddress={contractAddress} />
+                    </div>
+                    <div className="flex flex-col gap-4">
+                      <AthAtlInfo chain={chain?.toLowerCase()} contractAddress={contractAddress} />
+                    </div>
                     </div>
 
 
@@ -913,6 +914,10 @@ export default function TokenPage() {
                       />
                     </div>
 
+                    <div className="mt-4 flex flex-col gap-4">
+                      <AthAtlInfo chain={chain?.toLowerCase()} contractAddress={contractAddress} />
+                    </div>
+
 
 
                     <div className="flex flex-col gap-2 bg-neutral-900 border-2 border-neutral-600 p-4 mt-4 rounded-xl">
@@ -1063,14 +1068,7 @@ export default function TokenPage() {
                       </section>
                     )}
 
-                    {chain && contractAddress && (
-                      <div className="mt-8 flex flex-col border-2 border-orange-500 p-4 rounded-xl gap-2">
-                        <h1 className="text-xl font-bold">SECURITY ANALYSIS</h1>
-                        <WaraGuardAnalysis chain={chain} contractAddress={contractAddress} />
-                        <SecurityAnalysis chain={chain} contractAddress={contractAddress} />
-                        <HoneypotAnalysis chain={chain} contractAddress={contractAddress} />
-                      </div>
-                    )}
+                    
 
                     <div className="flex mt-8 gap-4 md:gap-8 md:w-full items-center justify-center mb-4 flex-wrap">
                       <div
