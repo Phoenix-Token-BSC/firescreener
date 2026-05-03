@@ -14,7 +14,7 @@ const SignUpPage: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // Handle form submission
-    console.log({ email, password, confirmPassword, agreedToTerms });
+  //  console.log({ email, password, confirmPassword, agreedToTerms });
   };
 
   return (

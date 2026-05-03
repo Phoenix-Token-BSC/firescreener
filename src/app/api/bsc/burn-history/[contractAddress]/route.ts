@@ -84,24 +84,24 @@ export async function GET(
   context: { params: Promise<RouteParams> }
 ): Promise<NextResponse> {
   try {
-    console.log('Starting burn history API call...');
+    // console.log('Starting burn history API call...');
     
     const params = await context.params;
     const { contractAddress } = params;
-    console.log('Contract address:', contractAddress);
+    // console.log('Contract address:', contractAddress);
 
     if (!contractAddress) {
-      console.log('Missing contract address');
+      // console.log('Missing contract address');
       return NextResponse.json({ error: 'Missing contract address' }, { status: 400 });
     }
 
     const addressLower = contractAddress.toLowerCase();
-    console.log('Normalized address:', addressLower);
+    // console.log('Normalized address:', addressLower);
 
     // Validate contract address format
     try {
       if (!isValidContractAddress(addressLower, 'bsc')) {
-        console.log('Invalid contract address format');
+        // console.log('Invalid contract address format');
         return NextResponse.json({ error: 'Invalid contract address format' }, { status: 400 });
       }
     } catch (validationError) {
@@ -120,13 +120,13 @@ export async function GET(
     }
 
     if (!tokenMetadata) {
-      console.log('Token not found in registry');
+      // console.log('Token not found in registry');
       return NextResponse.json({ error: 'Token not found in registry' }, { status: 404 });
     }
 
     // Verify it's a BSC token
     if (tokenMetadata.chain !== 'bsc') {
-      console.log(`Token is on ${tokenMetadata.chain}, not BSC`);
+      // console.log(`Token is on ${tokenMetadata.chain}, not BSC`);
       return NextResponse.json({
         error: `Token is on ${tokenMetadata.chain.toUpperCase()}, not BSC`
       }, { status: 400 });
@@ -143,7 +143,7 @@ export async function GET(
 
     // Fetch burn transactions from BSCScan API
     const url = `${BSCSCAN_API_URL}&module=account&action=tokentx&contractaddress=${contractAddress}&address=${DEAD_ADDRESS}&sort=desc&offset=50&page=1&apikey=${BSCSCAN_API_KEY}`;
-    console.log('Fetching from BSCScan URL:', url);
+    // console.log('Fetching from BSCScan URL:', url);
 
     let response;
     let data: BscscanApiResponse;
@@ -165,8 +165,8 @@ export async function GET(
       }
 
       data = await response.json() as BscscanApiResponse;
-      console.log('BSCScan API response status:', data.status);
-      console.log('BSCScan API message:', data.message);
+      // console.log('BSCScan API response status:', data.status);
+     // console.log('BSCScan API message:', data.message);
       
     } catch (fetchError) {
       console.error("Error fetching from BSCScan:", fetchError);
@@ -179,7 +179,7 @@ export async function GET(
     // Handle BSCScan API errors or empty results
     if (data.status !== "1") {
       if (data.message === "No transactions found") {
-        console.log('No burn transactions found for this token');
+      //  console.log('No burn transactions found for this token');
         // Return empty results instead of error
         const burnData = {
           contractAddress: contractAddress,
@@ -209,7 +209,7 @@ export async function GET(
       );
     }
 
-    console.log(`Found ${data.result.length} burn transactions`);
+    //console.log(`Found ${data.result.length} burn transactions`);
 
     // Format the transactions with better error handling
     const transactions: FormattedTransaction[] = [];
@@ -270,10 +270,10 @@ export async function GET(
       lastUpdated: new Date().toISOString()
     };
 
-    console.log('Successfully processed burn data:', {
-      totalEvents: burnData.totalBurnEvents,
-      totalBurned: burnData.totalBurned
-    });
+    // console.log('Successfully processed burn data:', {
+   //   totalEvents: burnData.totalBurnEvents,
+     // totalBurned: burnData.totalBurned
+   // });
 
     return NextResponse.json(burnData);
 

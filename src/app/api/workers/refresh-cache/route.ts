@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     errors: [],
   };
 
-  console.log(`🔄 Starting cache refresh for ${stats.totalTokens} tokens...`);
+ // console.log(`🔄 Starting cache refresh for ${stats.totalTokens} tokens...`);
 
   // Process tokens in batches to avoid overwhelming APIs
   const BATCH_SIZE = 10;
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
           }
           
           stats.successful++;
-          console.log(`✓ Refreshed: ${token.symbol} (${token.chain})`);
+         // console.log(`✓ Refreshed: ${token.symbol} (${token.chain})`);
         } catch (error) {
           stats.failed++;
           const errorMsg = `Failed: ${token.symbol} - ${error}`;
@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
   stats.endTime = new Date().toISOString();
   stats.duration = new Date(stats.endTime).getTime() - new Date(stats.startTime).getTime();
 
-  console.log(`✅ Cache refresh complete: ${stats.successful}/${stats.totalTokens} successful`);
+  //console.log(`✅ Cache refresh complete: ${stats.successful}/${stats.totalTokens} successful`);
 
   return NextResponse.json({
     success: true,

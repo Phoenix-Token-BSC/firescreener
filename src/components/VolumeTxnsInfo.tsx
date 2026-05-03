@@ -87,8 +87,8 @@ useEffect(() => {
         priceRes instanceof Response && priceRes.ok ? priceRes.json().catch(() => null) : null,
       ]);
 
-      console.log("Volume fetch result:", volRes, results[0]);
-      console.log("Txns/Price fetch result:", priceRes, results[1]);
+     // console.log("Volume fetch result:", volRes, results[0]);
+    //  console.log("Txns/Price fetch result:", priceRes, results[1]);
 
       setVolumeData(results[0] ?? null);
       setTxnsData(results[1] ?? null);

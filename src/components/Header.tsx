@@ -184,7 +184,7 @@ export default function Header() {
     const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
         setSearch(value);
-        console.log("Input changed, search set to:", value.toLowerCase());
+       // console.log("Input changed, search set to:", value.toLowerCase());
 
         if (!value.trim()) {
             setSuggestions([]);

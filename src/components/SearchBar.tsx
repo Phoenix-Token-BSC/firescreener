@@ -108,7 +108,7 @@ export default function SearchBarPopup({
 
     if (typeof setSearch === "function") {
       setSearch(value.toLowerCase());
-      console.log("Input changed, search set to:", value.toLowerCase());
+      //console.log("Input changed, search set to:", value.toLowerCase());
     } else {
       console.error("setSearch is not a function");
     }
@@ -133,22 +133,22 @@ export default function SearchBarPopup({
       setInputValue(suggestion.fullName);
       if (typeof setSearch === "function") {
         setSearch(symbol);
-        console.log("Suggestion selected, search set to:", symbol);
+       // console.log("Suggestion selected, search set to:", symbol);
       } else {
         console.error("setSearch is not a function");
       }
       if (typeof handleSearch === "function") {
         handleSearch(symbol);
-        console.log("handleSearch triggered with:", symbol);
+      //  console.log("handleSearch triggered with:", symbol);
       } else {
         console.error("handleSearch is not a function");
         // Get token metadata to navigate with contract address
         const tokenMetadata = getTokenBySymbol(symbol);
         if (tokenMetadata) {
-          console.log("Fallback navigation to:", `/${tokenMetadata.chain}/${tokenMetadata.address}`);
+         // console.log("Fallback navigation to:", `/${tokenMetadata.chain}/${tokenMetadata.address}`);
           router.push(`/${tokenMetadata.chain}/${tokenMetadata.address}`);
         } else {
-          console.log("Token not found in registry:", symbol);
+         // console.log("Token not found in registry:", symbol);
           router.push("/error");
         }
       }
@@ -162,22 +162,22 @@ export default function SearchBarPopup({
     const token = inputValue.trim().toLowerCase();
     if (token) {
       if (typeof handleSearch === "function") {
-        console.log("Form submitted, calling handleSearch with:", token);
+        //console.log("Form submitted, calling handleSearch with:", token);
         handleSearch(token);
       } else {
         console.error("handleSearch is not a function");
         // Get token metadata to navigate with contract address
         const tokenMetadata = getTokenBySymbol(token);
         if (tokenMetadata) {
-          console.log("Fallback navigation to:", `/${tokenMetadata.chain}/${tokenMetadata.address}`);
+        //  console.log("Fallback navigation to:", `/${tokenMetadata.chain}/${tokenMetadata.address}`);
           router.push(`/${tokenMetadata.chain}/${tokenMetadata.address}`);
         } else {
-          console.log("Token not found in registry:", token);
+        //  console.log("Token not found in registry:", token);
           router.push("/error");
         }
       }
     } else {
-      console.log("Empty search input");
+     // console.log("Empty search input");
       router.push("/error");
     }
     setSuggestions([]);
