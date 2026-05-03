@@ -175,6 +175,7 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
   { address: "0x391d9DDA8E3d0418D323EA6BcC194300d1b76eDC", symbol: "lscat", name: "Light Speed Cat v2", chain: "bsc", isBurn: true },
   { address: "0x860de30baf288efaefd90f2700358d26d4fc4444", symbol: "rkc", name: "Rocky Cat", chain: "bsc", isBurn: true },
   { address: "0x6b4400c7ddc2b3082afd88fad1f3fe645a67ffff", symbol: "AVO", name: "AVOCADO", chain: "bsc", isBurn: false},
+  { address: "0x000Ae314E2A2172a039B26378814C252734f556A", symbol: "ASTER", name: "Aster", chain: "bsc", isBurn: false },
 
 
   { address: "0xf20f989CAf263C513f9183B4Fed88F14Fc04c8dB", symbol: "shalom", name: "Shalom", chain: "rwa", isBurn: false },
