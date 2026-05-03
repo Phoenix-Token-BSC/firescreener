@@ -83,15 +83,14 @@ export async function GET(
 
     const chainLower = chain.toLowerCase() as 'bsc' | 'sol' | 'eth';
     const identifierLower = identifier.toLowerCase();
-    
+
     // Determine if identifier is a contract address or symbol
+    // Use original-case identifier for validation — Solana base58 is case-sensitive
     let tokenMetadata;
-    
-    if (isValidContractAddress(identifierLower, chainLower)) {
-      // It's a contract address
-      tokenMetadata = getTokenByAddress(identifierLower);
+
+    if (isValidContractAddress(identifier, chainLower)) {
+      tokenMetadata = getTokenByAddress(identifier);
     } else {
-      // It's a symbol - specify chain to avoid conflicts with duplicate symbols
       tokenMetadata = getTokenBySymbol(identifierLower, chainLower);
     }
 
@@ -115,7 +114,9 @@ export async function GET(
     }
 
     // Generate the GeckoTerminal embed URL
-    const embedUrl = `https://www.geckoterminal.com/bsc/pools/${poolAddress}?embed=1&info=0&swaps=0`;
+    const GECKO_NETWORK: Record<string, string> = { bsc: 'bsc', eth: 'ethereum', sol: 'solana', rwa: 'bsc' };
+    const geckoNetwork = GECKO_NETWORK[chainLower] ?? 'bsc';
+    const embedUrl = `https://www.geckoterminal.com/${geckoNetwork}/pools/${poolAddress}?embed=1&info=0&swaps=0`;
     
     // Return HTML that redirects to the embed URL
     const html = `

@@ -361,6 +361,7 @@ export default function PriceActionChart({
             let network = '';
             if (chain === 'bsc') network = 'bsc';
             else if (chain === 'eth') network = 'ethereum';
+            else if (chain === 'sol') network = 'solana';
             else {
                 throw new Error('GeckoTerminal not supported for this chain');
             }
@@ -598,7 +599,7 @@ export default function PriceActionChart({
                             const supabaseBase = 'https://enpdzndcjxlzupmxpmms.supabase.co';
 
                             let timeframeParam = '1y';
-                            if (selectedTimeframe <= 1) timeframeParam = '1d';
+                            if (selectedTimeframe <= 1) timeframeParam = '24h';
                             else if (selectedTimeframe <= 7) timeframeParam = '7d';
                             else if (selectedTimeframe <= 30) timeframeParam = '30d';
                             else if (selectedTimeframe <= 90) timeframeParam = '3m';
@@ -650,8 +651,8 @@ export default function PriceActionChart({
                             return processData(dedup);
                         }
 
-                // Try Supabase function first for BSC/ETH (canonical analysis), then GeckoTerminal
-                if (chain === 'bsc' || chain === 'eth') {
+                // Try Supabase function first for BSC/ETH/SOL (canonical analysis)
+                if (chain === 'bsc' || chain === 'eth' || chain === 'sol') {
                     try {
                         const sbData = await fetchFromSupabase(signal);
                         console.log('Supabase data loaded:', sbData.length, 'candlesticks');
@@ -659,7 +660,7 @@ export default function PriceActionChart({
                         cacheRef.current.set(key, { data: sbData, ts: Date.now() });
                         return;
                     } catch (sbErr) {
-                        console.warn('Supabase function failed, falling back to GeckoTerminal:', sbErr);
+                        console.warn('Supabase function failed, trying GeckoTerminal:', sbErr);
                     }
                 }
 
@@ -717,7 +718,7 @@ export default function PriceActionChart({
         }
         return () => {
             cancelled = true;
-            abortController.abort();
+            abortController.abort('Chart fetch cancelled');
         };
     }, [coingeckoUrl, contractAddress, selectedTimeframe, chain, cryptocompareApiKey]);
 

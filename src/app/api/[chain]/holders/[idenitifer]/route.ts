@@ -8,17 +8,68 @@ const CHAIN_ID_MAP: Record<string, string> = {
     'eth': '1',
 };
 
-// Moralis uses hex chain IDs for EVM, separate gateway for Solana
 const MORALIS_CHAIN_MAP: Record<string, string | null> = {
     bsc: '0x38',
     eth: '0x1',
-    sol: 'mainnet', // uses separate Solana gateway
-    rwa: null,      // custom chain, not supported
+    sol: 'mainnet',
+    rwa: null,
 };
 
 interface RouteParams {
     chain: string;
     idenitifer: string;
+}
+
+// Helius getTokenAccounts — paginates through all holder accounts for a Solana mint.
+// Uses showZeroBalance:false so only wallets with a positive balance are counted.
+async function fetchHoldersFromHelius(mintAddress: string, apiKey: string): Promise<number | null> {
+    const url = `https://mainnet.helius-rpc.com/?api-key=${apiKey}`;
+    const limit = 1000;
+    let page = 1;
+    let total = 0;
+
+    while (true) {
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                jsonrpc: '2.0',
+                id: `getTokenAccounts-${page}`,
+                method: 'getTokenAccounts',
+                params: {
+                    mint: mintAddress,
+                    page,
+                    limit,
+                    options: { showZeroBalance: false },
+                },
+            }),
+        });
+
+        if (!res.ok) throw new Error(`Helius ${res.status}: ${await res.text()}`);
+
+        const json = await res.json();
+
+        if (json.error) throw new Error(`Helius RPC error: ${json.error.message}`);
+
+        const accounts: unknown[] = json?.result?.token_accounts ?? [];
+
+        if (accounts.length === 0) break;
+
+        total += accounts.length;
+
+        // If the response includes a grand total, trust it and skip further pages
+        const grandTotal: unknown = json?.result?.total;
+        if (typeof grandTotal === 'number' && grandTotal > accounts.length && page === 1) {
+            return grandTotal;
+        }
+
+        if (accounts.length < limit) break;
+
+        page++;
+        if (page > 50) break; // safety cap at 50 000 holders
+    }
+
+    return total > 0 ? total : null;
 }
 
 export async function GET(
@@ -43,58 +94,80 @@ export async function GET(
             return NextResponse.json({ error: 'Invalid contract address' }, { status: 400 });
         }
 
+        // 1) Helius — primary source for Solana
+        if (chainLower === 'sol') {
+            const heliusKey = process.env.HELIUS_API_KEY;
+            if (heliusKey) {
+                try {
+                    const count = await fetchHoldersFromHelius(contractAddress, heliusKey);
+                    if (typeof count === 'number' && count > 0) {
+                        return NextResponse.json({ holder_count: count });
+                    }
+                    console.warn(`Helius returned count=${count} for ${contractAddress}`);
+                } catch (err) {
+                    console.warn('Helius holders lookup failed:', err);
+                }
+            }
+
+            // 2) Moralis Solana gateway fallback
+            const moralisKey = process.env.MORALIS_API_KEY;
+            if (moralisKey) {
+                try {
+                    const moralisUrl = `https://solana-gateway.moralis.io/token/mainnet/holders/${contractAddress}/stats`;
+                    const moralisRes = await fetch(moralisUrl, {
+                        headers: { accept: 'application/json', 'X-API-Key': moralisKey },
+                    });
+                    if (moralisRes.ok) {
+                        const moralisData = await moralisRes.json();
+                        const count =
+                            moralisData?.total ??
+                            moralisData?.totalHolders ??
+                            moralisData?.result?.totalHolders ??
+                            null;
+                        if (typeof count === 'number' && count > 0) {
+                            return NextResponse.json({ holder_count: count });
+                        }
+                    }
+                } catch (err) {
+                    console.warn('Moralis Solana holders lookup failed:', err);
+                }
+            }
+
+            return NextResponse.json({ holder_count: null });
+        }
+
         const moralisKey = process.env.MORALIS_API_KEY;
         const moralisChain = MORALIS_CHAIN_MAP[chainLower];
 
-        // 1) Try Moralis
+        // 1) Moralis for EVM chains
         if (moralisKey && moralisChain) {
             try {
-                let moralisUrl: string;
-
-                if (chainLower === 'sol') {
-                    // Solana uses a different Moralis gateway and endpoint
-                    moralisUrl = `https://solana-gateway.moralis.io/token/${moralisChain}/holders/${contractAddress}/stats`;
-                } else {
-                    // EVM chains (ETH, BSC)
-                    moralisUrl = `https://deep-index.moralis.io/api/v2.2/erc20/${contractAddress}/holders?chain=${moralisChain}`;
-                }
-
+                const moralisUrl = `https://deep-index.moralis.io/api/v2.2/erc20/${contractAddress}/holders?chain=${moralisChain}`;
                 const moralisRes = await fetch(moralisUrl, {
-                    headers: {
-                        accept: 'application/json',
-                        'X-API-Key': moralisKey,
-                    },
+                    headers: { accept: 'application/json', 'X-API-Key': moralisKey },
                 });
 
                 if (moralisRes.ok) {
                     const moralisData = await moralisRes.json();
-
-                    // /holders returns: { total: number, result: [...] }
                     const count =
                         moralisData?.total ??
                         moralisData?.totalHolders ??
                         moralisData?.result?.totalHolders ??
                         null;
-
                     if (typeof count === 'number' && count > 0) {
                         return NextResponse.json({ holder_count: count });
                     }
-
                     console.warn(`Moralis returned count=${count} for ${contractAddress}, falling back to GoPlus`);
-                }
-                else {
-                    const errBody = await moralisRes.text();
-                    console.warn(`Moralis returned ${moralisRes.status}:`, errBody);
+                } else {
+                    console.warn(`Moralis returned ${moralisRes.status}:`, await moralisRes.text());
                 }
             } catch (err) {
                 console.warn('Moralis holders lookup failed, falling back to GoPlus:', err);
             }
         }
 
-        // 2) Fallback: GoPlus Token Security API (v1)
-        //    Handles all chains including RWA, and covers gaps from Moralis
+        // 2) GoPlus fallback for EVM / RWA
         const apiUrl = `https://api.gopluslabs.io/api/v1/token_security/${goPlusChainId}?contract_addresses=${contractAddress}`;
-
         const response = await fetch(apiUrl);
         const data = await response.json();
 
