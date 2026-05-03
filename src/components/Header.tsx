@@ -100,14 +100,14 @@ export default function Header() {
 
     // Get chain display info
     const getChainInfo = (chain: string | null) => {
-        if (!chain) return { name: 'All Chains', logo: null };
-        const chainInfo: { [key: string]: { name: string; logo: string } } = {
-            bsc: { name: 'BSC', logo: '/bsc-logo.png' },
-            eth: { name: 'Ethereum', logo: '/eth-logo.png' },
-            rwa: { name: 'RWA Chain', logo: '/rwa-logo.png' },
-            sol: { name: 'Solana', logo: '/sol-logo.png' },
+        if (!chain) return { name: 'All Chains', logo: null, gradient: false };
+        const chainInfo: { [key: string]: { name: string; logo: string | null; gradient: boolean } } = {
+            bsc: { name: 'BSC', logo: '/bsc-logo.png', gradient: false },
+            eth: { name: 'Ethereum', logo: '/eth-logo.png', gradient: false },
+            rwa: { name: 'RWA Chain', logo: '/rwa-logo.png', gradient: false },
+            sol: { name: 'Solana', logo: '/sol-logo.png', gradient: false },
         };
-        return chainInfo[chain] || { name: 'All Chains', logo: null };
+        return chainInfo[chain] || { name: 'All Chains', logo: null, gradient: false };
     };
 
     const currentChainInfo = getChainInfo(activeChain);
@@ -124,21 +124,26 @@ export default function Header() {
         setError(null);
 
         // If the user pasted a contract address, route directly (chain can be inferred from registry)
-        const looksLikeBscOrEth = isValidContractAddress(q, "bsc") || isValidContractAddress(q, "eth");
-        const looksLikeRwa = isValidContractAddress(q, "rwa");
-        const looksLikeSol = isValidContractAddress(q, "sol");
+        // Use raw (original case) for Solana validation — base58 is case-sensitive
+        const looksLikeBscOrEth = isValidContractAddress(raw, "bsc") || isValidContractAddress(raw, "eth");
+        const looksLikeRwa = isValidContractAddress(raw, "rwa");
+        const looksLikeSol = isValidContractAddress(raw, "sol");
         if (looksLikeBscOrEth || looksLikeRwa || looksLikeSol) {
-            const match = getTokenByAddress(q);
+            const match = getTokenByAddress(raw) || getTokenByAddress(q);
             if (match) {
                 router.push(`/${match.chain}/${match.address}`);
                 return;
             }
-            // If not in registry, try current chain if available; default to bsc-like route
-            if (activeChain) {
-                router.push(`/${activeChain}/${q}`);
+            // Route to the correct chain based on address format
+            if (looksLikeSol) {
+                router.push(`/sol/${raw}`);
                 return;
             }
-            router.push(`/bsc/${q}`);
+            if (activeChain) {
+                router.push(`/${activeChain}/${raw}`);
+                return;
+            }
+            router.push(`/bsc/${raw}`);
             return;
         }
 
@@ -464,7 +469,11 @@ export default function Header() {
                                 }`}
                             aria-label="Select Chain"
                         >
-                            {activeChain && currentChainInfo.logo ? (
+                            {activeChain && currentChainInfo.gradient ? (
+                                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-purple-500 to-green-400 flex items-center justify-center flex-shrink-0">
+                                    <span className="text-white font-bold text-[9px]">S</span>
+                                </div>
+                            ) : activeChain && currentChainInfo.logo ? (
                                 <Image
                                     src={currentChainInfo.logo}
                                     alt={activeChain}
@@ -544,7 +553,7 @@ export default function Header() {
                                     </Link>
                                     <Link
                                         href="/eth"
-                                        className={`flex items-center gap-3 px-4 py-2 transition-colors duration-200 ${activeChain === 'bsc'
+                                        className={`flex items-center gap-3 px-4 py-2 transition-colors duration-200 ${activeChain === 'eth'
                                                 ? 'bg-orange-100 text-orange-900 font-semibold'
                                                 : 'hover:bg-neutral-100'
                                             }`}
@@ -587,6 +596,31 @@ export default function Header() {
                                         />
                                         <span className="text-sm font-medium">RWA Chain</span>
                                         {activeChain === 'rwa' && (
+                                            <svg
+                                                className="h-4 w-4 ml-auto text-orange-600"
+                                                fill="currentColor"
+                                                viewBox="0 0 20 20"
+                                            >
+                                                <path
+                                                    fillRule="evenodd"
+                                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                                    clipRule="evenodd"
+                                                />
+                                            </svg>
+                                        )}
+                                    </Link>
+                                    <Link
+                                        href="/sol"
+                                        className={`flex items-center gap-3 px-4 py-2 transition-colors duration-200 ${activeChain === 'sol'
+                                                ? 'bg-orange-100 text-orange-900 font-semibold'
+                                                : 'hover:bg-neutral-100'
+                                            }`}
+                                        onClick={() => setIsChainDropdownOpen(false)}
+                                    >
+                                        {/* Solana logo — add /public/sol-logo.png to show the image */}
+                                        <Image src="/sol-logo.png" alt="Solana" width={24} height={24} />
+                                        <span className="text-sm font-medium">Solana</span>
+                                        {activeChain === 'sol' && (
                                             <svg
                                                 className="h-4 w-4 ml-auto text-orange-600"
                                                 fill="currentColor"
