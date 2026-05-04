@@ -523,15 +523,17 @@ export default function TokenPage() {
                         </button>
                       </h1>
                       <div className="mt-4 flex flex-col gap-4">
-                      <VolumeTxnsInfo chain={chain?.toLowerCase() as "bsc" | "eth"} contractAddress={contractAddress} />
+                      <VolumeTxnsInfo chain={chain?.toLowerCase() as "bsc" | "eth" | "sol"} contractAddress={contractAddress} />
                     </div>
+                    {chain?.toLowerCase() !== 'sol' && (
                     <div className="flex flex-col gap-4">
                       <AthAtlInfo chain={chain?.toLowerCase()} contractAddress={contractAddress} />
                     </div>
+                    )}
                     </div>
 
 
-              
+
                     {/* 
                                         <div className="mt-4 flex flex-row bg-neutral-900 justify-between gap-2 items-center border-2 border-orange-500 rounded-md p-4">
                                             <div className="flex flex-col items-center">
@@ -576,7 +578,7 @@ export default function TokenPage() {
                                             </h1>
                                         </div> */}
 
-                    {chain && contractAddress && (
+                    {chain && contractAddress && chain.toLowerCase() !== 'sol' && (
                       <>
                         <div className="mt-8 flex flex-col border-2 border-orange-500 p-2 rounded-xl gap-2">
                           <WaraGuardAnalysis
@@ -886,7 +888,7 @@ export default function TokenPage() {
 
                     </div>
 
-                    {chain && contractAddress && (
+                    {chain && contractAddress && chain.toLowerCase() !== 'sol' && (
                       <>
                         <div className="mt-8 flex flex-col border-2 border-orange-500 p-2 rounded-xl gap-2">
                           <WaraGuardAnalysis
@@ -909,14 +911,16 @@ export default function TokenPage() {
 
                     <div className="mt-4 flex flex-col justify-center gap-4">
                       <VolumeTxnsInfo
-                        chain={chain?.toLowerCase() as "bsc" | "eth"}
+                        chain={chain?.toLowerCase() as "bsc" | "eth" | "sol"}
                         contractAddress={contractAddress}
                       />
                     </div>
 
+                    {chain?.toLowerCase() !== 'sol' && (
                     <div className="mt-4 flex flex-col gap-4">
                       <AthAtlInfo chain={chain?.toLowerCase()} contractAddress={contractAddress} />
                     </div>
+                    )}
 
 
 

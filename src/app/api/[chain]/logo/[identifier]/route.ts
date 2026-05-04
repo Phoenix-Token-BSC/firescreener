@@ -155,14 +155,15 @@ export async function GET(
 
     let tokenMetadata = null;
 
-    if (isValidContractAddress(identifierLower, chainLower)) {
-      tokenMetadata = getTokenByAddress(identifierLower);
+    // Use original-case identifier for validation — Solana base58 is case-sensitive
+    if (isValidContractAddress(identifier, chainLower)) {
+      tokenMetadata = getTokenByAddress(identifier);
     } else {
       tokenMetadata = getTokenBySymbol(identifierLower, chainLower);
     }
 
     if (!tokenMetadata) {
-      if (!isValidContractAddress(identifierLower, chainLower)) {
+      if (!isValidContractAddress(identifier, chainLower)) {
         return NextResponse.json({ error: "Token not found" }, { status: 404 });
       }
     } else if (tokenMetadata.chain !== chainLower) {
@@ -172,8 +173,9 @@ export async function GET(
       );
     }
 
-    const contractAddress = (tokenMetadata?.address ?? identifierLower).toLowerCase();
-    const originalCaseAddress = tokenMetadata?.address || undefined;
+    const contractAddress = (tokenMetadata?.address ?? identifier).toLowerCase();
+    // Always preserve original case so Supabase storage path matches the uploaded filename
+    const originalCaseAddress = tokenMetadata?.address || identifier;
     const logoData = await getLogoBuffer(chainLower, contractAddress, originalCaseAddress);
 
     if (logoData) {

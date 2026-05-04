@@ -37,6 +37,10 @@ export async function GET(
 
         const chainLower = chain.toLowerCase();
 
+        if (chainLower === 'sol') {
+            return NextResponse.json({ error: 'WaraGuard analysis not supported for Solana' }, { status: 501 });
+        }
+
         if (!isValidContractAddress(address, chainLower as 'bsc' | 'sol' | 'rwa' | 'eth')) {
             return NextResponse.json({ error: 'Invalid contract address' }, { status: 400 });
         }
