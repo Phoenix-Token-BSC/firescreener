@@ -188,6 +188,10 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
   { address: "0x4200000623d0242cccd4e907008583dcb4af6472", symbol: "estee", name: "SHIBSTEE", chain: "eth", isBurn: false },
   {address: "0x45604b6C05ac7d0045741EdaF95739D514461FB5", symbol: "bofe", name: "Book Of Frog", chain: "eth", isBurn: false },
 
+  { address: "ERpXkEafaKuKEARBCFsVnLZA1GARWUjBBbQCukXpbonk", symbol: "REST", name: "REST", chain: "sol", isBurn: false },
+  { address: "3roGjzv4TeaWFN8VN6hfUKAsmoVUrYmmB2Dz3NYF1GAA", symbol: "FINU", name: "Fox Inu", chain: "sol", isBurn: false },
+  { address: "NUKEB18Z7R2O9DT15UU5SJPCVSMKCSUAWJN1XCH48JR", symbol: "nuke", name: "Roburt Oppunheimer", chain: "sol", isBurn: false },
+
 
 ];
 
