@@ -190,7 +190,7 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
 
   { address: "ERpXkEafaKuKEARBCFsVnLZA1GARWUjBBbQCukXpbonk", symbol: "REST", name: "REST", chain: "sol", isBurn: false },
   { address: "3roGjzv4TeaWFN8VN6hfUKAsmoVUrYmmB2Dz3NYF1GAA", symbol: "FINU", name: "Fox Inu", chain: "sol", isBurn: false },
-  { address: "NUKEB18Z7R2O9DT15UU5SJPCVSMKCSUAWJN1XCH48JR", symbol: "nuke", name: "Roburt Oppunheimer", chain: "sol", isBurn: false },
+  { address: "NUKEB18Z7r2o9dT15uu5sjpcvsMKCsUAwJN1xch48JR", symbol: "nuke", name: "Roburt Oppunheimer", chain: "sol", isBurn: false },
 
 
 ];
@@ -236,8 +236,8 @@ export function isValidContractAddress(address: string, chain: 'bsc' | 'sol' | '
     return /^0x[a-fA-F0-9]{40}$/.test(address);
   }
   else if (chain === 'sol') {
-    // Solana address validation: 32-44 characters, base58 encoded
-    return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
+    // Solana address validation: 32-44 alphanumeric characters, not an EVM address
+    return /^[A-Za-z0-9]{32,44}$/.test(address);
   }
   else if (chain === 'rwa') {
 
