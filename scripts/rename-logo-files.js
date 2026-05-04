@@ -60,7 +60,6 @@ TOKEN_REGISTRY.forEach(token => {
 const logoDir = path.join(__dirname, '..', 'public', 'images', 'bsc', 'token-logos');
 
 function renameLogoFiles() {
-  console.log('🔄 Starting logo file renaming process...\n');
   
   if (!fs.existsSync(logoDir)) {
     console.error('❌ Logo directory not found:', logoDir);
@@ -75,7 +74,7 @@ function renameLogoFiles() {
   files.forEach(file => {
     // Skip non-image files and files that are already contract addresses
     if (file.startsWith('0x') || file.includes('.docx') || file === 'Untitled-1.png') {
-      console.log(`⏭️  Skipping: ${file} (already processed or non-token file)`);
+    
       skippedCount++;
       return;
     }
@@ -88,7 +87,7 @@ function renameLogoFiles() {
     const contractAddress = symbolToAddress[symbol];
     
     if (!contractAddress) {
-      console.log(`⚠️  No contract address found for symbol: ${symbol}`);
+      
       skippedCount++;
       return;
     }
@@ -101,14 +100,14 @@ function renameLogoFiles() {
     try {
       // Check if target file already exists
       if (fs.existsSync(newPath)) {
-        console.log(`⚠️  Target file already exists: ${newFilename}`);
+        
         skippedCount++;
         return;
       }
 
       // Rename the file
       fs.renameSync(oldPath, newPath);
-      console.log(`✅ Renamed: ${file} → ${newFilename}`);
+      
       renamedCount++;
     } catch (error) {
       console.error(`❌ Error renaming ${file}:`, error.message);
@@ -116,11 +115,11 @@ function renameLogoFiles() {
     }
   });
 
-  console.log('\n📊 Renaming Summary:');
-  console.log(`✅ Successfully renamed: ${renamedCount} files`);
-  console.log(`⏭️  Skipped: ${skippedCount} files`);
-  console.log(`❌ Errors: ${errorCount} files`);
-  console.log('\n🎉 Logo file renaming process completed!');
+  // console.log('\n📊 Renaming Summary:');
+  // console.log(`✅ Successfully renamed: ${renamedCount} files`);
+  // console.log(`⏭️  Skipped: ${skippedCount} files`);
+  // console.log(`❌ Errors: ${errorCount} files`);
+  // console.log('\n🎉 Logo file renaming process completed!');
 }
 
 // Run the renaming process

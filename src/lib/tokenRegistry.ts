@@ -130,7 +130,7 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
   { address: "0x456B1049bA12f906326891486B2BA93e46Ae0369", symbol: "shibc", name: "AIShibCeo", chain: "bsc", isBurn: true },
   { address: "0xFeD56F9Cd29F44e7C61c396DAc95cb3ed33d3546", symbol: "pcat", name: "Phenomenal Cat", chain: "bsc", isBurn: true },
   { address: "0x2056d14A4116A7165cfeb7D79dB760a06b57DBCa", symbol: "egw", name: "Eagles Wings", chain: "bsc", isBurn: false },
-  { address: "0xCa7930478492CDe4Be997FA898Cd1a6AfB8F41A1", symbol: "1000pdf", name: "1000PDF", chain: "bsc", isBurn: true },
+  { address: "0x2913458065DA63E2ac21C348F6543c528dD135Db", symbol: "1000pdf", name: "1000PDF", chain: "bsc", isBurn: true },
   { address: "0xe9E3CDB871D315fEE80aF4c9FcD4886782694856", symbol: "aidove", name: "AiDove", chain: "bsc", isBurn: true },
   { address: "0x360f2cf415d9be6e82a7252681ac116fb63d2fa2", symbol: "hmt", name: "HawkMoon Token", chain: "bsc", isBurn: true },
   { address: "0x14A2db256Ef18c4f7165d5E48f65a528b4155100", symbol: "rbcat", name: "Russian Blue Cat", chain: "bsc", isBurn: false },
@@ -175,6 +175,7 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
   { address: "0x391d9DDA8E3d0418D323EA6BcC194300d1b76eDC", symbol: "lscat", name: "Light Speed Cat v2", chain: "bsc", isBurn: true },
   { address: "0x860de30baf288efaefd90f2700358d26d4fc4444", symbol: "rkc", name: "Rocky Cat", chain: "bsc", isBurn: true },
   { address: "0x6b4400c7ddc2b3082afd88fad1f3fe645a67ffff", symbol: "AVO", name: "AVOCADO", chain: "bsc", isBurn: false},
+  { address: "0x000Ae314E2A2172a039B26378814C252734f556A", symbol: "ASTER", name: "Aster", chain: "bsc", isBurn: false },
 
 
   { address: "0xf20f989CAf263C513f9183B4Fed88F14Fc04c8dB", symbol: "shalom", name: "Shalom", chain: "rwa", isBurn: false },
@@ -186,6 +187,10 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
 
   { address: "0x4200000623d0242cccd4e907008583dcb4af6472", symbol: "estee", name: "SHIBSTEE", chain: "eth", isBurn: false },
   {address: "0x45604b6C05ac7d0045741EdaF95739D514461FB5", symbol: "bofe", name: "Book Of Frog", chain: "eth", isBurn: false },
+
+  { address: "ERpXkEafaKuKEARBCFsVnLZA1GARWUjBBbQCukXpbonk", symbol: "REST", name: "REST", chain: "sol", isBurn: false },
+  { address: "3roGjzv4TeaWFN8VN6hfUKAsmoVUrYmmB2Dz3NYF1GAA", symbol: "FINU", name: "Fox Inu", chain: "sol", isBurn: false },
+  { address: "NUKEB18Z7R2O9DT15UU5SJPCVSMKCSUAWJN1XCH48JR", symbol: "nuke", name: "Roburt Oppunheimer", chain: "sol", isBurn: false },
 
 
 ];

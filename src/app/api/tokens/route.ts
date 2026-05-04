@@ -89,7 +89,7 @@ async function fetchFromAssetChain(tokenAddress: string): Promise<Partial<TokenD
     // Try cache first
     const cached = await redis.get(cacheKey);
     if (cached) {
-      console.log(`✓ AssetChain cache hit: ${tokenAddress}`);
+      //console.log(`✓ AssetChain cache hit: ${tokenAddress}`);
       return cached as Partial<TokenData>;
     }
 
@@ -124,7 +124,7 @@ async function fetchFromAssetChain(tokenAddress: string): Promise<Partial<TokenD
 
     // Cache the result
     await redis.setex(cacheKey, CACHE_TTL, result).catch(() => {});
-    console.log(`✓ AssetChain cached: ${tokenAddress}`);
+   // console.log(`✓ AssetChain cached: ${tokenAddress}`);
 
     return result;
   } catch (error) {
@@ -141,7 +141,7 @@ async function fetchFromDexScreener(tokenAddress: string): Promise<Partial<Token
     // Try cache first
     const cached = await redis.get(cacheKey);
     if (cached) {
-      console.log(`✓ DexScreener cache hit: ${tokenAddress}`);
+      //console.log(`✓ DexScreener cache hit: ${tokenAddress}`);
       return cached as Partial<TokenData>;
     }
 
@@ -165,15 +165,15 @@ async function fetchFromDexScreener(tokenAddress: string): Promise<Partial<Token
     const result: Partial<TokenData> = {
       token: tokenAddress,
       price: pair.priceUsd || "N/A",
-      marketCap: pair.marketCap?.toString() || "N/A",
-      volume: pair.volume?.h24 || "N/A",
-      change24h: pair.priceChange?.h24 || "N/A",
-      liquidity: pair.liquidity?.usd || "N/A",
+      marketCap: pair.marketCap != null ? pair.marketCap.toString() : "N/A",
+      volume: pair.volume?.h24 != null ? String(pair.volume.h24) : "N/A",
+      change24h: pair.priceChange?.h24 != null ? String(pair.priceChange.h24) : "N/A",
+      liquidity: pair.liquidity?.usd != null ? String(pair.liquidity.usd) : "N/A",
     };
 
     // Cache the result
     await redis.setex(cacheKey, CACHE_TTL, result).catch(() => {});
-    console.log(`✓ DexScreener cached: ${tokenAddress}`);
+   // console.log(`✓ DexScreener cached: ${tokenAddress}`);
 
     return result;
   } catch (error) {
@@ -244,9 +244,10 @@ async function getTokenData(tokenIdentifier: string): Promise<TokenData | null> 
   try {
     let tokenAddress: string;
 
-    // Check if the identifier is a contract address or a symbol
-    if (tokenIdentifier.startsWith('0x') && tokenIdentifier.length === 42) {
-      // It's a contract address
+    const isEvmAddress = tokenIdentifier.startsWith('0x') && tokenIdentifier.length === 42;
+    const isSolanaAddress = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(tokenIdentifier);
+
+    if (isEvmAddress || isSolanaAddress) {
       tokenAddress = tokenIdentifier;
     } else {
       // It's a symbol, look up the address
@@ -257,9 +258,12 @@ async function getTokenData(tokenIdentifier: string): Promise<TokenData | null> 
       tokenAddress = tokenData.address;
     }
 
+    // Solana tokens are not on AssetChain — skip that call to avoid a 5s timeout
+    const skipAssetChain = isSolanaAddress;
+
     // Fetch from BOTH APIs in parallel
     const [assetChainData, dexScreenerData] = await Promise.allSettled([
-      fetchFromAssetChain(tokenAddress),
+      skipAssetChain ? Promise.resolve(null) : fetchFromAssetChain(tokenAddress),
       fetchFromDexScreener(tokenAddress)
     ]);
 
@@ -284,14 +288,16 @@ async function getTokenData(tokenIdentifier: string): Promise<TokenData | null> 
 
 // New function to fetch from specific source only
 async function getTokenDataFromSource(
-  tokenIdentifier: string, 
+  tokenIdentifier: string,
   source: 'dexscreener' | 'assetchain'
 ): Promise<Partial<TokenData> | null> {
   try {
     let tokenAddress: string;
 
-    // Check if the identifier is a contract address or a symbol
-    if (tokenIdentifier.startsWith('0x') && tokenIdentifier.length === 42) {
+    const isEvmAddress = tokenIdentifier.startsWith('0x') && tokenIdentifier.length === 42;
+    const isSolanaAddress = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(tokenIdentifier);
+
+    if (isEvmAddress || isSolanaAddress) {
       tokenAddress = tokenIdentifier;
     } else {
       const tokenData = TOKEN_MAP[tokenIdentifier.toLowerCase()];

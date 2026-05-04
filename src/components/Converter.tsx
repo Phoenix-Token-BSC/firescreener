@@ -43,7 +43,7 @@ const CurrencyConverter: React.FC<CurrencyConverterProps> = ({
       setRates({ usd: 0, native: 0 });
 
       try {
-        console.log(`Fetching price → Token: ${tokenAddress} | Chain: ${chain}`);
+       // console.log(`Fetching price → Token: ${tokenAddress} | Chain: ${chain}`);
 
         if (isRwa) {
           // Your internal API for RWA / AssetChain tokens
@@ -55,7 +55,7 @@ const CurrencyConverter: React.FC<CurrencyConverterProps> = ({
           }
 
           const data = await res.json();
-          console.log('RWA API response:', data);
+       //   console.log('RWA API response:', data);
 
           const usdRate = Number(data.price) || 0;
           // No native rate for RWA
@@ -75,7 +75,7 @@ const CurrencyConverter: React.FC<CurrencyConverterProps> = ({
         }
 
         const data = await res.json();
-        console.log('DexScreener full response:', data);
+//console.log('DexScreener full response:', data);
 
         if (!data.pairs || data.pairs.length === 0) {
           throw new Error('No pairs found for this token');
@@ -98,13 +98,13 @@ const CurrencyConverter: React.FC<CurrencyConverterProps> = ({
         const usdRate = Number(bestPair.priceUsd) || 0;
         const nativeRate = Number(bestPair.priceNative) || 0;
 
-        console.log('Selected pair:', {
-          dex: bestPair.dexId,
-          chainId: bestPair.chainId,
-          usdPrice: usdRate,
-          nativePrice: nativeRate,
-          liquidityUsd: bestPair.liquidity?.usd,
-        });
+        // console.log('Selected pair:', {
+        //   dex: bestPair.dexId,
+        //   chainId: bestPair.chainId,
+        //   usdPrice: usdRate,
+        //   nativePrice: nativeRate,
+        //   liquidityUsd: bestPair.liquidity?.usd,
+        // });
 
         setRates({ usd: usdRate, native: nativeRate });
       } catch (err: any) {

@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback, use } from 'react';
-import Header from '@/components/Header';
 import TokenCard from '@/components/TokenCard';
 import TokenLoadingSkeleton from '@/components/TokenLoadingSkeleton';
 
@@ -110,7 +109,6 @@ export default function ChainPage({ params }: PageProps) {
 
   return (
     <div className="container mx-auto">
-      <Header />
       <div className="px-4 pt-8">
         {loading ? (
           <TokenLoadingSkeleton />

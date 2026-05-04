@@ -11,9 +11,9 @@ export async function GET() {
   const websiteId = "23de30be-d6d1-4152-b10c-7442a99240ce";
   const authToken = process.env.UMAMI_API_KEY;
 
-  console.log("UMAMI_API_URL:", umamiApiUrl);
-  console.log("UMAMI_API_KEY:", authToken ? "Set" : "Not Set");
-  console.log("Website ID:", websiteId);
+  // console.log("UMAMI_API_URL:", umamiApiUrl);
+  // console.log("UMAMI_API_KEY:", authToken ? "Set" : "Not Set");
+  // console.log("Website ID:", websiteId);
 
   if (!authToken || !websiteId || !umamiApiUrl) {
     console.error("Umami configuration is incomplete");
@@ -31,7 +31,7 @@ export async function GET() {
   requestUrl.searchParams.append("startAt", startAt.toString());
   requestUrl.searchParams.append("endAt", endAt.toString());
 
-  console.log("Request URL:", requestUrl.toString());
+ // console.log("Request URL:", requestUrl.toString());
 
   try {
     const response = await fetch(requestUrl.toString(), {
@@ -42,7 +42,7 @@ export async function GET() {
       },
     });
 
-    console.log("Umami API Response Status:", response.status);
+    //console.log("Umami API Response Status:", response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -60,13 +60,13 @@ export async function GET() {
     }
 
     const data = await response.json();
-    console.log("Umami API Response Data:", data);
+    //console.log("Umami API Response Data:", data);
 
     // Umami /stats endpoint returns an object with { pageviews: { value: number }, ... }
     const pageviews = data?.pageviews?.value ?? 0;
     const result = { pageviews };
 
-    console.log("Final Response to Frontend:", result);
+    //console.log("Final Response to Frontend:", result);
 
     return corsResponse(result, 200);
   } catch (error) {

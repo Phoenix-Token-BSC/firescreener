@@ -21,11 +21,12 @@ export async function GET(
 
     const chainLower = chain.toLowerCase() as 'bsc' | 'sol' | 'rwa' | 'eth';
     const identifierLower = identifier.toLowerCase();
+    const addressLookup = chainLower === 'sol' ? identifier : identifierLower;
 
     // 1. Try Supabase first
     try {
       // Determine if identifier is a contract address or symbol for Supabase query
-      const isAddress = isValidContractAddress(identifierLower, chainLower);
+      const isAddress = isValidContractAddress(identifier, chainLower);
 
       let query = supabase
         .from('tokens')
@@ -33,7 +34,7 @@ export async function GET(
         .eq('chain', chainLower);
 
       if (isAddress) {
-        query = query.eq('address', identifierLower);
+        query = query.eq('address', addressLookup);
       } else {
         query = query.eq('symbol', identifierLower);
       }

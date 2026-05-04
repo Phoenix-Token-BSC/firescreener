@@ -182,16 +182,16 @@ async function fetchAllTokenPriceChanges(): Promise<PriceChangeResponse> {
   const addresses = allTokens.map((t) => t.address);
   const batches = chunk(addresses, BATCH_SIZE);
 
-  console.log(
-    `[price-change] Fetching ${allTokens.length} tokens in ${batches.length} batches`
-  );
+ // console.log(
+ //   `[price-change] Fetching ${allTokens.length} tokens in ${batches.length} batches`
+  //);
 
   // Fetch all batches in parallel
   const batchResults = await Promise.all(batches.map(fetchDexScreenerBatch));
 
   // Flatten all pairs
   const allPairs = batchResults.flat();
-  console.log(`[price-change] Got ${allPairs.length} total pairs from DexScreener`);
+  //console.log(`[price-change] Got ${allPairs.length} total pairs from DexScreener`);
 
   // Map each registered token to its best pair
   const tokens: PriceChangeToken[] = allTokens.map((meta) => {
@@ -222,7 +222,7 @@ export async function GET(request: NextRequest) {
     // Check in-memory cache
     const now = Date.now();
     if (cachedResponse && now - cacheTimestamp < CACHE_TTL_MS) {
-      console.log('[price-change] Serving from cache');
+     // console.log('[price-change] Serving from cache');
       const sorted = sortTokens(cachedResponse.tokens, sortBy).slice(0, limit);
       return NextResponse.json(
         { tokens: sorted, updatedAt: cachedResponse.updatedAt },
@@ -236,7 +236,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch fresh data
-    console.log('[price-change] Fetching fresh data...');
+    //console.log('[price-change] Fetching fresh data...');
     const freshData = await fetchAllTokenPriceChanges();
 
     // Update cache

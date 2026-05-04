@@ -1,7 +1,6 @@
 "use client";
 import { useRouter, useParams } from "next/navigation";
 import { useState, useEffect, useRef, useCallback } from "react";
-import Header from "@/components/Header";
 import {
   useScrollRestoration,
   useSessionStorage,
@@ -25,6 +24,7 @@ import NewPriceActionChart from "@/components/NewPriceActionChart";
 import SecurityAnalysis from "@/components/GoPlusAnalysis";
 import HoneypotAnalysis from "@/components/HoneypotAnalysis";
 import VolumeTxnsInfo from "@/components/VolumeTxnsInfo";
+import AthAtlInfo from "@/components/AthAtlInfo";
 import LoadingWithLogo from "@/components/LoadingWithLogo";
 import TokenStatsGrid from "@/components/TokenStatsGrid";
 import WaraGuardAnalysis from "@/components/WaraGuardAnalysis";
@@ -87,7 +87,9 @@ export default function TokenPage() {
     telegram: string;
     scan: string;
   } | null>(`tokenSocials-${cacheKey}`, null);
-  const [loading, setLoading] = useState<boolean>(tokenData === null || tokenMetadata === null);
+  // Always true on first render so server and client initial renders match.
+  // A useEffect below sets it to false once sessionStorage data is available.
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("info");
   const [isScrolled, setIsScrolled] = useState(false);
@@ -206,58 +208,55 @@ export default function TokenPage() {
           nativePriceData,
         ] = responses;
 
-        // On background refresh, skip the update if the critical price API failed —
-        // that means the backend is under load and we shouldn't replace good data with N/A.
-        const priceApiOk = !!priceData?.price;
-        if (!isBackground || priceApiOk) {
-          setTokenData({
-            price: priceData?.price || "N/A",
-            totalSupply: metricsData?.totalSupply || "N/A",
-            cSupply: metricsData?.circulatingSupply || "N/A",
-            lSupply: metricsData?.lockedSupply || "N/A",
-            holders: holdersData?.totalHolders || "N/A",
-            marketCap: priceData?.marketCap || "N/A",
-            fdv: priceData?.fdv || "N/A",
-            volume: priceData?.volume || "N/A",
-            burn5min: burnsData?.burn5min || "No burns",
-            burn15min: burnsData?.burn15min || "No burns",
-            burn30min: burnsData?.burn30min || "No burns",
-            burn1h: burnsData?.burn1h || "No burns",
-            burn3h: burnsData?.burn3h || "No burns",
-            burn6h: burnsData?.burn6h || "No burns",
-            burn12h: burnsData?.burn12h || "No burns",
-            burn24h: burnsData?.burn24h || "No burns",
-            totalburnt: metricsData?.burnedSupply || "N/A",
-            priceChange24h: priceData?.change24h || "N/A",
-            priceChange6h: priceData?.change6h || "N/A",
-            priceChange3h: priceData?.change3h || "N/A",
-            priceChange1h: priceData?.change1h || "N/A",
-            liquidity: priceData?.liquidity || "N/A",
-            profile: descriptionData?.header_image || profileData?.profileImage || "N/A",
-            contract: contractAddress,
-            description: descriptionData?.description || "N/A",
-            holdersCount: holdersCount?.holder_count || "N/A",
-            txns: priceData?.txns || "N/A",
-            nativePriceUSD: nativePriceData?.price ?? null,
-            nativeSymbol: nativePriceData?.symbol ?? '',
-          });
+        // All individual fetches use .catch(() => null), so Promise.all never throws.
+        // Guard here: if every critical API failed, don't overwrite valid displayed data.
+        const hasAnyMeaningfulData = priceData || metricsData || holdersData;
+        if (!hasAnyMeaningfulData) {
+          if (!isBackground) {
+            setError("Failed to receive token data from server");
+            setLoading(false);
+          }
+          return;
         }
-        // Never clear social links on a background refresh — keep the last known values.
-        if (socialData) {
-          setSocialLinks(socialData);
-        } else if (!isBackground) {
-          setSocialLinks(null);
-        }
-        if (descriptionData?.is_burn !== null && descriptionData?.is_burn !== undefined) {
-          setTokenMetadata(prev => prev ? { ...prev, isBurn: Boolean(descriptionData.is_burn) } : prev);
-        }
+
+        setTokenData({
+          price: priceData?.price || "N/A",
+          totalSupply: metricsData?.totalSupply || "N/A",
+          cSupply: metricsData?.circulatingSupply || "N/A",
+          lSupply: metricsData?.lockedSupply || "N/A",
+          holders: holdersData?.totalHolders || "N/A",
+          marketCap: priceData?.marketCap || "N/A",
+          fdv: priceData?.fdv || "N/A",
+          volume: priceData?.volume || "N/A",
+          burn5min: burnsData?.burn5min || "No burns",
+          burn15min: burnsData?.burn15min || "No burns",
+          burn30min: burnsData?.burn30min || "No burns",
+          burn1h: burnsData?.burn1h || "No burns",
+          burn3h: burnsData?.burn3h || "No burns",
+          burn6h: burnsData?.burn6h || "No burns",
+          burn12h: burnsData?.burn12h || "No burns",
+          burn24h: burnsData?.burn24h || "No burns",
+          totalburnt: metricsData?.burnedSupply || "N/A",
+          priceChange24h: priceData?.change24h || "N/A",
+          priceChange6h: priceData?.change6h || "N/A",
+          priceChange3h: priceData?.change3h || "N/A",
+          priceChange1h: priceData?.change1h || "N/A",
+          liquidity: priceData?.liquidity || "N/A",
+          profile: profileData?.profileImage || "N/A",
+          contract: contractAddress,
+          description: descriptionData?.description || "N/A",
+          holdersCount: holdersCount?.holder_count || "N/A",
+          txns: priceData?.txns || "N/A",
+          nativePriceUSD: nativePriceData?.price ?? null,
+          nativeSymbol: nativePriceData?.symbol ?? '',
+        });
+        setSocialLinks(socialData || null);
 
         // Mark data as cached on initial fetch (client-side only)
         if (!isBackground && typeof window !== 'undefined') {
           sessionStorage.setItem(`tokenPage-${contractAddress}-data`, 'true');
         }
       } catch (err: unknown) {
-        // Background failure: keep stale data, no UI impact
         if (!isBackground) {
           const errorMessage =
             err instanceof Error ? err.message : "Failed to fetch token data";
@@ -273,20 +272,36 @@ export default function TokenPage() {
     [chain, contractAddress, router],
   );
 
-  // Smart fetch logic: Always fetch on first load, then skip if returning with valid cached data
+  // Turn off loading once sessionStorage data has been hydrated into state.
+  // Covers the returning-user path where the initial fetch is skipped.
   useEffect(() => {
-    const hasValidCachedData = tokenData !== null &&
-      tokenMetadata !== null &&
-      (typeof tokenData.price !== 'string' || tokenData.price !== 'N/A');
+    if (tokenData !== null && tokenMetadata !== null) {
+      setLoading(false);
+    }
+  }, [tokenData, tokenMetadata]);
 
-    if (shouldSkipFetch && hasValidCachedData) {
-      // Returning visit — loading already initialized to false from sessionStorage
-    } else {
-      // First load/reload or no valid cached data - always fetch fresh
+  // Smart fetch logic: skip the initial fetch when returning with valid cached data.
+  // tokenData/tokenMetadata start null (hydrated via useEffect), so we read
+  // sessionStorage directly here instead of checking React state.
+  useEffect(() => {
+    const hasCachedData = (() => {
+      try {
+        const raw = sessionStorage.getItem(`tokenData-${cacheKey}`);
+        if (!raw) return false;
+        const parsed: TokenData = JSON.parse(raw);
+        return (
+          sessionStorage.getItem(`tokenMeta-${cacheKey}`) !== null &&
+          (typeof parsed.price !== 'string' || parsed.price !== 'N/A')
+        );
+      } catch {
+        return false;
+      }
+    })();
+
+    if (!(shouldSkipFetch && hasCachedData)) {
       fetchTokenData(false);
     }
 
-    // Set up background refresh interval
     intervalRef.current = setInterval(() => {
       fetchTokenData(true);
     }, REFRESH_INTERVAL);
@@ -294,7 +309,7 @@ export default function TokenPage() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [shouldSkipFetch, fetchTokenData]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [shouldSkipFetch, fetchTokenData, cacheKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Refresh on tab becoming visible again
   useEffect(() => {
@@ -398,7 +413,7 @@ export default function TokenPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header />
+
       <main className="flex-1 px-3 md:px-8 mt-8">
         {loading ? (
           <LoadingWithLogo tokenSymbol={tokenMetadata?.symbol} />
@@ -490,9 +505,7 @@ export default function TokenPage() {
 
 
 
-                    <div className="mt-4 flex flex-col gap-4">
-                      <VolumeTxnsInfo chain={chain?.toLowerCase() as "bsc" | "eth"} contractAddress={contractAddress} />
-                    </div>
+                   
                     <div className="mt-4 flex flex-row bg-black/35 justify-between gap-2 items-center rounded-md p-4">
                       <div className="flex flex-col items-center">
                         <span className="text-xs text-gray-400">1h</span>
@@ -566,6 +579,14 @@ export default function TokenPage() {
                           <FaCopy size={20} fill="#ffffff" />
                         </button>
                       </h1>
+                      <div className="mt-4 flex flex-col gap-4">
+                      <VolumeTxnsInfo chain={chain?.toLowerCase() as "bsc" | "eth" | "sol"} contractAddress={contractAddress} />
+                    </div>
+                    {chain?.toLowerCase() !== 'sol' && (
+                    <div className="flex flex-col gap-4">
+                      <AthAtlInfo chain={chain?.toLowerCase()} contractAddress={contractAddress} />
+                    </div>
+                    )}
                     </div>
 
 
@@ -614,12 +635,23 @@ export default function TokenPage() {
                                             </h1>
                                         </div> */}
 
-                    {chain && contractAddress && (
-                      <div className="mt-8 flex flex-col gap-2">
-                        <WaraGuardAnalysis chain={chain} contractAddress={contractAddress} />
-                        <SecurityAnalysis chain={chain} contractAddress={contractAddress} />
-                        <HoneypotAnalysis chain={chain} contractAddress={contractAddress} />
-                      </div>
+                    {chain && contractAddress && chain.toLowerCase() !== 'sol' && (
+                      <>
+                        <div className="mt-8 flex flex-col border-2 border-orange-500 p-2 rounded-xl gap-2">
+                          <WaraGuardAnalysis
+                            chain={chain}
+                            contractAddress={contractAddress}
+                          />
+                          <SecurityAnalysis
+                            chain={chain}
+                            contractAddress={contractAddress}
+                          />
+                          <HoneypotAnalysis
+                            chain={chain}
+                            contractAddress={contractAddress}
+                          />
+                        </div>
+                      </>
                     )}
 
                     <div className="flex-1">
@@ -958,6 +990,45 @@ export default function TokenPage() {
                         </div>
                       )}
 
+                    </div>
+
+                    {chain && contractAddress && chain.toLowerCase() !== 'sol' && (
+                      <>
+                        <div className="mt-8 flex flex-col border-2 border-orange-500 p-2 rounded-xl gap-2">
+                          <WaraGuardAnalysis
+                            chain={chain}
+                            contractAddress={contractAddress}
+                          />
+                          <SecurityAnalysis
+                            chain={chain}
+                            contractAddress={contractAddress}
+                          />
+                          <HoneypotAnalysis
+                            chain={chain}
+                            contractAddress={contractAddress}
+                          />
+                        </div>
+                      </>
+                    )}
+
+
+
+                    <div className="mt-4 flex flex-col justify-center gap-4">
+                      <VolumeTxnsInfo
+                        chain={chain?.toLowerCase() as "bsc" | "eth" | "sol"}
+                        contractAddress={contractAddress}
+                      />
+                    </div>
+
+                    {chain?.toLowerCase() !== 'sol' && (
+                    <div className="mt-4 flex flex-col gap-4">
+                      <AthAtlInfo chain={chain?.toLowerCase()} contractAddress={contractAddress} />
+                    </div>
+                    )}
+
+
+
+                    <div className="flex flex-col gap-2 bg-neutral-900 border-2 border-neutral-600 p-4 mt-4 rounded-xl">
                       <p className="text-md">Contract Address</p>
                       <h1 className="text-lg font-bold text-orange-500 flex gap-2">
                         <span>{tokenData.contract}</span>

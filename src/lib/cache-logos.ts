@@ -7,7 +7,7 @@ import { TOKEN_REGISTRY } from './tokenRegistry';
  * This can be run as a cron job or manually to warm up the cache
  */
 export async function cacheAllLogos() {
-  console.log('Starting logo caching process from Supabase Storage...');
+ // console.log('Starting logo caching process from Supabase Storage...');
   let foundCount = 0;
   let missingCount = 0;
   let skipCount = 0;
@@ -23,7 +23,7 @@ export async function cacheAllLogos() {
       try {
         const cached = await redis.get(redisKey);
         if (cached) {
-          console.log(`✓ Already cached: ${symbol} (${chain})`);
+         // console.log(`✓ Already cached: ${symbol} (${chain})`);
           skipCount++;
           // Optional: uncomment to force refresh
           // continue; 
@@ -72,13 +72,13 @@ export async function cacheAllLogos() {
             buffer: base64Buffer,
             contentType: contentType,
           });
-          console.log(`✓ Found in Supabase Storage: ${symbol} (${chain}) - ${buffer.length} bytes`);
+        //  console.log(`✓ Found in Supabase Storage: ${symbol} (${chain}) - ${buffer.length} bytes`);
           foundCount++;
         } catch (error) {
           console.error(`✗ Error caching ${symbol} (${chain}):`, error);
         }
       } else {
-        console.log(`✗ Missing in Supabase Storage: ${symbol} (${chain})`);
+//console.log(`✗ Missing in Supabase Storage: ${symbol} (${chain})`);
         missingCount++;
       }
     } catch (error) {
@@ -87,11 +87,11 @@ export async function cacheAllLogos() {
     }
   }
 
-  console.log('\n=== Supabase Storage Cache Check Complete ===');
-  console.log(`✓ Found/Cached: ${foundCount}`);
-  console.log(`→ Skipped (Already Cached): ${skipCount}`);
-  console.log(`✗ Missing: ${missingCount}`);
-  console.log(`Total tokens: ${TOKEN_REGISTRY.length}`);
+  // console.log('\n=== Supabase Storage Cache Check Complete ===');
+  // console.log(`✓ Found/Cached: ${foundCount}`);
+  // console.log(`→ Skipped (Already Cached): ${skipCount}`);
+  // console.log(`✗ Missing: ${missingCount}`);
+  // console.log(`Total tokens: ${TOKEN_REGISTRY.length}`);
 
   return {
     found: foundCount,
@@ -105,7 +105,7 @@ export async function cacheAllLogos() {
  * Clear all logo cache entries from Redis
  */
 export async function clearLogoCache() {
-  console.log('Clearing logo cache from Redis...');
+  // console.log('Clearing logo cache from Redis...');
   let count = 0;
 
   for (const token of TOKEN_REGISTRY) {

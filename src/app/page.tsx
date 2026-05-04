@@ -212,7 +212,7 @@ export default function Home() {
 
     return (
       <div className="container mx-auto">
-        <Header />
+
         <div className="p-2">
           {loading ? (
             <TokenLoadingSkeleton count={15} />

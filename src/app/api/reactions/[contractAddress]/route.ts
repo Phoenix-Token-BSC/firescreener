@@ -38,10 +38,14 @@ export async function GET(
 
     const addressLower = contractAddress.toLowerCase();
 
-    // Validate contract address format
-    if (!isValidContractAddress(addressLower, 'bsc') && 
-        !isValidContractAddress(addressLower, 'sol') && 
-        !isValidContractAddress(addressLower, 'rwa')) {
+    // Validate using original case — Solana base58 is case-sensitive (lowercase 'l' is excluded)
+    const isValidAddress =
+      isValidContractAddress(contractAddress, 'bsc') ||
+      isValidContractAddress(contractAddress, 'sol') ||
+      isValidContractAddress(contractAddress, 'rwa') ||
+      isValidContractAddress(contractAddress, 'eth');
+
+    if (!isValidAddress) {
       return NextResponse.json({ error: 'Invalid contract address format' }, { status: 400 });
     }
 
@@ -114,10 +118,14 @@ export async function POST(
 
     const addressLower = contractAddress.toLowerCase();
 
-    // Validate contract address format
-    if (!isValidContractAddress(addressLower, 'bsc') && 
-        !isValidContractAddress(addressLower, 'sol') && 
-        !isValidContractAddress(addressLower, 'rwa')) {
+    // Validate using original case — Solana base58 is case-sensitive (lowercase 'l' is excluded)
+    const isValidAddress =
+      isValidContractAddress(contractAddress, 'bsc') ||
+      isValidContractAddress(contractAddress, 'sol') ||
+      isValidContractAddress(contractAddress, 'rwa') ||
+      isValidContractAddress(contractAddress, 'eth');
+
+    if (!isValidAddress) {
       return NextResponse.json({ error: 'Invalid contract address format' }, { status: 400 });
     }
 

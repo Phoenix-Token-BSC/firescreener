@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
  * Hook to preserve scroll position and prevent page refresh when navigating back
@@ -52,47 +52,36 @@ export function useScrollRestoration(key: string = 'scrollPosition') {
  * Useful for preserving tokens list, filters, etc.
  */
 export function useSessionStorage<T>(key: string, initialValue: T) {
-  const [value, setValue] = useState<T>(() => {
-    // Only access sessionStorage on client side
-    if (typeof window === 'undefined') {
-      return initialValue;
-    }
+  // Always start with initialValue so server and client initial renders match.
+  // sessionStorage is read in a useEffect (client-only) to avoid hydration mismatches
+  // caused by the server/client branch `if (typeof window !== 'undefined')`.
+  const [value, setValue] = useState<T>(initialValue);
 
+  useEffect(() => {
     try {
       const item = sessionStorage.getItem(key);
-      return item ? JSON.parse(item) : initialValue;
+      if (item !== null) {
+        setValue(JSON.parse(item) as T);
+      }
     } catch (error) {
       console.error(`Error reading from sessionStorage key "${key}":`, error);
-      return initialValue;
     }
-  });
+  }, [key]);
 
-  const setStoredValue = (valueOrFn: T | ((val: T) => T)) => {
-    if (valueOrFn instanceof Function) {
-      // Use React's functional update so `prev` is always the current state,
-      // not a stale closure value captured at hook-creation time.
-      setValue(prev => {
-        const next = (valueOrFn as (val: T) => T)(prev);
-        try {
-          if (typeof window !== 'undefined') {
-            sessionStorage.setItem(key, JSON.stringify(next));
-          }
-        } catch (error) {
-          console.error(`Error writing to sessionStorage key "${key}":`, error);
-        }
-        return next;
-      });
-    } else {
+  // Use functional setState so this setter doesn't close over stale `value`.
+  const setStoredValue = useCallback((newValueOrFn: T | ((prev: T) => T)) => {
+    setValue(prev => {
+      const next = typeof newValueOrFn === 'function'
+        ? (newValueOrFn as (p: T) => T)(prev)
+        : newValueOrFn;
       try {
-        setValue(valueOrFn);
-        if (typeof window !== 'undefined') {
-          sessionStorage.setItem(key, JSON.stringify(valueOrFn));
-        }
+        sessionStorage.setItem(key, JSON.stringify(next));
       } catch (error) {
         console.error(`Error writing to sessionStorage key "${key}":`, error);
       }
-    }
-  };
+      return next;
+    });
+  }, [key]);
 
   return [value, setStoredValue] as const;
 }

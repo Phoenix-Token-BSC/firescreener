@@ -52,6 +52,11 @@ export async function GET(
         }
 
         const chainLower = chain.toLowerCase();
+
+        if (chainLower === 'sol') {
+            return NextResponse.json({ error: 'Security analysis not supported for Solana' }, { status: 501 });
+        }
+
         const goPlusChainId = CHAIN_ID_MAP[chainLower];
 
         if (!goPlusChainId) {

@@ -113,7 +113,7 @@ export default function PriceActionChart({
     async function fetchFromRWA(signal: AbortSignal): Promise<{ prices: number[]; labels: string[] }> {
       const selector = selectedTimeframe <= 1 ? 'D' : selectedTimeframe <= 7 ? 'W' : 'Y';
       const url = `/api/rwa/price-data/${encodeURIComponent(contractAddress)}?selector=${encodeURIComponent(selector)}`;
-      console.log('Fetching from RWA internal API:', url);
+      //console.log('Fetching from RWA internal API:', url);
 
       const resp = await fetch(url, { signal });
       if (!resp.ok) {
@@ -416,7 +416,7 @@ export default function PriceActionChart({
         if (chain === 'rwa') {
           try {
             const rwaData = await fetchFromRWA(signal);
-            console.log('RWA data loaded:', rwaData.prices.length, 'points');
+          //  console.log('RWA data loaded:', rwaData.prices.length, 'points');
             setData(rwaData);
             // setDataSource('rwa');
             cacheRef.current.set(key, { ...rwaData, ts: Date.now() });
@@ -431,7 +431,7 @@ export default function PriceActionChart({
         if (chain === 'bsc' || chain === 'eth') {
           try {
             const supabaseData = await fetchFromSupabase(signal);
-            console.log('Supabase data loaded:', supabaseData.prices.length, 'points');
+           // console.log('Supabase data loaded:', supabaseData.prices.length, 'points');
             setData(supabaseData);
             cacheRef.current.set(key, { ...supabaseData, ts: Date.now() });
             return;
@@ -488,15 +488,15 @@ export default function PriceActionChart({
   // Create chart
   useEffect(() => {
     if (!isChartReady || !data || !canvasRef.current) {
-      console.log('Chart not ready:', { isChartReady, hasData: !!data, hasCanvas: !!canvasRef.current });
+      //console.log('Chart not ready:', { isChartReady, hasData: !!data, hasCanvas: !!canvasRef.current });
       return;
     }
 
-    console.log('Creating chart with', data.prices.length, 'data points');
+   //  console.log('Creating chart with', data.prices.length, 'data points');
 
     const ctx = canvasRef.current.getContext("2d");
     if (!ctx) {
-      console.log('No canvas context');
+     // console.log('No canvas context');
       return;
     }
 
@@ -579,7 +579,7 @@ export default function PriceActionChart({
         },
       });
 
-      console.log('Chart created successfully');
+     // console.log('Chart created successfully');
     } catch (chartError) {
       console.error('Chart creation failed:', chartError);
       setError('Failed to create chart');

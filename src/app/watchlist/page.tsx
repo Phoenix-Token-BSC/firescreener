@@ -90,7 +90,6 @@ export default function WatchlistPage() {
 
     return (
         <div className="container mx-auto min-h-screen flex flex-col">
-            <Header />
             <div className="px-3 pt-8 flex-1">
                 <div className="flex justify-between items-center mb-4">
                     <h1 className="text-2xl font-bold text-white">My Watchlist</h1>

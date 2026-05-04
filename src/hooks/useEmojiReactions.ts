@@ -102,16 +102,15 @@ export function useEmojiReactions(contractAddress: string | null): UseEmojiReact
 
     try {
       const response = await fetch(`/api/reactions/${contractAddress}`);
-      
+
       if (!response.ok) {
-        throw new Error('Failed to fetch reactions');
+        console.warn('Failed to fetch reactions:', response.status);
+        return;
       }
 
       const data = await response.json();
       setCounts(data.reactions);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An error occurred';
-      setError(errorMessage);
       console.error('Error syncing reactions:', err);
     } finally {
       setLoading(false);
