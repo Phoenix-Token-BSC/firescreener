@@ -15,7 +15,7 @@ const config = {
 
 if (!config.cloud_name || !config.api_key || !config.api_secret) {
     console.error('Missing Cloudinary configuration. specific environment variables are required.');
-    console.log('Ensure NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME, NEXT_PUBLIC_CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET are set.');
+    // console.log('Ensure NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME, NEXT_PUBLIC_CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET are set.');
     process.exit(1);
 }
 
@@ -61,7 +61,7 @@ async function uploadImage(filePath, remoteFolder) {
             resource_type: 'image',
         });
 
-        console.log(`Uploaded: ${filePath} -> ${result.secure_url}`);
+        // console.log(`Uploaded: ${filePath} -> ${result.secure_url}`);
         return result;
     } catch (error) {
         console.error(`Failed to upload ${filePath}:`, error.message);
@@ -78,7 +78,7 @@ async function processFolder(folderConfig) {
     }
 
     const files = fs.readdirSync(absolutePath);
-    console.log(`Processing ${files.length} files in ${folderConfig.localPath}...`);
+    // console.log(`Processing ${files.length} files in ${folderConfig.localPath}...`);
 
     for (const file of files) {
         // Basic image extension check
@@ -90,13 +90,13 @@ async function processFolder(folderConfig) {
 }
 
 async function main() {
-    console.log('Starting Cloudinary upload...');
+    // console.log('Starting Cloudinary upload...');
 
     for (const folder of sourceFolders) {
         await processFolder(folder);
     }
 
-    console.log('Upload complete.');
+    // console.log('Upload complete.');
 }
 
 main();

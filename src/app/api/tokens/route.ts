@@ -89,7 +89,7 @@ async function fetchFromAssetChain(tokenAddress: string): Promise<Partial<TokenD
     // Try cache first
     const cached = await redis.get(cacheKey);
     if (cached) {
-      console.log(`✓ AssetChain cache hit: ${tokenAddress}`);
+      //console.log(`✓ AssetChain cache hit: ${tokenAddress}`);
       return cached as Partial<TokenData>;
     }
 
@@ -124,7 +124,7 @@ async function fetchFromAssetChain(tokenAddress: string): Promise<Partial<TokenD
 
     // Cache the result
     await redis.setex(cacheKey, CACHE_TTL, result).catch(() => {});
-    console.log(`✓ AssetChain cached: ${tokenAddress}`);
+   // console.log(`✓ AssetChain cached: ${tokenAddress}`);
 
     return result;
   } catch (error) {
@@ -141,7 +141,7 @@ async function fetchFromDexScreener(tokenAddress: string): Promise<Partial<Token
     // Try cache first
     const cached = await redis.get(cacheKey);
     if (cached) {
-      console.log(`✓ DexScreener cache hit: ${tokenAddress}`);
+      //console.log(`✓ DexScreener cache hit: ${tokenAddress}`);
       return cached as Partial<TokenData>;
     }
 
@@ -173,7 +173,7 @@ async function fetchFromDexScreener(tokenAddress: string): Promise<Partial<Token
 
     // Cache the result
     await redis.setex(cacheKey, CACHE_TTL, result).catch(() => {});
-    console.log(`✓ DexScreener cached: ${tokenAddress}`);
+   // console.log(`✓ DexScreener cached: ${tokenAddress}`);
 
     return result;
   } catch (error) {

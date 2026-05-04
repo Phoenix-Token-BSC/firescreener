@@ -74,12 +74,12 @@ export default function BurnIntervals({ contractAddress, tokenSymbol }: BurnInte
 
   useEffect(() => {
     if (process.env.NODE_ENV === "development") {
-      console.log("[BurnIntervals] Visibility check:", {
-        contractAddress,
-        hasTokenRegistry: !!tokenRegistry,
-        isBurn: tokenRegistry?.isBurn,
-        shouldShow: shouldShowBurns,
-      });
+      // console.log("[BurnIntervals] Visibility check:", {
+      //   contractAddress,
+      //   hasTokenRegistry: !!tokenRegistry,
+      //   isBurn: tokenRegistry?.isBurn,
+      //   shouldShow: shouldShowBurns,
+      // });
     }
   }, [contractAddress, tokenRegistry, shouldShowBurns]);
 

@@ -190,7 +190,7 @@ export default function PriceActionChart({
         // Helper to fetch OHLC data directly
         async function fetchOHLC(coinId: string, days: number, signal: AbortSignal): Promise<CandlestickData[]> {
             const url = `https://api.coingecko.com/api/v3/coins/${coinId}/ohlc?vs_currency=usd&days=${days}`;
-            console.log('Fetching OHLC from CoinGecko:', url);
+           // console.log('Fetching OHLC from CoinGecko:', url);
 
             const resp = await fetch(url, { signal });
             if (!resp.ok) {
@@ -218,7 +218,7 @@ export default function PriceActionChart({
         async function fetchFromRWA(signal: AbortSignal): Promise<CandlestickData[]> {
             const selector = selectedTimeframe <= 1 ? 'D' : selectedTimeframe <= 7 ? 'W' : 'Y';
             const url = `/api/rwa/price-data/${encodeURIComponent(contractAddress)}?selector=${encodeURIComponent(selector)}`;
-            console.log('Fetching from RWA internal API:', url);
+          //  console.log('Fetching from RWA internal API:', url);
 
             const resp = await fetch(url, { signal });
             if (!resp.ok) {
@@ -305,7 +305,7 @@ export default function PriceActionChart({
                     // We have 1, 7, 30, 90 -> direct match
                     try {
                         const ohlcData = await fetchOHLC(coinId, selectedTimeframe, signal);
-                        console.log('Loaded real OHLC data from CoinGecko');
+                        //console.log('Loaded real OHLC data from CoinGecko');
                         return ohlcData;
                     } catch (ohlcErr) {
                         console.warn('OHLC fetch failed, falling back to market_chart:', ohlcErr);
@@ -317,7 +317,7 @@ export default function PriceActionChart({
 
             // 2. Fallback to market_chart (legacy method) with precision=full
             const fallbackUrl = `${coingeckoUrl}&precision=full`;
-            console.log('Fetching from CoinGecko (fallback):', fallbackUrl);
+           // console.log('Fetching from CoinGecko (fallback):', fallbackUrl);
 
             const maxAttempts = 3;
             let lastErr: any = null;
@@ -394,7 +394,7 @@ export default function PriceActionChart({
             }
 
             const url = `https://api.geckoterminal.com/api/v2/networks/${network}/tokens/${contractAddress}/ohlcv/${timeframe}?aggregate=${aggregate}&limit=${limit}&currency=usd&token=base`;
-            console.log('Fetching OHLC from GeckoTerminal:', url);
+           // console.log('Fetching OHLC from GeckoTerminal:', url);
 
             const resp = await fetch(url, { signal });
             if (!resp.ok) {
@@ -479,7 +479,7 @@ export default function PriceActionChart({
             }
 
             const url = `https://deep-index.moralis.io/api/v2.2/pairs/${pairAddress}/ohlc?chain=${chainHex}&timeframe=${timeframe}&currency=usd&limit=${limit}`;
-            console.log('Fetching OHLC from Moralis:', url);
+           // console.log('Fetching OHLC from Moralis:', url);
 
             const resp = await fetch(url, {
                 headers: { 'X-API-Key': moralisApiKey },
@@ -521,7 +521,7 @@ export default function PriceActionChart({
                 url += `&api_key=${cryptocompareApiKey}`;
             }
 
-            console.log('Fetching from CryptoCompare:', url.replace(cryptocompareApiKey || '', '***'));
+            //console.log('Fetching from CryptoCompare:', url.replace(cryptocompareApiKey || '', '***'));
 
             const maxAttempts = 2;
             let resp: Response | null = null;
@@ -584,7 +584,7 @@ export default function PriceActionChart({
                 if (chain === 'rwa') {
                     try {
                         const rwaData = await fetchFromRWA(signal);
-                        console.log('RWA data loaded:', rwaData.length, 'candlesticks');
+                      //  console.log('RWA data loaded:', rwaData.length, 'candlesticks');
                         setData(rwaData);
                         cacheRef.current.set(key, { data: rwaData, ts: Date.now() });
                         return;
@@ -605,7 +605,7 @@ export default function PriceActionChart({
                             else if (selectedTimeframe <= 90) timeframeParam = '3m';
 
                             const url = `${supabaseBase}/functions/v1/token-analysis-api?chain=${encodeURIComponent(chain)}&token=${encodeURIComponent(contractAddress)}&timeframe=${encodeURIComponent(timeframeParam)}`;
-                            console.log('Fetching from Supabase (direct) in NewPriceActionChart:', url);
+                           // console.log('Fetching from Supabase (direct) in NewPriceActionChart:', url);
 
                             const resp = await fetch(url, { signal, cache: 'no-store' });
                             if (!resp.ok) {
@@ -655,7 +655,7 @@ export default function PriceActionChart({
                 if (chain === 'bsc' || chain === 'eth' || chain === 'sol') {
                     try {
                         const sbData = await fetchFromSupabase(signal);
-                        console.log('Supabase data loaded:', sbData.length, 'candlesticks');
+                        //console.log('Supabase data loaded:', sbData.length, 'candlesticks');
                         setData(sbData);
                         cacheRef.current.set(key, { data: sbData, ts: Date.now() });
                         return;
@@ -667,7 +667,7 @@ export default function PriceActionChart({
                 // Try GeckoTerminal first for BSC/ETH (High resolution OHLC)
                 try {
                     const geckoTerminalData = await fetchFromGeckoTerminal(signal);
-                    console.log('GeckoTerminal data loaded:', geckoTerminalData.length, 'candlesticks');
+                    //console.log('GeckoTerminal data loaded:', geckoTerminalData.length, 'candlesticks');
                     setData(geckoTerminalData);
                     cacheRef.current.set(key, { data: geckoTerminalData, ts: Date.now() });
                     return;
@@ -678,7 +678,7 @@ export default function PriceActionChart({
                 // Try Moralis (High quality secondary source)
                 try {
                     const moralisData = await fetchFromMoralis(signal);
-                    console.log('Moralis data loaded:', moralisData.length, 'candlesticks');
+                  //  console.log('Moralis data loaded:', moralisData.length, 'candlesticks');
                     setData(moralisData);
                     cacheRef.current.set(key, { data: moralisData, ts: Date.now() });
                     return;
@@ -689,7 +689,7 @@ export default function PriceActionChart({
                 // Try CoinGecko (Standard API)
                 try {
                     const coinGeckoData = await fetchFromCoinGecko(signal);
-                    console.log('CoinGecko data loaded:', coinGeckoData.length, 'candlesticks');
+                 //   console.log('CoinGecko data loaded:', coinGeckoData.length, 'candlesticks');
                     setData(coinGeckoData);
                     cacheRef.current.set(key, { data: coinGeckoData, ts: Date.now() });
                     return;
@@ -701,7 +701,7 @@ export default function PriceActionChart({
                     }
 
                     const cryptoCompareData = await fetchFromCryptoCompare(signal);
-                    console.log('CryptoCompare data loaded:', cryptoCompareData.length, 'candlesticks');
+                  //  console.log('CryptoCompare data loaded:', cryptoCompareData.length, 'candlesticks');
                     setData(cryptoCompareData);
                     cacheRef.current.set(key, { data: cryptoCompareData, ts: Date.now() });
                 }

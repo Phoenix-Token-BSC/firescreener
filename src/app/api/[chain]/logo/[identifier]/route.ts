@@ -92,7 +92,7 @@ async function fetchFromSupabaseStorage(
         response.headers.get("content-type")?.split(";")[0].trim() ||
         getContentTypeFromPath(path);
 
-      console.log(`[Supabase] ✅ ${path} (${buffer.byteLength} bytes, ${contentType})`);
+      // console.log(`[Supabase] ✅ ${path} (${buffer.byteLength} bytes, ${contentType})`);
       return { buffer, contentType };
     } catch (err) {
       console.debug(`[Supabase] Fetch exception for ${path}:`, err);
@@ -110,7 +110,7 @@ async function getLogoBuffer(chain: string, address: string, originalCaseAddress
   const cached = localCache.get(cacheKey);
   if (cached && cached.expiry > now) {
     // ✅ Only cache hits are stored now, so this is always a valid logo
-    console.log(`[CACHE HIT] ${chain}/${address}`);
+    // console.log(`[CACHE HIT] ${chain}/${address}`);
     return cached;
   }
 
@@ -126,12 +126,12 @@ async function getLogoBuffer(chain: string, address: string, originalCaseAddress
       expiry: now + CACHE_TTL,
     };
     localCache.set(cacheKey, entry);
-    console.log(`[CACHE MISS] Stored ${chain}/${address}`);
+    // console.log(`[CACHE MISS] Stored ${chain}/${address}`);
     return entry;
   }
 
   // ✅ Not found — do NOT cache, so next request retries Supabase immediately
-  console.log(`[CACHE MISS] Not found ${chain}/${address} — will retry on next request`);
+  // console.log(`[CACHE MISS] Not found ${chain}/${address} — will retry on next request`);
   return null;
 }
 
@@ -141,8 +141,8 @@ export async function GET(
 ) {
 
   const params = await context.params;
-  console.log("🔥 Route hit — raw params:", params);
-  console.log("🔥 Full URL:", _req.url);
+  // console.log("🔥 Route hit — raw params:", params);
+  // console.log("🔥 Full URL:", _req.url);
   try {
     const { chain, identifier } = await context.params;
 

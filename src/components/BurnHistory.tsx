@@ -38,10 +38,10 @@ export default function BurnsDisplay({ contractAddress }: BurnsDisplayProps) {
       setError(null);
 
       try {
-        console.log(`Fetching burns for contract: ${contractAddress}, Attempt: ${attempt}`);
+      //  console.log(`Fetching burns for contract: ${contractAddress}, Attempt: ${attempt}`);
 
         const response = await fetch(`/api/bsc/burn-history/${encodeURIComponent(contractAddress)}`);
-        console.log("Response Status:", response.status);
+       // console.log("Response Status:", response.status);
 
         if (!response.ok) {
           const errorData: { error?: string; message?: string } = await response.json();
@@ -50,7 +50,7 @@ export default function BurnsDisplay({ contractAddress }: BurnsDisplayProps) {
         }
 
         const data: BurnHistoryResponse = await response.json();
-        console.log("Burn Transactions Data:", data);
+       //  console.log("Burn Transactions Data:", data);
 
         // Map API response to state
         setBurns(data.burnHistory || []);
@@ -62,7 +62,7 @@ export default function BurnsDisplay({ contractAddress }: BurnsDisplayProps) {
         if (attempt < MAX_RETRIES) {
           // Retry with exponential backoff
           const delay = 1000 * 2 ** (attempt - 1); // 1s, 2s, 4s
-          console.log(`Retrying in ${delay / 1000} seconds...`);
+         // console.log(`Retrying in ${delay / 1000} seconds...`);
           setTimeout(() => fetchBurns(attempt + 1), delay);
         } else {
           setError((err as Error).message);

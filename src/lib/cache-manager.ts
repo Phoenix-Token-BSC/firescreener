@@ -35,7 +35,7 @@ import { redis } from './redis';
  * Clear all DexScreener cache
  */
 export async function clearDexScreenerCache(): Promise<number> {
-  console.log('Clearing DexScreener cache...');
+  //console.log('Clearing DexScreener cache...');
   const count = 0;
   
   // Since we can't scan keys, we'll need to clear based on known tokens
@@ -49,7 +49,7 @@ export async function clearDexScreenerCache(): Promise<number> {
  * Clear all AssetChain cache
  */
 export async function clearAssetChainCache(): Promise<number> {
-  console.log('Clearing AssetChain cache...');
+  //console.log('Clearing AssetChain cache...');
   const count = 0;
   
   return count;
@@ -70,7 +70,7 @@ export async function clearTokenCache(tokenAddress: string): Promise<void> {
   for (const key of keys) {
     try {
       await redis.del(key);
-      console.log(`Deleted cache key: ${key}`);
+     // console.log(`Deleted cache key: ${key}`);
     } catch (error) {
       console.error(`Error deleting ${key}:`, error);
     }
@@ -135,7 +135,7 @@ export async function warmUpTokenCache(
   
   try {
     await redis.setex(cacheKey, ttl, data);
-    console.log(`✓ Warmed cache: ${cacheKey}`);
+   // console.log(`✓ Warmed cache: ${cacheKey}`);
   } catch (error) {
     console.error(`Error warming cache for ${cacheKey}:`, error);
   }

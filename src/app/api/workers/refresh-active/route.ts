@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    console.log(`🔄 Refreshing ${activeTokens.length} active tokens...`);
+   // console.log(`🔄 Refreshing ${activeTokens.length} active tokens...`);
 
     // Refresh each active token
     await Promise.allSettled(
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
 
     const duration = Date.now() - startTime;
 
-    console.log(`✅ Refreshed ${successful}/${processed} active tokens in ${duration}ms`);
+   // console.log(`✅ Refreshed ${successful}/${processed} active tokens in ${duration}ms`);
 
     return NextResponse.json({
       success: true,
