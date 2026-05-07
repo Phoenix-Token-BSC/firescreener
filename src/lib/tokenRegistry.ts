@@ -178,6 +178,7 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
   { address: "0x000Ae314E2A2172a039B26378814C252734f556A", symbol: "ASTER", name: "Aster", chain: "bsc", isBurn: false },
   { address: "0xebc179873f591b3ba9e86a4b962af6292181359f", symbol: "gracshal", name: "Gracshal Token", chain: "bsc", isBurn: false },
   { address: "0x6B6f93a12705b6eB60490A8b8a9aC15b3B1ce0f2", symbol: "snr", name: "Stable Naira", chain: "bsc", isBurn: false},
+  { address: "0x1d547f9d0890EE5AbfB49d7d53cA19Df85Da4444", symbol: "b4", name: "BUILD4", chain: "bsc", isBurn: false},
 
 
   { address: "0xf20f989CAf263C513f9183B4Fed88F14Fc04c8dB", symbol: "shalom", name: "Shalom", chain: "rwa", isBurn: false },
