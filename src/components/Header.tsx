@@ -718,7 +718,7 @@ export default function Header() {
                                     <Link href="/" className="block px-4 py-2 hover:bg-neutral-100 text-neutral-900" onClick={() => setIsDesktopMenuOpen(false)}>Home</Link>
                                     {/* <Link href="#" className="block px-4 py-2 hover:bg-neutral-100 text-neutral-900" onClick={() => setIsDesktopMenuOpen(false)}>Burns</Link> */}
                                     <Link href="/price-predict" className="block px-4 py-2 hover:bg-neutral-100 text-neutral-900" onClick={() => setIsDesktopMenuOpen(false)}>Price Predict</Link>
-                                    <Link href="/multiplier" className="block px-4 py-2 hover:bg-neutral-100 text-neutral-900" onClick={() => setIsDesktopMenuOpen(false)}>Multiplier</Link>
+                                    <Link href="/gains" className="block px-4 py-2 hover:bg-neutral-100 text-neutral-900" onClick={() => setIsDesktopMenuOpen(false)}>Gains</Link>
                                     <Link href="/watchlist" className="block px-4 py-2 hover:bg-neutral-100 text-neutral-900" onClick={() => setIsDesktopMenuOpen(false)}>Watchlist</Link>
                                     <Link href="https://www.phoenixtoken.community" className="block px-4 py-2 hover:bg-neutral-100 text-neutral-900" onClick={() => setIsDesktopMenuOpen(false)}>Token</Link>
                                     <div className="border-t border-neutral-200 my-2"></div>
@@ -779,11 +779,11 @@ export default function Header() {
                     </Link>
 
                     <Link
-                        href="/multiplier"
+                        href="/gains"
                         className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
                         onClick={toggleMenu}
                     >
-                        Multiplier
+                        Gains
                     </Link>
                     <Link
                         href="/watchlist"
