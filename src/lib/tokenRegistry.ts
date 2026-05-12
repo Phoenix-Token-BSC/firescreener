@@ -180,6 +180,7 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
   { address: "0x6B6f93a12705b6eB60490A8b8a9aC15b3B1ce0f2", symbol: "snr", name: "Stable Naira", chain: "bsc", isBurn: false},
   { address: "0x1d547f9d0890EE5AbfB49d7d53cA19Df85Da4444", symbol: "b4", name: "BUILD4", chain: "bsc", isBurn: false},
   { address: "0xb44816216ad4057282E4F4b8A4983f8Fb81615A7", symbol: "evana", name: "EVANA", chain: "bsc", isBurn: false},
+  { address: "0xadfaA5A90654276dC7110Ebd366ab5BF69a6C3fd", symbol: "fwc", name: "FIFA WORLD CUP", chain: "bsc", isBurn: false},
 
 
   { address: "0xf20f989CAf263C513f9183B4Fed88F14Fc04c8dB", symbol: "shalom", name: "Shalom", chain: "rwa", isBurn: false },
