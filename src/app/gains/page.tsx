@@ -157,10 +157,10 @@ export default function MultiplierPage() {
     <div className="min-h-screen text-white">
       <div className="max-w-2xl mx-auto px-4 pt-8 pb-4 text-center">
         <h1 className="text-4xl md:text-5xl font-bold uppercase mb-1" style={{ color: '#FF7F27' }}>
-          Multiplier
+          Gains
         </h1>
         <p className="text-white/50 text-sm">
-          Drag the slider and see your returns at any price multiplier
+          Drag the slider and see your returns at any price multiplier, and your expected gains.
         </p>
       </div>
 

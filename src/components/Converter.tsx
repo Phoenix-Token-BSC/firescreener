@@ -15,6 +15,7 @@ const CurrencyConverter: React.FC<CurrencyConverterProps> = ({
   tokenLogoUrl,
   chain = 'bsc',
 }) => {
+  const [mode, setMode] = useState<'token' | 'usdt'>('token');
   const [inputValue, setInputValue] = useState('1');
   const [selectedCurrency, setSelectedCurrency] = useState<'USD' | 'NATIVE'>('USD');
   const [outputValue, setOutputValue] = useState('0.000000000');
@@ -118,33 +119,60 @@ const CurrencyConverter: React.FC<CurrencyConverterProps> = ({
     fetchRates();
   }, [tokenAddress, chain]);
 
-  const calculateOutput = (input: string, currency: 'USD' | 'NATIVE') => {
+  const calculateOutput = (input: string, currency: 'USD' | 'NATIVE', currentMode: typeof mode, currentRates = rates) => {
     const num = parseFloat(input);
-    if (isNaN(num) || num < 0) return '0.000000000';
+    if (isNaN(num) || num < 0) return '0';
 
-    const rate = currency === 'USD' ? rates.usd : rates.native;
+    if (currentMode === 'usdt') {
+      if (currentRates.usd <= 0) return '—';
+      const tokens = num / currentRates.usd;
+      if (tokens === 0) return '0';
+      if (tokens >= 1e9) return tokens.toLocaleString(undefined, { maximumFractionDigits: 0 });
+      if (tokens >= 1e6) return tokens.toLocaleString(undefined, { maximumFractionDigits: 2 });
+      if (tokens >= 1)   return tokens.toLocaleString(undefined, { maximumFractionDigits: 4 });
+      // small fractions — avoid scientific notation
+      const s = tokens.toFixed(20);
+      const dec = s.split('.')[1] ?? '';
+      const leadingZeros = dec.match(/^0+/)?.[0].length ?? 0;
+      return `0.${dec.substring(0, leadingZeros + 5)}`;
+    }
+
+    const rate = currency === 'USD' ? currentRates.usd : currentRates.native;
     if (rate <= 0) return '—';
-
     return (num * rate).toFixed(9);
   };
+
+  // Recalculate output whenever rates finish loading
+  useEffect(() => {
+    if (!loading) {
+      setOutputValue(calculateOutput(inputValue, selectedCurrency, mode));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rates]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setInputValue(val);
-    setOutputValue(calculateOutput(val, selectedCurrency));
+    setOutputValue(calculateOutput(val, selectedCurrency, mode));
   };
 
   const handleCurrencyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newCur = e.target.value as 'USD' | 'NATIVE';
     setSelectedCurrency(newCur);
-    setOutputValue(calculateOutput(inputValue, newCur));
+    setOutputValue(calculateOutput(inputValue, newCur, mode));
+  };
+
+  const handleModeSwitch = (newMode: typeof mode) => {
+    setMode(newMode);
+    setInputValue('1');
+    setOutputValue(calculateOutput('1', selectedCurrency, newMode));
   };
 
   const showNativeOption = !isRwa && rates.native > 0;
 
   return (
-    <div className="mt-4 bg-neutral-900 text-white p-4 rounded-xl border-2 border-neutral-600 ">
-      {/* Input (Token amount) */}
+    <div className="mt-4 bg-neutral-900 text-white p-4 rounded-xl border-2 border-neutral-600">
+      {/* Input */}
       <div className="flex items-center justify-between bg-gray-800 rounded-md p-3 mb-3">
         <input
           type="text"
@@ -153,46 +181,74 @@ const CurrencyConverter: React.FC<CurrencyConverterProps> = ({
           placeholder="0.0"
           className="bg-transparent text-white text-xl w-2/3 focus:outline-none"
         />
-        <div className="flex items-center bg-gray-700 px-3 py-1 rounded-md">
-          {tokenLogoUrl && (
-            <img
-              src={tokenLogoUrl}
-              alt={`${tokenSymbol} logo`}
-              className="w-6 h-6 mr-2 rounded-full object-contain"
-              onError={(e) => {
-                e.currentTarget.src = '/file.svg';
-                e.currentTarget.alt = 'Token';
-              }}
-            />
-          )}
-          <span className="font-medium">{tokenSymbol}</span>
-        </div>
+        {mode === 'token' ? (
+          <div className="flex items-center bg-gray-700 px-3 py-1 rounded-md">
+            {tokenLogoUrl && (
+              <img
+                src={tokenLogoUrl}
+                alt={`${tokenSymbol} logo`}
+                className="w-6 h-6 mr-2 rounded-full object-contain"
+                onError={(e) => {
+                  e.currentTarget.src = '/file.svg';
+                  e.currentTarget.alt = 'Token';
+                }}
+              />
+            )}
+            <span className="font-medium">{tokenSymbol}</span>
+          </div>
+        ) : (
+          <div className="flex items-center bg-gray-700 px-3 py-1 rounded-md gap-1.5">
+            <img src="/usdt-logo.png" alt="USDT" className="w-6 h-6 rounded-full object-contain" />
+            <span className="font-medium">USDT</span>
+          </div>
+        )}
       </div>
 
-      {/* Arrow */}
-      <div className="flex justify-center mb-3 text-2xl">↓</div>
+      {/* Arrow — click to swap mode */}
+      <div className="flex justify-center mb-3">
+        <button
+          onClick={() => handleModeSwitch(mode === 'token' ? 'usdt' : 'token')}
+          className="text-2xl text-gray-400 hover:text-white transition-transform hover:scale-110 active:scale-95"
+          title={mode === 'token' ? `Switch to USDT → ${tokenSymbol}` : `Switch to ${tokenSymbol} → USD`}
+        >
+          ↕
+        </button>
+      </div>
 
-      {/* Output (Converted value) */}
+      {/* Output */}
       <div className="flex items-center justify-between bg-gray-800 rounded-md p-3">
         <div className="text-xl font-medium">
-          {loading
-            ? 'Loading...'
-            : error
-            ? 'Error'
-            : outputValue}
+          {loading ? 'Loading…' : error ? 'Error' : outputValue}
         </div>
 
-        <select
-          value={selectedCurrency}
-          onChange={handleCurrencyChange}
-          disabled={loading || !!error}
-          className="bg-green-700 text-white px-4 py-2 rounded-md appearance-none focus:outline-none cursor-pointer"
-        >
-          <option value="USD">USD</option>
-          {showNativeOption && (
-            <option value="NATIVE">{nativeLabel}</option>
-          )}
-        </select>
+        {mode === 'token' ? (
+          <select
+            value={selectedCurrency}
+            onChange={handleCurrencyChange}
+            disabled={loading || !!error}
+            className="bg-green-700 text-white px-4 py-2 rounded-md appearance-none focus:outline-none cursor-pointer"
+          >
+            <option value="USD">USD</option>
+            {showNativeOption && (
+              <option value="NATIVE">{nativeLabel}</option>
+            )}
+          </select>
+        ) : (
+          <div className="flex items-center bg-gray-700 px-3 py-1 rounded-md">
+            {tokenLogoUrl && (
+              <img
+                src={tokenLogoUrl}
+                alt={`${tokenSymbol} logo`}
+                className="w-6 h-6 mr-2 rounded-full object-contain"
+                onError={(e) => {
+                  e.currentTarget.src = '/file.svg';
+                  e.currentTarget.alt = 'Token';
+                }}
+              />
+            )}
+            <span className="font-medium">{tokenSymbol}</span>
+          </div>
+        )}
       </div>
 
       {error && (
