@@ -1,20 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import Header from '@/components/Header';
 import { TOKEN_REGISTRY, TokenMetadata } from '@/lib/tokenRegistry';
 
-const MULTIPLIERS = [2, 5, 10, 20, 50, 100] as const;
-type Multiplier = typeof MULTIPLIERS[number];
-
-const MULTIPLIER_STYLES: Record<Multiplier, { gradient: string; border: string; accent: string; badge: string }> = {
-  2:   { gradient: 'from-white/10 to-white/3',          border: 'border-white/20',          accent: 'text-white',          badge: 'bg-white/15 text-white/80' },
-  5:   { gradient: 'from-orange-200/15 to-orange-200/4', border: 'border-orange-200/25',    accent: 'text-orange-200',     badge: 'bg-orange-200/15 text-orange-200' },
-  10:  { gradient: 'from-orange-300/15 to-orange-300/4', border: 'border-orange-300/25',    accent: 'text-orange-300',     badge: 'bg-orange-300/15 text-orange-300' },
-  20:  { gradient: 'from-orange-400/15 to-orange-400/4', border: 'border-orange-400/25',    accent: 'text-orange-400',     badge: 'bg-orange-400/15 text-orange-400' },
-  50:  { gradient: 'from-orange-500/15 to-orange-500/4', border: 'border-orange-500/25',    accent: 'text-orange-500',     badge: 'bg-orange-500/15 text-orange-500' },
-  100: { gradient: 'from-orange-600/20 to-orange-600/5', border: 'border-orange-600/30',    accent: 'text-orange-600',     badge: 'bg-orange-600/20 text-orange-400' },
-};
+const STANDARD_STEPS = [1, 2, 5, 10];
+const ODD_STEPS = [3, 7, 11, 21, 33, 51];
 
 const CHAIN_STYLES: Record<string, { label: string; color: string }> = {
   bsc:  { label: 'BSC',  color: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30' },
@@ -39,13 +29,10 @@ function parsePriceFormat(price: number): PriceFormat {
   if (price <= 0) return { plain: '$0.00' };
   if (price >= 1) return { plain: `$${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` };
   if (price >= 0.001) return { plain: `$${price.toFixed(6)}` };
-
   const s = price.toFixed(20);
   const dec = s.split('.')[1] ?? '';
   const zeros = dec.match(/^0+/)?.[0].length ?? 0;
-  if (zeros >= 4) {
-    return { zeros, sig: dec.substring(zeros, zeros + 5) };
-  }
+  if (zeros >= 4) return { zeros, sig: dec.substring(zeros, zeros + 5) };
   return { plain: `$${price.toFixed(8)}` };
 }
 
@@ -73,6 +60,15 @@ function formatUSD(val: number): string {
   return `$${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function getMultiplierStyle(mult: number) {
+  if (mult <= 2)  return { gradient: 'from-white/10 to-white/3',          border: 'border-white/20',          accent: 'text-white',          badge: 'bg-white/15 text-white/80',          glow: 'bg-white' };
+  if (mult <= 5)  return { gradient: 'from-orange-200/15 to-orange-200/4', border: 'border-orange-200/25',    accent: 'text-orange-200',     badge: 'bg-orange-200/15 text-orange-200',     glow: 'bg-orange-200' };
+  if (mult <= 10) return { gradient: 'from-orange-300/15 to-orange-300/4', border: 'border-orange-300/25',    accent: 'text-orange-300',     badge: 'bg-orange-300/15 text-orange-300',     glow: 'bg-orange-300' };
+  if (mult <= 20) return { gradient: 'from-orange-400/15 to-orange-400/4', border: 'border-orange-400/25',    accent: 'text-orange-400',     badge: 'bg-orange-400/15 text-orange-400',     glow: 'bg-orange-400' };
+  if (mult <= 50) return { gradient: 'from-orange-500/15 to-orange-500/4', border: 'border-orange-500/25',    accent: 'text-orange-500',     badge: 'bg-orange-500/15 text-orange-500',     glow: 'bg-orange-500' };
+  return           { gradient: 'from-orange-600/20 to-orange-600/5',       border: 'border-orange-600/30',    accent: 'text-orange-600',     badge: 'bg-orange-600/20 text-orange-400',     glow: 'bg-orange-600' };
+}
+
 const DEFAULT_TOKEN = TOKEN_REGISTRY.find(t => t.symbol.toLowerCase() === 'pht' && t.chain === 'bsc') ?? TOKEN_REGISTRY[0];
 
 export default function MultiplierPage() {
@@ -83,6 +79,15 @@ export default function MultiplierPage() {
   const [fetching, setFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [amount, setAmount] = useState('100');
+  const [step, setStep] = useState(1);
+  const [multiplier, setMultiplier] = useState(2);
+
+  function changeStep(newStep: number) {
+    setStep(newStep);
+    const max = newStep * 100;
+    const nearest = Math.round(multiplier / newStep) * newStep;
+    setMultiplier(Math.min(Math.max(nearest, newStep), max));
+  }
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -139,19 +144,27 @@ export default function MultiplierPage() {
   const tokensOwned = currentPrice > 0 && investAmount > 0 ? investAmount / currentPrice : 0;
   const change24h = parseFloat(priceData?.change24h ?? '0');
 
+  const styles = getMultiplierStyle(multiplier);
+  const targetPrice = currentPrice * multiplier;
+  const targetMC = currentMC * multiplier;
+  const portfolioValue = investAmount * multiplier;
+  const profit = portfolioValue - investAmount;
+  const sliderMin = step;
+  const sliderMax = step * 100;
+  const sliderPct = ((multiplier - sliderMin) / (sliderMax - sliderMin)) * 100;
+
   return (
     <div className="min-h-screen text-white">
-      {/* Title — scrolls away */}
       <div className="max-w-2xl mx-auto px-4 pt-8 pb-4 text-center">
         <h1 className="text-4xl md:text-5xl font-bold uppercase mb-1" style={{ color: '#FF7F27' }}>
           Multiplier
         </h1>
         <p className="text-white/50 text-sm">
-          Enter an amount and see your returns at each price multiplier
+          Drag the slider and see your returns at any price multiplier
         </p>
       </div>
 
-      {/* Sticky controls — sticks just below the app header (41px) */}
+      {/* Sticky controls */}
       <div className="sticky top-[41px] z-20 bg-[#360606] border-b border-white/8 shadow-[0_4px_24px_rgba(0,0,0,0.4)]">
         <div className="max-w-2xl mx-auto px-4 py-3 space-y-3">
 
@@ -294,76 +307,123 @@ export default function MultiplierPage() {
         </div>
       </div>
 
-      {/* Scrollable multiplier cards */}
-      <div className="max-w-2xl mx-auto px-4 py-6 pb-10">
-        {priceData && currentPrice > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {MULTIPLIERS.map(mult => {
-              const styles = MULTIPLIER_STYLES[mult];
-              const targetPrice = currentPrice * mult;
-              const targetMC = currentMC * mult;
-              const portfolioValue = investAmount * mult;
-              const profit = portfolioValue - investAmount;
+      {/* Slider + single card */}
+      <div className="max-w-2xl mx-auto px-4 py-6 pb-10 space-y-4">
 
-              return (
-                <div
-                  key={mult}
-                  className={`relative rounded-2xl border ${styles.border} bg-gradient-to-br ${styles.gradient} p-4 overflow-hidden transition-transform hover:scale-[1.02] active:scale-[0.99]`}
+        {/* Slider panel */}
+        <div className="rounded-2xl border border-white/10 bg-white/4 p-5 space-y-4">
+          {/* Label + current value */}
+          <div className="flex items-center justify-between">
+            <span className="text-white/50 text-sm font-medium">Multiplier</span>
+            <span className={`text-3xl font-black tabular-nums transition-colors duration-200 ${styles.accent}`}>
+              {multiplier}x
+            </span>
+          </div>
+
+          {/* Range slider */}
+          <div>
+            <input
+              type="range"
+              min={sliderMin}
+              max={sliderMax}
+              step={step}
+              value={multiplier}
+              onChange={e => setMultiplier(Number(e.target.value))}
+              className="w-full h-2 rounded-full appearance-none cursor-pointer"
+              style={{
+                background: `linear-gradient(to right, #f97316 0%, #f97316 ${sliderPct}%, rgba(255,255,255,0.12) ${sliderPct}%, rgba(255,255,255,0.12) 100%)`,
+              }}
+            />
+            <div className="flex justify-between mt-1.5">
+              <span className="text-white/30 text-xs">{sliderMin}x</span>
+              <span className="text-white/30 text-xs">{sliderMax}x</span>
+            </div>
+          </div>
+
+          {/* Standard step modes */}
+          <div className="space-y-2">
+            <p className="text-white/30 text-[11px] uppercase tracking-widest">Standard</p>
+            <div className="flex flex-wrap gap-2">
+              {STANDARD_STEPS.map(v => (
+                <button
+                  key={v}
+                  onClick={() => changeStep(v)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                    step === v
+                      ? 'bg-orange-500/25 border-orange-500/50 text-orange-300'
+                      : 'bg-white/5 border-white/10 text-white/55 hover:bg-white/10 hover:text-white'
+                  }`}
                 >
-                  {/* Multiplier badge */}
-                  <div className="flex items-start justify-between mb-3">
-                    <span className={`text-2xl font-black ${styles.accent}`}>{mult}x</span>
-                    {investAmount > 0 && (
-                      <span className={`text-xs font-bold px-2 py-1 rounded-full ${styles.badge}`}>
-                        +{((mult - 1) * 100).toLocaleString()}%
-                      </span>
-                    )}
-                  </div>
+                  {v === 1 ? 'All' : `×${v}`}
+                </button>
+              ))}
+            </div>
+          </div>
 
-                  {/* Price + MC row */}
-                  <div className="flex justify-between items-end gap-2 mb-2">
-                    <div>
-                      <p className="text-white/40 text-xs mb-0.5">Target Price</p>
-                      <PriceDisplay price={targetPrice} className={`text-lg font-bold ${styles.accent}`} />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-white/40 text-xs mb-0.5">Market Cap</p>
-                      <p className="text-white font-semibold text-sm">{formatMC(targetMC)}</p>
-                    </div>
-                  </div>
+          {/* Odds step modes */}
+          <div className="space-y-2">
+            <p className="text-white/30 text-[11px] uppercase tracking-widest">Odds</p>
+            <div className="flex flex-wrap gap-2">
+              {ODD_STEPS.map(v => (
+                <button
+                  key={v}
+                  onClick={() => changeStep(v)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                    step === v
+                      ? 'bg-orange-500/25 border-orange-500/50 text-orange-300'
+                      : 'bg-white/5 border-white/10 text-white/55 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  ×{v}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
 
-                  {/* Investment */}
-                  {investAmount > 0 && (
-                    <div className="pt-2 border-t border-white/10 flex justify-between items-end">
-                      <div>
-                        <p className="text-white/40 text-xs mb-0.5">Your Value</p>
-                        <p className="text-white font-bold text-sm">{formatUSD(portfolioValue)}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-white/40 text-xs mb-0.5">Profit</p>
-                        <p className={`font-bold text-sm ${styles.accent}`}>+{formatUSD(profit)}</p>
-                      </div>
-                    </div>
-                  )}
+        {/* Single result card */}
+        {priceData && currentPrice > 0 ? (
+          <div
+            className={`relative rounded-2xl border ${styles.border} bg-gradient-to-br ${styles.gradient} p-5 overflow-hidden transition-all duration-200`}
+          >
+            <div className="flex items-start justify-between mb-5">
+              <span className={`text-5xl font-black tabular-nums ${styles.accent}`}>{multiplier}x</span>
+              {investAmount > 0 && (
+                <span className={`text-sm font-bold px-3 py-1 rounded-full ${styles.badge}`}>
+                  +{((multiplier - 1) * 100).toLocaleString()}%
+                </span>
+              )}
+            </div>
 
-                  {/* Glow accent */}
-                  <div className={`absolute -top-6 -right-6 w-20 h-20 rounded-full opacity-10 blur-2xl bg-current pointer-events-none ${styles.accent}`} />
+            <div className="flex justify-between items-end gap-2 mb-4">
+              <div>
+                <p className="text-white/40 text-xs mb-1">Target Price</p>
+                <PriceDisplay price={targetPrice} className={`text-2xl font-bold ${styles.accent}`} />
+              </div>
+              <div className="text-right">
+                <p className="text-white/40 text-xs mb-1">Market Cap</p>
+                <p className="text-white font-semibold text-xl">{formatMC(targetMC)}</p>
+              </div>
+            </div>
+
+            {investAmount > 0 && (
+              <div className="pt-3 border-t border-white/10 flex justify-between items-end">
+                <div>
+                  <p className="text-white/40 text-xs mb-1">Your Value</p>
+                  <p className="text-white font-bold text-xl">{formatUSD(portfolioValue)}</p>
                 </div>
-              );
-            })}
-          </div>
-        ) : !fetching && !fetchError ? (
-          <div className="text-center py-12 text-white/30 text-sm">Loading token data…</div>
-        ) : null}
+                <div className="text-right">
+                  <p className="text-white/40 text-xs mb-1">Profit</p>
+                  <p className={`font-bold text-xl ${styles.accent}`}>+{formatUSD(profit)}</p>
+                </div>
+              </div>
+            )}
 
-        {/* Skeleton while fetching */}
-        {fetching && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-pulse">
-            {MULTIPLIERS.map(m => (
-              <div key={m} className="rounded-2xl border border-white/8 bg-white/4 p-4 h-32" />
-            ))}
+            <div className={`absolute -top-10 -right-10 w-36 h-36 rounded-full opacity-15 blur-3xl ${styles.glow} pointer-events-none`} />
           </div>
-        )}
+        ) : fetching ? (
+          <div className="rounded-2xl border border-white/8 bg-white/4 p-5 h-52 animate-pulse" />
+        ) : null}
       </div>
     </div>
   );
