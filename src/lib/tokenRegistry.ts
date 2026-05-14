@@ -182,6 +182,7 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
   { address: "0xb44816216ad4057282E4F4b8A4983f8Fb81615A7", symbol: "evana", name: "EVANA", chain: "bsc", isBurn: false},
   { address: "0xadfaA5A90654276dC7110Ebd366ab5BF69a6C3fd", symbol: "fwc", name: "FIFA WORLD CUP", chain: "bsc", isBurn: false},
   { address:"0x0a3eb4a67f9a1f7a7fe06de5c21cb5aeca083d7b", symbol: "mty", name: "EmptyCoin", chain:"bsc", isBurn: false},
+  { address: "0x18D1632B35071CD965B0679854E28383d6F983b6", symbol: "sncat", name:"SNOWCAT", chain: "bsc", isBurn: false},
 
 
   { address: "0xf20f989CAf263C513f9183B4Fed88F14Fc04c8dB", symbol: "shalom", name: "Shalom", chain: "rwa", isBurn: false },
