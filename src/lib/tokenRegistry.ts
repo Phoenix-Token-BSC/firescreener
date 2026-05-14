@@ -197,6 +197,7 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
   { address: "ERpXkEafaKuKEARBCFsVnLZA1GARWUjBBbQCukXpbonk", symbol: "REST", name: "REST", chain: "sol", isBurn: false },
   { address: "3roGjzv4TeaWFN8VN6hfUKAsmoVUrYmmB2Dz3NYF1GAA", symbol: "FINU", name: "Fox Inu", chain: "sol", isBurn: false },
   { address: "NUKEB18Z7r2o9dT15uu5sjpcvsMKCsUAwJN1xch48JR", symbol: "nuke", name: "Roburt Oppunheimer", chain: "sol", isBurn: false },
+  { address:"8iX3bBsYuA2u7zfcYX8LrHQNWtqDrAAXCfKvgZWbonk", symbol:"tpt", name:"Petros Token", chain:"bsc", isBurn: false }, 
 
 
 ];
