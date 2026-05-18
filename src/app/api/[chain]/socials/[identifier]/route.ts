@@ -21,8 +21,9 @@ export async function GET(
 
     const chainLower = chain.toLowerCase() as 'bsc' | 'sol' | 'rwa' | 'eth';
     const identifierLower = identifier.toLowerCase();
-    // Solana addresses are case-sensitive; EVM addresses are case-insensitive
-    const addressLookup = chainLower === 'sol' ? identifier : identifierLower;
+    // Always use lowercase for DB lookups — addresses are stored lowercase in Supabase
+    // (the POST /dev/token-info claim handler writes them with .toLowerCase())
+    const addressLookup = identifierLower;
 
     // 1. Try Supabase first
     try {
