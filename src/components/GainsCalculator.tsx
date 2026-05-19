@@ -26,15 +26,19 @@ function formatMarketCap(value: number): string {
 
 export default function GainsCalculator({ tokenSymbol, currentPrice, marketCap }: GainsCalculatorProps) {
   const [multiplier, setMultiplier] = useState(2);
+  const [amount, setAmount] = useState("");
 
   const price = parseFloat(String(currentPrice));
   const mcap = parseFloat(String(marketCap));
+  const amountNum = parseFloat(amount);
 
   const priceValid = !isNaN(price) && price > 0;
   const mcapValid = !isNaN(mcap) && mcap > 0;
+  const amountValid = !isNaN(amountNum) && amountNum > 0;
 
   const targetPrice = priceValid ? price * multiplier : null;
   const targetMcap = mcapValid ? mcap * multiplier : null;
+  const targetAmount = amountValid ? amountNum * multiplier : null;
 
   return (
     <div className="mt-4 bg-orange-950 text-white p-4 rounded-xl border-2 border-orange-900">
@@ -57,8 +61,33 @@ export default function GainsCalculator({ tokenSymbol, currentPrice, marketCap }
         className="w-full accent-orange-500 cursor-pointer"
       />
 
-      {/* Price row */}
+      {/* Amount input row */}
       <div className="flex items-center justify-between mt-4 gap-2">
+        <div className="flex-1 bg-orange-900/40 rounded-lg p-3">
+          <p className="text-xs text-gray-400 mb-1">Your Amount</p>
+          <div className="flex items-center gap-1">
+            <span className="text-gray-400 text-sm">$</span>
+            <input
+              type="number"
+              min={0}
+              placeholder="0.00"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="bg-transparent text-sm font-semibold w-full outline-none placeholder-gray-600"
+            />
+          </div>
+        </div>
+        <div className="text-gray-500 text-lg">→</div>
+        <div className="flex-1 bg-orange-500/10 border border-orange-500/40 rounded-lg p-3 text-center">
+          <p className="text-xs text-gray-400 mb-1">Value at {multiplier}x</p>
+          <p className="font-bold text-orange-400 text-sm truncate">
+            {targetAmount !== null ? formatMarketCap(targetAmount) : <span className="text-gray-600">—</span>}
+          </p>
+        </div>
+      </div>
+
+      {/* Price row */}
+      <div className="flex items-center justify-between mt-2 gap-2">
         <div className="flex-1 bg-orange-900/40 rounded-lg p-3 text-center">
           <p className="text-xs text-gray-400 mb-1">Current Price</p>
           <p className="font-semibold text-sm truncate">
