@@ -12,6 +12,7 @@ import BurnIntervals from "@/components/BurnIntervals";
 import { FaCopy } from "react-icons/fa";
 import Footer from "@/components/Footer";
 import CurrencyConverter from "@/components/Converter";
+import GainsCalculator from "@/components/GainsCalculator";
 import {
   getTokenByAddress,
   isValidContractAddress,
@@ -418,7 +419,7 @@ export default function TokenPage() {
         {loading ? (
           <LoadingWithLogo tokenSymbol={tokenMetadata?.symbol} />
         ) : error ? (
-          <div className="text-center mt-8 text-red-500 bg-gray-100 p-6 rounded-lg">
+          <div className="text-center mt-8 text-red-500 bg-orange-100 p-6 rounded-lg">
             <h1 className="text-xl font-semibold">Error: {error}</h1>
             <button
               onClick={() => router.push("/")}
@@ -475,7 +476,7 @@ export default function TokenPage() {
                             </p>
                           </div>
                         </div>
-                        <div className="flex gap-2 items-center bg-neutral-900 mb-4 rounded-md p-2">
+                        <div className="flex gap-2 items-center bg-orange-950 mb-4 rounded-md p-2">
                           <WatchlistButton
                             token={{
                               contract: contractAddress || "",
@@ -506,7 +507,7 @@ export default function TokenPage() {
 
 
                    
-                    <div className="mt-4 flex flex-row bg-black/35 justify-between gap-2 items-center rounded-md p-4">
+                    <div className="mt-4 flex flex-row bg-orange-950/70 justify-between gap-2 items-center rounded-md p-4">
                       <div className="flex flex-col items-center">
                         <span className="text-xs text-gray-400">1h</span>
                         <span className={`px-2 py-1 rounded ${String(tokenData.priceChange1h).startsWith("-") ? "text-red-400" : "text-green-400"}`}>
@@ -552,7 +553,7 @@ export default function TokenPage() {
                       </div>
 
                       {socialLinks && (
-                        <div className="flex flex-row gap-4 items-center justify-between px-4 bg-neutral-200 text-black p-4 rounded-lg">
+                        <div className="flex flex-row gap-4 items-center justify-between px-4 bg-orange-100 text-black p-4 rounded-lg">
                           <a href={socialLinks.website} target="_blank" rel="noopener noreferrer">
                             <p className="text-sm">Website</p>
                           </a>
@@ -691,6 +692,12 @@ export default function TokenPage() {
                         chain={chain}
                       />
                     )}
+
+                    <GainsCalculator
+                      tokenSymbol={tokenMetadata.symbol.toUpperCase()}
+                      currentPrice={tokenData.price}
+                      marketCap={tokenData.marketCap}
+                    />
 
                     {/* <div className="mt-4 flex gap-2 items-center bg-neutral-900 mb-4 rounded-md p-2">
                                             <WatchlistButton
@@ -936,9 +943,9 @@ export default function TokenPage() {
 
 
 
-                    <div className="flex flex-col gap-2 bg-neutral-900 border-2 border-neutral-600 p-4 mt-4 rounded-xl">
+                    <div className="flex flex-col gap-2 bg-orange-950 border-2 border-orange-900 p-4 mt-4 rounded-xl">
                     {tokenData.description && tokenData.description !== "N/A" ? (
-                        <div className="mt-2 bg-neutral-900 border border-neutral-700 p-4 rounded-xl">
+                        <div className="mt-2 bg-orange-950 border border-orange-800 p-4 rounded-xl">
                           <div className="flex items-center justify-between mb-1.5">
                             <p className="text-xs text-gray-500 uppercase tracking-wider">About</p>
                             <Link href="/dev/auth" className="text-xs rounded-lg bg-orange-500 px-2 py-1 text-white font-medium">Update Token Info</Link>
@@ -946,7 +953,7 @@ export default function TokenPage() {
                           <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">{tokenData.description}</p>
                         </div>
                       ) : (
-                        <div className="mt-2 border border-dashed border-neutral-700 p-4 rounded-xl">
+                        <div className="mt-2 border border-dashed border-orange-800 p-4 rounded-xl">
                           <div className="flex items-center justify-between mb-1">
                             <p className="text-sm text-gray-500">No description yet.</p>
                             <Link href="/dev/auth" className="text-xs rounded-lg bg-orange-500 px-2 py-1 text-white font-medium">Update Token Info</Link>
@@ -958,7 +965,7 @@ export default function TokenPage() {
                       )}
 
                       {socialLinks && (
-                        <div className="flex flex-row gap-4 mt-2 items-center justify-between px-4 bg-neutral-200 text-black p-4 rounded-lg">
+                        <div className="flex flex-row gap-4 mt-2 items-center justify-between px-4 bg-orange-100 text-black p-4 rounded-lg">
                           <a
                             href={socialLinks.website}
                             target="_blank"
@@ -1028,7 +1035,7 @@ export default function TokenPage() {
 
 
 
-                    <div className="flex flex-col gap-2 bg-neutral-900 border-2 border-neutral-600 p-4 mt-4 rounded-xl">
+                    <div className="flex flex-col gap-2 bg-orange-950 border-2 border-orange-900 p-4 mt-4 rounded-xl">
                       <p className="text-md">Contract Address</p>
                       <h1 className="text-lg font-bold text-orange-500 flex gap-2">
                         <span>{tokenData.contract}</span>
@@ -1047,7 +1054,13 @@ export default function TokenPage() {
                       />
                     )}
 
-                    <div className="mt-4 flex gap-2 items-center bg-neutral-900 mb-4 rounded-md p-2">
+                    <GainsCalculator
+                      tokenSymbol={tokenMetadata.symbol.toUpperCase()}
+                      currentPrice={tokenData.price}
+                      marketCap={tokenData.marketCap}
+                    />
+
+                    <div className="mt-4 flex gap-2 items-center bg-orange-950 mb-4 rounded-md p-2">
                       <WatchlistButton
                         token={{
                           contract: contractAddress || "",

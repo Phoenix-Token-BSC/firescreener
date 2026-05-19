@@ -171,9 +171,9 @@ const CurrencyConverter: React.FC<CurrencyConverterProps> = ({
   const showNativeOption = !isRwa && rates.native > 0;
 
   return (
-    <div className="mt-4 bg-neutral-900 text-white p-4 rounded-xl border-2 border-neutral-600">
+    <div className="mt-4 bg-orange-950 text-white p-4 rounded-xl border-2 border-orange-900">
       {/* Input */}
-      <div className="flex items-center justify-between bg-gray-800 rounded-md p-3 mb-3">
+      <div className="flex items-center justify-between bg-orange-900/40 rounded-md p-3 mb-3">
         <input
           type="text"
           value={inputValue}
@@ -182,7 +182,7 @@ const CurrencyConverter: React.FC<CurrencyConverterProps> = ({
           className="bg-transparent text-white text-xl w-2/3 focus:outline-none"
         />
         {mode === 'token' ? (
-          <div className="flex items-center bg-gray-700 px-3 py-1 rounded-md">
+          <div className="flex items-center bg-orange-900/60 px-3 py-1 rounded-md">
             {tokenLogoUrl && (
               <img
                 src={tokenLogoUrl}
@@ -197,7 +197,7 @@ const CurrencyConverter: React.FC<CurrencyConverterProps> = ({
             <span className="font-medium">{tokenSymbol}</span>
           </div>
         ) : (
-          <div className="flex items-center bg-gray-700 px-3 py-1 rounded-md gap-1.5">
+          <div className="flex items-center bg-orange-900/60 px-3 py-1 rounded-md gap-1.5">
             <img src="/usdt-logo.png" alt="USDT" className="w-6 h-6 rounded-full object-contain" />
             <span className="font-medium">USDT</span>
           </div>
@@ -216,7 +216,7 @@ const CurrencyConverter: React.FC<CurrencyConverterProps> = ({
       </div>
 
       {/* Output */}
-      <div className="flex items-center justify-between bg-gray-800 rounded-md p-3">
+      <div className="flex items-center justify-between bg-orange-900/40 rounded-md p-3">
         <div className="text-xl font-medium">
           {loading ? 'Loading…' : error ? 'Error' : outputValue}
         </div>
@@ -234,7 +234,7 @@ const CurrencyConverter: React.FC<CurrencyConverterProps> = ({
             )}
           </select>
         ) : (
-          <div className="flex items-center bg-gray-700 px-3 py-1 rounded-md">
+          <div className="flex items-center bg-orange-900/60 px-3 py-1 rounded-md">
             {tokenLogoUrl && (
               <img
                 src={tokenLogoUrl}
