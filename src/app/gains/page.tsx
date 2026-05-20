@@ -23,6 +23,8 @@ interface PriceData {
   volume: string;
 }
 
+type CalcMode = 'multiplier' | 'marketcap' | 'price';
+
 type PriceFormat = { zeros: number; sig: string } | { plain: string };
 
 function parsePriceFormat(price: number): PriceFormat {
@@ -60,6 +62,12 @@ function formatUSD(val: number): string {
   return `$${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function fmtMult(m: number): string {
+  if (m % 1 === 0) return `${m}x`;
+  if (m >= 10) return `${m.toFixed(1)}x`;
+  return `${m.toFixed(2)}x`;
+}
+
 function getMultiplierStyle(mult: number) {
   if (mult <= 2)  return { gradient: 'from-white/10 to-white/3',          border: 'border-white/20',          accent: 'text-white',          badge: 'bg-white/15 text-white/80',          glow: 'bg-white' };
   if (mult <= 5)  return { gradient: 'from-orange-200/15 to-orange-200/4', border: 'border-orange-200/25',    accent: 'text-orange-200',     badge: 'bg-orange-200/15 text-orange-200',     glow: 'bg-orange-200' };
@@ -79,8 +87,12 @@ export default function MultiplierPage() {
   const [fetching, setFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [amount, setAmount] = useState('100');
+  const [quantity, setQuantity] = useState('');
   const [step, setStep] = useState(1);
   const [multiplier, setMultiplier] = useState(2);
+  const [calcMode, setCalcMode] = useState<CalcMode>('multiplier');
+  const [targetMcapRaw, setTargetMcapRaw] = useState('');
+  const [targetPriceInput, setTargetPriceInput] = useState('');
 
   function changeStep(newStep: number) {
     setStep(newStep);
@@ -141,17 +153,47 @@ export default function MultiplierPage() {
   const currentPrice = parseFloat(priceData?.price ?? '0');
   const currentMC = parseFloat(priceData?.marketCap ?? '0');
   const investAmount = parseFloat(amount) || 0;
+  const quantityNum = parseFloat(quantity) || 0;
   const tokensOwned = currentPrice > 0 && investAmount > 0 ? investAmount / currentPrice : 0;
   const change24h = parseFloat(priceData?.change24h ?? '0');
 
-  const styles = getMultiplierStyle(multiplier);
-  const targetPrice = currentPrice * multiplier;
-  const targetMC = currentMC * multiplier;
-  const portfolioValue = investAmount * multiplier;
-  const profit = portfolioValue - investAmount;
+  const parsedTargetMcap = parseFloat(targetMcapRaw);
+  const parsedTargetPrice = parseFloat(targetPriceInput);
+  const mcapInputValid = !isNaN(parsedTargetMcap) && parsedTargetMcap > 0;
+  const priceInputValid = !isNaN(parsedTargetPrice) && parsedTargetPrice > 0;
+
+  const effectiveMult: number | null = (() => {
+    if (calcMode === 'multiplier') return multiplier;
+    if (calcMode === 'marketcap' && currentMC > 0 && mcapInputValid) {
+      const m = parsedTargetMcap / currentMC;
+      return isFinite(m) && m > 0 ? m : null;
+    }
+    if (calcMode === 'price' && currentPrice > 0 && priceInputValid) {
+      const m = parsedTargetPrice / currentPrice;
+      return isFinite(m) && m > 0 ? m : null;
+    }
+    return null;
+  })();
+
+  const effMult = effectiveMult ?? 0;
+  const styles = getMultiplierStyle(effectiveMult !== null && effectiveMult > 0 ? effectiveMult : multiplier);
+  const targetPrice = currentPrice * effMult;
+  const targetMC = currentMC * effMult;
+  const currentHoldingVal = quantityNum > 0 && currentPrice > 0 ? quantityNum * currentPrice : 0;
+  const portfolioValue = calcMode === 'multiplier'
+    ? investAmount * effMult
+    : quantityNum > 0 ? quantityNum * targetPrice : 0;
+  const costBasis = calcMode === 'multiplier' ? investAmount : currentHoldingVal;
+  const profit = portfolioValue - costBasis;
+  const hasHolding = calcMode === 'multiplier' ? investAmount > 0 : quantityNum > 0;
   const sliderMin = step;
   const sliderMax = step * 100;
   const sliderPct = ((multiplier - sliderMin) / (sliderMax - sliderMin)) * 100;
+
+  const pctGain = effectiveMult !== null ? (effectiveMult - 1) * 100 : 0;
+  const pctStr = pctGain % 1 === 0
+    ? `${pctGain >= 0 ? '+' : ''}${pctGain.toLocaleString()}%`
+    : `${pctGain >= 0 ? '+' : ''}${pctGain.toFixed(1)}%`;
 
   return (
     <div className="min-h-screen text-white">
@@ -160,7 +202,7 @@ export default function MultiplierPage() {
           Gains
         </h1>
         <p className="text-white/50 text-sm">
-          Drag the slider and see your returns at any price multiplier, and your expected gains.
+          Calculate your returns by multiplier, target market cap, or target price.
         </p>
       </div>
 
@@ -243,15 +285,15 @@ export default function MultiplierPage() {
               )}
             </div>
 
-            {/* Amount input */}
+            {/* Amount / Quantity input */}
             <div className="w-32 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 flex items-center gap-1">
-              <span className="text-white/40 text-sm">$</span>
+              <span className="text-white/40 text-sm">{calcMode === 'multiplier' ? '$' : '#'}</span>
               <input
                 type="number"
                 min="0"
-                value={amount}
-                onChange={e => setAmount(e.target.value)}
-                placeholder="100"
+                value={calcMode === 'multiplier' ? amount : quantity}
+                onChange={e => calcMode === 'multiplier' ? setAmount(e.target.value) : setQuantity(e.target.value)}
+                placeholder={calcMode === 'multiplier' ? '100' : '0'}
                 className="flex-1 bg-transparent text-white text-sm font-semibold outline-none w-full placeholder-white/30"
               />
             </div>
@@ -288,7 +330,7 @@ export default function MultiplierPage() {
                     {change24h >= 0 ? '+' : ''}{change24h.toFixed(2)}%
                   </p>
                 </div>
-                {investAmount > 0 && currentPrice > 0 && (
+                {calcMode === 'multiplier' && investAmount > 0 && currentPrice > 0 && (
                   <div>
                     <p className="text-white/40 text-[10px] uppercase tracking-wide mb-0.5">You Get</p>
                     <p className="text-base font-semibold text-white">
@@ -299,6 +341,12 @@ export default function MultiplierPage() {
                     </p>
                   </div>
                 )}
+                {calcMode !== 'multiplier' && quantityNum > 0 && currentPrice > 0 && (
+                  <div>
+                    <p className="text-white/40 text-[10px] uppercase tracking-wide mb-0.5">Holding</p>
+                    <p className="text-base font-semibold text-white">{formatUSD(currentHoldingVal)}</p>
+                  </div>
+                )}
               </div>
             ) : (
               <p className="text-white/30 text-sm">Waiting for price data…</p>
@@ -307,90 +355,168 @@ export default function MultiplierPage() {
         </div>
       </div>
 
-      {/* Slider + single card */}
+      {/* Main content */}
       <div className="max-w-2xl mx-auto px-4 py-6 pb-10 space-y-4">
 
-        {/* Slider panel */}
-        <div className="rounded-2xl border border-white/10 bg-white/4 p-5 space-y-4">
-          {/* Label + current value */}
-          <div className="flex items-center justify-between">
-            <span className="text-white/50 text-sm font-medium">Multiplier</span>
-            <span className={`text-3xl font-black tabular-nums transition-colors duration-200 ${styles.accent}`}>
-              {multiplier}x
-            </span>
-          </div>
-
-          {/* Range slider */}
-          <div>
-            <input
-              type="range"
-              min={sliderMin}
-              max={sliderMax}
-              step={step}
-              value={multiplier}
-              onChange={e => setMultiplier(Number(e.target.value))}
-              className="w-full h-2 rounded-full appearance-none cursor-pointer"
-              style={{
-                background: `linear-gradient(to right, #f97316 0%, #f97316 ${sliderPct}%, rgba(255,255,255,0.12) ${sliderPct}%, rgba(255,255,255,0.12) 100%)`,
-              }}
-            />
-            <div className="flex justify-between mt-1.5">
-              <span className="text-white/30 text-xs">{sliderMin}x</span>
-              <span className="text-white/30 text-xs">{sliderMax}x</span>
-            </div>
-          </div>
-
-          {/* Standard step modes */}
-          <div className="space-y-2">
-            <p className="text-white/30 text-[11px] uppercase tracking-widest">Standard</p>
-            <div className="flex flex-wrap gap-2">
-              {STANDARD_STEPS.map(v => (
-                <button
-                  key={v}
-                  onClick={() => changeStep(v)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
-                    step === v
-                      ? 'bg-orange-500/25 border-orange-500/50 text-orange-300'
-                      : 'bg-white/5 border-white/10 text-white/55 hover:bg-white/10 hover:text-white'
-                  }`}
-                >
-                  {v === 1 ? 'All' : `×${v}`}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Odds step modes */}
-          <div className="space-y-2">
-            <p className="text-white/30 text-[11px] uppercase tracking-widest">Odds</p>
-            <div className="flex flex-wrap gap-2">
-              {ODD_STEPS.map(v => (
-                <button
-                  key={v}
-                  onClick={() => changeStep(v)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
-                    step === v
-                      ? 'bg-orange-500/25 border-orange-500/50 text-orange-300'
-                      : 'bg-white/5 border-white/10 text-white/55 hover:bg-white/10 hover:text-white'
-                  }`}
-                >
-                  ×{v}
-                </button>
-              ))}
-            </div>
-          </div>
+        {/* Calc mode tabs */}
+        <div className="flex gap-2">
+          {([
+            ['multiplier', 'Multiplier'],
+            ['marketcap', 'By MCap'],
+            ['price', 'By Price'],
+          ] as const).map(([id, label]) => (
+            <button
+              key={id}
+              onClick={() => setCalcMode(id)}
+              className={`flex-1 py-2 rounded-xl text-sm font-bold border transition-all ${
+                calcMode === id
+                  ? 'bg-orange-500/20 border-orange-500/40 text-orange-300'
+                  : 'bg-white/4 border-white/10 text-white/40 hover:bg-white/8 hover:text-white/70'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
-        {/* Single result card */}
-        {priceData && currentPrice > 0 ? (
+        {/* Slider panel — multiplier mode */}
+        {calcMode === 'multiplier' && (
+          <div className="rounded-2xl border border-white/10 bg-white/4 p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-white/50 text-sm font-medium">Multiplier</span>
+              <span className={`text-3xl font-black tabular-nums transition-colors duration-200 ${styles.accent}`}>
+                {multiplier}x
+              </span>
+            </div>
+
+            <div>
+              <input
+                type="range"
+                min={sliderMin}
+                max={sliderMax}
+                step={step}
+                value={multiplier}
+                onChange={e => setMultiplier(Number(e.target.value))}
+                className="w-full h-2 rounded-full appearance-none cursor-pointer"
+                style={{
+                  background: `linear-gradient(to right, #f97316 0%, #f97316 ${sliderPct}%, rgba(255,255,255,0.12) ${sliderPct}%, rgba(255,255,255,0.12) 100%)`,
+                }}
+              />
+              <div className="flex justify-between mt-1.5">
+                <span className="text-white/30 text-xs">{sliderMin}x</span>
+                <span className="text-white/30 text-xs">{sliderMax}x</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-white/30 text-[11px] uppercase tracking-widest">Standard</p>
+              <div className="flex flex-wrap gap-2">
+                {STANDARD_STEPS.map(v => (
+                  <button
+                    key={v}
+                    onClick={() => changeStep(v)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                      step === v
+                        ? 'bg-orange-500/25 border-orange-500/50 text-orange-300'
+                        : 'bg-white/5 border-white/10 text-white/55 hover:bg-white/10 hover:text-white'
+                    }`}
+                  >
+                    {v === 1 ? 'All' : `×${v}`}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-white/30 text-[11px] uppercase tracking-widest">Odds</p>
+              <div className="flex flex-wrap gap-2">
+                {ODD_STEPS.map(v => (
+                  <button
+                    key={v}
+                    onClick={() => changeStep(v)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                      step === v
+                        ? 'bg-orange-500/25 border-orange-500/50 text-orange-300'
+                        : 'bg-white/5 border-white/10 text-white/55 hover:bg-white/10 hover:text-white'
+                    }`}
+                  >
+                    ×{v}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* By Market Cap input panel */}
+        {calcMode === 'marketcap' && (
+          <div className="rounded-2xl border border-white/10 bg-white/4 p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-white/50 text-sm font-medium">Target Market Cap</span>
+              {currentMC > 0 && (
+                <span className="text-white/30 text-xs">Now: {formatMC(currentMC)}</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 bg-white/8 rounded-xl px-4 py-3 border border-white/10">
+              <span className="text-white/40 text-sm">$</span>
+              <input
+                type="number"
+                min={0}
+                placeholder="0"
+                value={targetMcapRaw}
+                onChange={e => setTargetMcapRaw(e.target.value)}
+                className="flex-1 bg-transparent text-white font-semibold outline-none placeholder-white/20 text-sm"
+              />
+            </div>
+            <div className="flex justify-between text-white/30 text-xs">
+              {mcapInputValid && <span>Target: {formatMC(parsedTargetMcap)}</span>}
+              {effectiveMult !== null && effectiveMult > 0 && (
+                <span>≈ <span className={`font-bold ${styles.accent}`}>{fmtMult(effectiveMult)}</span> from current</span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* By Price input panel */}
+        {calcMode === 'price' && (
+          <div className="rounded-2xl border border-white/10 bg-white/4 p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-white/50 text-sm font-medium">Target Price</span>
+              {currentPrice > 0 && (
+                <span className="text-white/30 text-xs flex items-center gap-1">
+                  Now: <PriceDisplay price={currentPrice} />
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 bg-white/8 rounded-xl px-4 py-3 border border-white/10">
+              <span className="text-white/40 text-sm">$</span>
+              <input
+                type="number"
+                min={0}
+                placeholder="0"
+                value={targetPriceInput}
+                onChange={e => setTargetPriceInput(e.target.value)}
+                className="flex-1 bg-transparent text-white font-semibold outline-none placeholder-white/20 text-sm"
+              />
+            </div>
+            {effectiveMult !== null && effectiveMult > 0 && (
+              <p className="text-white/30 text-xs text-right">
+                ≈ <span className={`font-bold ${styles.accent}`}>{fmtMult(effectiveMult)}</span> from current
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Result card */}
+        {priceData && currentPrice > 0 && effectiveMult !== null && effectiveMult > 0 ? (
           <div
             className={`relative rounded-2xl border ${styles.border} bg-gradient-to-br ${styles.gradient} p-5 overflow-hidden transition-all duration-200`}
           >
             <div className="flex items-start justify-between mb-5">
-              <span className={`text-5xl font-black tabular-nums ${styles.accent}`}>{multiplier}x</span>
-              {investAmount > 0 && (
+              <span className={`text-5xl font-black tabular-nums ${styles.accent}`}>{fmtMult(effectiveMult)}</span>
+              {hasHolding && (
                 <span className={`text-sm font-bold px-3 py-1 rounded-full ${styles.badge}`}>
-                  +{((multiplier - 1) * 100).toLocaleString()}%
+                  {pctStr}
                 </span>
               )}
             </div>
@@ -401,12 +527,14 @@ export default function MultiplierPage() {
                 <PriceDisplay price={targetPrice} className={`text-2xl font-bold ${styles.accent}`} />
               </div>
               <div className="text-right">
-                <p className="text-white/40 text-xs mb-1">Market Cap</p>
+                <p className="text-white/40 text-xs mb-1">
+                  {calcMode === 'price' ? 'Implied MCap' : 'Market Cap'}
+                </p>
                 <p className="text-white font-semibold text-xl">{formatMC(targetMC)}</p>
               </div>
             </div>
 
-            {investAmount > 0 && (
+            {hasHolding && (
               <div className="pt-3 border-t border-white/10 flex justify-between items-end">
                 <div>
                   <p className="text-white/40 text-xs mb-1">Your Value</p>
@@ -414,7 +542,9 @@ export default function MultiplierPage() {
                 </div>
                 <div className="text-right">
                   <p className="text-white/40 text-xs mb-1">Profit</p>
-                  <p className={`font-bold text-xl ${styles.accent}`}>+{formatUSD(profit)}</p>
+                  <p className={`font-bold text-xl ${profit >= 0 ? styles.accent : 'text-red-400'}`}>
+                    {profit >= 0 ? '+' : '-'}{formatUSD(Math.abs(profit))}
+                  </p>
                 </div>
               </div>
             )}
@@ -423,6 +553,10 @@ export default function MultiplierPage() {
           </div>
         ) : fetching ? (
           <div className="rounded-2xl border border-white/8 bg-white/4 p-5 h-52 animate-pulse" />
+        ) : calcMode !== 'multiplier' && priceData ? (
+          <div className="rounded-2xl border border-white/10 bg-white/4 p-5 text-center">
+            <p className="text-white/30 text-sm">Enter a target above to see projections</p>
+          </div>
         ) : null}
       </div>
     </div>
