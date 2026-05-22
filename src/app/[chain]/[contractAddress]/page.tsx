@@ -22,7 +22,6 @@ import { useTrackActiveToken } from "@/hooks/useTrackActiveToken";
 import { useEmojiReactions } from "@/hooks/useEmojiReactions";
 import WatchlistButton from "@/components/WatchlistButton";
 import PriceAlertButton from "@/components/PriceAlertButton";
-import AlertToast from "@/components/AlertToast";
 import { usePriceAlerts } from "@/hooks/usePriceAlerts";
 import NewPriceActionChart from "@/components/NewPriceActionChart";
 import SecurityAnalysis from "@/components/GoPlusAnalysis";
@@ -112,7 +111,7 @@ export default function TokenPage() {
   // Track this token as actively viewed for priority cache refresh
   useTrackActiveToken(contractAddress || undefined, chain || undefined);
 
-  const { alerts, toasts, addAlert, removeAlert, resetTriggered, dismissToast } = usePriceAlerts(
+  const { alerts, notifPermission, requestPermission, addAlert, removeAlert, resetTriggered } = usePriceAlerts(
     chain,
     contractAddress,
     tokenMetadata?.symbol ?? '',
@@ -499,10 +498,12 @@ export default function TokenPage() {
                           />
                           <PriceAlertButton
                             alerts={alerts}
+                            notifPermission={notifPermission}
                             currentPrice={tokenData?.price}
                             onAdd={addAlert}
                             onRemove={removeAlert}
                             onReset={resetTriggered}
+                            onRequestPermission={requestPermission}
                           />
                         </div>
                       </div>
@@ -1090,10 +1091,12 @@ export default function TokenPage() {
                       />
                       <PriceAlertButton
                         alerts={alerts}
+                        notifPermission={notifPermission}
                         currentPrice={tokenData?.price}
                         onAdd={addAlert}
                         onRemove={removeAlert}
                         onReset={resetTriggered}
+                        onRequestPermission={requestPermission}
                       />
                     </div>
 
@@ -1324,8 +1327,6 @@ export default function TokenPage() {
           )
         )}
       </main>
-      <AlertToast toasts={toasts} onDismiss={dismissToast} />
-
       <div className="md:hidden">
         <Footer
           onTabChange={setActiveTab}

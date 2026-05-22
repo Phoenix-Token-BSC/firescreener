@@ -1,38 +1,45 @@
 'use client';
 import { useState } from 'react';
 import { FaBell, FaBellSlash, FaTimes, FaTrash, FaRedo } from 'react-icons/fa';
-import type { PriceAlert } from '@/hooks/usePriceAlerts';
+import type { PriceAlert, NotifPermission } from '@/hooks/usePriceAlerts';
 
 interface Props {
   alerts: PriceAlert[];
+  notifPermission: NotifPermission;
   currentPrice?: string | number;
-  onAdd: (type: PriceAlert['type'], threshold: number) => void;
+  onAdd: (type: PriceAlert['type'], threshold: number) => Promise<void>;
   onRemove: (id: string) => void;
   onReset: (id: string) => void;
+  onRequestPermission: () => Promise<NotifPermission>;
 }
 
 export default function PriceAlertButton({
   alerts,
+  notifPermission,
   currentPrice,
   onAdd,
   onRemove,
   onReset,
+  onRequestPermission,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'add' | 'list'>('add');
   const [type, setType] = useState<PriceAlert['type']>('price_above');
   const [threshold, setThreshold] = useState('');
   const [error, setError] = useState('');
+  const [adding, setAdding] = useState(false);
 
   const activeCount = alerts.filter((a) => !a.triggered).length;
 
-  function handleAdd() {
+  async function handleAdd() {
     const val = parseFloat(threshold);
     if (isNaN(val) || val <= 0) {
       setError('Enter a valid price above 0');
       return;
     }
-    onAdd(type, val);
+    setAdding(true);
+    await onAdd(type, val);
+    setAdding(false);
     setThreshold('');
     setError('');
     setTab('list');
@@ -46,7 +53,6 @@ export default function PriceAlertButton({
 
   return (
     <>
-      {/* Bell trigger button */}
       <button
         onClick={() => setOpen(true)}
         className="relative flex items-center gap-1.5 bg-orange-950 hover:bg-orange-900 border border-orange-700 text-white text-xs px-3 py-2 rounded-lg transition-colors"
@@ -61,7 +67,6 @@ export default function PriceAlertButton({
         )}
       </button>
 
-      {/* Modal backdrop */}
       {open && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
@@ -79,8 +84,31 @@ export default function PriceAlertButton({
               </button>
             </div>
 
+            {/* Permission banner */}
+            {notifPermission === 'denied' && (
+              <div className="mx-5 mt-4 bg-red-950 border border-red-700 rounded-lg px-3 py-2.5 text-xs text-red-300">
+                Notifications are blocked. Enable them in your browser site settings to use alerts.
+              </div>
+            )}
+            {notifPermission === 'unsupported' && (
+              <div className="mx-5 mt-4 bg-yellow-950 border border-yellow-700 rounded-lg px-3 py-2.5 text-xs text-yellow-300">
+                Push notifications are not supported in this browser.
+              </div>
+            )}
+            {notifPermission === 'default' && (
+              <div className="mx-5 mt-4 bg-orange-950 border border-orange-700 rounded-lg px-3 py-2.5 text-xs text-orange-300 flex items-center justify-between gap-3">
+                <span>Allow notifications to receive price alerts.</span>
+                <button
+                  onClick={onRequestPermission}
+                  className="shrink-0 bg-orange-500 hover:bg-orange-600 text-white px-2 py-1 rounded text-xs font-medium"
+                >
+                  Allow
+                </button>
+              </div>
+            )}
+
             {/* Tabs */}
-            <div className="flex border-b border-orange-900">
+            <div className="flex border-b border-orange-900 mt-3">
               <button
                 onClick={() => setTab('add')}
                 className={`flex-1 py-2.5 text-sm font-medium transition-colors ${tab === 'add' ? 'text-orange-400 border-b-2 border-orange-400' : 'text-gray-400 hover:text-gray-200'}`}
@@ -112,7 +140,6 @@ export default function PriceAlertButton({
                     </p>
                   )}
 
-                  {/* Direction selector */}
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => setType('price_above')}
@@ -128,7 +155,6 @@ export default function PriceAlertButton({
                     </button>
                   </div>
 
-                  {/* Threshold input */}
                   <div>
                     <label className="text-xs text-gray-400 mb-1.5 block">
                       Target Price (USD)
@@ -154,10 +180,10 @@ export default function PriceAlertButton({
 
                   <button
                     onClick={handleAdd}
-                    disabled={!threshold}
+                    disabled={!threshold || adding || notifPermission === 'denied' || notifPermission === 'unsupported'}
                     className="w-full py-2.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-lg text-sm transition-colors"
                   >
-                    Create Alert
+                    {adding ? 'Setting up…' : 'Create Alert'}
                   </button>
                 </div>
               ) : (
@@ -192,7 +218,7 @@ export default function PriceAlertButton({
                           {alert.triggered && (
                             <button
                               onClick={() => onReset(alert.id)}
-                              title="Re-enable alert"
+                              title="Re-enable"
                               className="text-gray-400 hover:text-orange-400 transition-colors p-1"
                             >
                               <FaRedo size={11} />
@@ -200,7 +226,7 @@ export default function PriceAlertButton({
                           )}
                           <button
                             onClick={() => onRemove(alert.id)}
-                            title="Delete alert"
+                            title="Delete"
                             className="text-gray-400 hover:text-red-400 transition-colors p-1"
                           >
                             <FaTrash size={11} />

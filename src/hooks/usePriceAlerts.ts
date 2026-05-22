@@ -11,15 +11,7 @@ export interface PriceAlert {
   createdAt: number;
 }
 
-export interface AlertToastData {
-  id: string;
-  message: string;
-  direction: 'up' | 'down';
-  price: number;
-  tokenSymbol: string;
-  chain: string;
-  contractAddress: string;
-}
+export type NotifPermission = 'granted' | 'denied' | 'default' | 'unsupported';
 
 const STORAGE_KEY = 'fs-price-alerts';
 
@@ -44,9 +36,45 @@ function persistAlerts(chain: string, address: string, alerts: PriceAlert[]) {
     const all: Record<string, PriceAlert[]> = raw ? JSON.parse(raw) : {};
     all[storageKey(chain, address)] = alerts;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
-  } catch {
-    // localStorage unavailable
+  } catch {}
+}
+
+function fmtPrice(price: number) {
+  if (price < 0.0001) return price.toExponential(4);
+  if (price < 1) return price.toFixed(8);
+  return price.toLocaleString(undefined, { maximumFractionDigits: 4 });
+}
+
+async function showPushNotification(
+  title: string,
+  body: string,
+  tag: string,
+  url: string,
+  iconUrl: string,
+) {
+  if (typeof window === 'undefined' || !('Notification' in window)) return;
+  if (Notification.permission !== 'granted') return;
+
+  const options: NotificationOptions = {
+    body,
+    icon: iconUrl,
+    badge: '/favicon.ico',
+    tag,
+    data: { url },
+    // keep on screen until user interacts
+    requireInteraction: true,
+  };
+
+  // Prefer service-worker notification so notificationclick fires
+  if ('serviceWorker' in navigator) {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      await reg.showNotification(title, options);
+      return;
+    } catch {}
   }
+  // Fallback: direct Notification (no click-to-open, but still shows)
+  new Notification(title, options);
 }
 
 export function usePriceAlerts(
@@ -56,13 +84,24 @@ export function usePriceAlerts(
   currentPrice?: string | number,
 ) {
   const [alerts, setAlerts] = useState<PriceAlert[]>([]);
-  const [toasts, setToasts] = useState<AlertToastData[]>([]);
+  const [notifPermission, setNotifPermission] = useState<NotifPermission>('default');
   const ablyRef = useRef<Ably.Realtime | null>(null);
-  // keep a ref so the Ably callback always sees fresh alert state
   const alertsRef = useRef<PriceAlert[]>([]);
   alertsRef.current = alerts;
 
-  // Hydrate alerts from localStorage on mount
+  // Register service worker once on mount
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+    if (!('Notification' in window)) {
+      setNotifPermission('unsupported');
+    } else {
+      setNotifPermission(Notification.permission as NotifPermission);
+    }
+  }, []);
+
+  // Hydrate alerts from localStorage
   useEffect(() => {
     if (!chain || !contractAddress) return;
     setAlerts(loadAlerts(chain, contractAddress));
@@ -73,7 +112,6 @@ export function usePriceAlerts(
       if (!chain || !contractAddress || isNaN(price) || price <= 0) return;
 
       const triggered: string[] = [];
-      const newToasts: AlertToastData[] = [];
 
       alertsRef.current.forEach((alert) => {
         if (alert.triggered) return;
@@ -84,18 +122,18 @@ export function usePriceAlerts(
         if (!hit) return;
 
         triggered.push(alert.id);
-        newToasts.push({
-          id: crypto.randomUUID(),
-          message:
-            alert.type === 'price_above'
-              ? `${alert.tokenSymbol} is now above $${alert.threshold}`
-              : `${alert.tokenSymbol} dropped below $${alert.threshold}`,
-          direction: alert.type === 'price_above' ? 'up' : 'down',
-          price,
-          tokenSymbol: alert.tokenSymbol,
-          chain,
-          contractAddress,
-        });
+
+        const direction = alert.type === 'price_above' ? '↑' : '↓';
+        const title = `${direction} ${alert.tokenSymbol} Price Alert`;
+        const body =
+          alert.type === 'price_above'
+            ? `Price crossed above $${alert.threshold} — now $${fmtPrice(price)}`
+            : `Price dropped below $${alert.threshold} — now $${fmtPrice(price)}`;
+        const tag = `price-alert-${alert.id}`;
+        const url = `${window.location.origin}/${chain}/${contractAddress}`;
+        const icon = `${window.location.origin}/api/${chain}/logo/${contractAddress}`;
+
+        showPushNotification(title, body, tag, url, icon);
       });
 
       if (triggered.length === 0) return;
@@ -107,12 +145,11 @@ export function usePriceAlerts(
         persistAlerts(chain, contractAddress, updated);
         return updated;
       });
-      setToasts((prev) => [...prev, ...newToasts]);
     },
     [chain, contractAddress],
   );
 
-  // Check alerts whenever the polling price changes
+  // Check alerts on every polling tick
   useEffect(() => {
     const price = parseFloat(String(currentPrice));
     fireAlerts(price);
@@ -120,19 +157,16 @@ export function usePriceAlerts(
 
   // Subscribe to Ably for real-time price pushes from the server worker
   useEffect(() => {
-    if (!chain || !contractAddress || !process.env.NEXT_PUBLIC_ABLY_ENABLED) {
-      return;
-    }
+    if (!chain || !contractAddress || !process.env.NEXT_PUBLIC_ABLY_ENABLED) return;
 
     const ably = new Ably.Realtime({ authUrl: '/api/ably/auth' });
     ablyRef.current = ably;
 
-    const channelName = `price-updates:${chain}:${contractAddress.toLowerCase()}`;
-    const channel = ably.channels.get(channelName);
-
+    const channel = ably.channels.get(
+      `price-updates:${chain}:${contractAddress.toLowerCase()}`,
+    );
     channel.subscribe('price-update', (msg) => {
-      const price = parseFloat(msg.data?.price);
-      fireAlerts(price);
+      fireAlerts(parseFloat(msg.data?.price));
     });
 
     return () => {
@@ -142,9 +176,24 @@ export function usePriceAlerts(
     };
   }, [chain, contractAddress, fireAlerts]);
 
+  const requestPermission = useCallback(async (): Promise<NotifPermission> => {
+    if (!('Notification' in window)) return 'unsupported';
+    const result = await Notification.requestPermission();
+    setNotifPermission(result as NotifPermission);
+    return result as NotifPermission;
+  }, []);
+
   const addAlert = useCallback(
-    (type: PriceAlert['type'], threshold: number) => {
+    async (type: PriceAlert['type'], threshold: number) => {
       if (!chain || !contractAddress) return;
+
+      // Ensure permission is granted before saving the alert
+      let permission = notifPermission;
+      if (permission === 'default') {
+        permission = await requestPermission();
+      }
+      if (permission !== 'granted') return;
+
       const alert: PriceAlert = {
         id: crypto.randomUUID(),
         type,
@@ -159,7 +208,7 @@ export function usePriceAlerts(
         return updated;
       });
     },
-    [chain, contractAddress, tokenSymbol],
+    [chain, contractAddress, tokenSymbol, notifPermission, requestPermission],
   );
 
   const removeAlert = useCallback(
@@ -188,9 +237,12 @@ export function usePriceAlerts(
     [chain, contractAddress],
   );
 
-  const dismissToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  }, []);
-
-  return { alerts, toasts, addAlert, removeAlert, resetTriggered, dismissToast };
+  return {
+    alerts,
+    notifPermission,
+    requestPermission,
+    addAlert,
+    removeAlert,
+    resetTriggered,
+  };
 }
