@@ -92,7 +92,7 @@ export default function PriceAlertButton({
             )}
             {notifPermission === 'unsupported' && (
               <div className="mx-5 mt-4 bg-yellow-950 border border-yellow-700 rounded-lg px-3 py-2.5 text-xs text-yellow-300">
-                Push notifications are not supported in this browser.
+                Push notifications aren&apos;t available here. On iPhone, add this site to your Home Screen first. On desktop, make sure you&apos;re on HTTPS.
               </div>
             )}
             {notifPermission === 'default' && (

@@ -61,19 +61,20 @@ async function showPushNotification(
     badge: '/favicon.ico',
     tag,
     data: { url },
-    // keep on screen until user interacts
     requireInteraction: true,
   };
 
-  // Prefer service-worker notification so notificationclick fires
+  // Prefer service-worker notification so notificationclick fires.
+  // Use getRegistration() instead of .ready — .ready hangs forever if no SW is active.
   if ('serviceWorker' in navigator) {
     try {
-      const reg = await navigator.serviceWorker.ready;
-      await reg.showNotification(title, options);
-      return;
+      const reg = await navigator.serviceWorker.getRegistration('/');
+      if (reg) {
+        await reg.showNotification(title, options);
+        return;
+      }
     } catch {}
   }
-  // Fallback: direct Notification (no click-to-open, but still shows)
   new Notification(title, options);
 }
 
@@ -178,9 +179,13 @@ export function usePriceAlerts(
 
   const requestPermission = useCallback(async (): Promise<NotifPermission> => {
     if (!('Notification' in window)) return 'unsupported';
-    const result = await Notification.requestPermission();
-    setNotifPermission(result as NotifPermission);
-    return result as NotifPermission;
+    try {
+      const result = await Notification.requestPermission();
+      setNotifPermission(result as NotifPermission);
+      return result as NotifPermission;
+    } catch {
+      return 'unsupported';
+    }
   }, []);
 
   const addAlert = useCallback(
