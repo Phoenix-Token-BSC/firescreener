@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
+import { publishPriceUpdate } from '@/lib/ably-publisher';
 // import { getTokenByAddress } from '@/lib/tokenRegistry';
 
 const DEXSCREENER_API_URL = "https://api.dexscreener.com/latest/dex/tokens";
@@ -62,13 +63,20 @@ export async function GET(request: NextRequest) {
         try {
           processed++;
           const [chain, address] = tokenKey.split(':');
-          
-          if (chain === 'rwa') {
-            await refreshAssetChainData(address);
-          } else {
-            await refreshDexScreenerData(address);
-          }
-          
+
+          const result = chain === 'rwa'
+            ? await refreshAssetChainData(address)
+            : await refreshDexScreenerData(address);
+
+          // Push real-time price update to Ably so client-side alerts can fire
+          await publishPriceUpdate(chain, address, {
+            price: String(result.price),
+            marketCap: String(result.marketCap),
+            volume: String(result.volume),
+            change24h: String(result.change24h ?? 'N/A'),
+            liquidity: String(result.liquidity ?? 'N/A'),
+          });
+
           successful++;
         } catch (error) {
           failed++;
@@ -99,7 +107,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-async function refreshDexScreenerData(tokenAddress: string): Promise<void> {
+async function refreshDexScreenerData(tokenAddress: string) {
   const cacheKey = `dexscreener:${tokenAddress.toLowerCase()}`;
 
   const url = `${DEXSCREENER_API_URL}/${tokenAddress}`;
@@ -127,9 +135,10 @@ async function refreshDexScreenerData(tokenAddress: string): Promise<void> {
   };
 
   await redis.setex(cacheKey, CACHE_TTL, result);
+  return result;
 }
 
-async function refreshAssetChainData(tokenAddress: string): Promise<void> {
+async function refreshAssetChainData(tokenAddress: string) {
   const cacheKey = `assetchain:${tokenAddress.toLowerCase()}`;
 
   const url = `${ASSETCHAIN_LIQUIDITY_API}?address=${tokenAddress}`;
@@ -152,6 +161,7 @@ async function refreshAssetChainData(tokenAddress: string): Promise<void> {
     price: tokenData.usdPrice || "N/A",
     marketCap: tokenData.marketCap || "N/A",
     volume: tokenData.pastDayVolume || "N/A",
+    change24h: "N/A",
     liquidity: tokenData.currentTvl || "N/A",
     decimals: tokenData.decimals,
     name: tokenData.name,
@@ -160,4 +170,5 @@ async function refreshAssetChainData(tokenAddress: string): Promise<void> {
   };
 
   await redis.setex(cacheKey, CACHE_TTL, result);
+  return result;
 }

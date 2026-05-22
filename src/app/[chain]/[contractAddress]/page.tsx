@@ -21,6 +21,9 @@ import {
 import { useTrackActiveToken } from "@/hooks/useTrackActiveToken";
 import { useEmojiReactions } from "@/hooks/useEmojiReactions";
 import WatchlistButton from "@/components/WatchlistButton";
+import PriceAlertButton from "@/components/PriceAlertButton";
+import AlertToast from "@/components/AlertToast";
+import { usePriceAlerts } from "@/hooks/usePriceAlerts";
 import NewPriceActionChart from "@/components/NewPriceActionChart";
 import SecurityAnalysis from "@/components/GoPlusAnalysis";
 import HoneypotAnalysis from "@/components/HoneypotAnalysis";
@@ -108,6 +111,13 @@ export default function TokenPage() {
 
   // Track this token as actively viewed for priority cache refresh
   useTrackActiveToken(contractAddress || undefined, chain || undefined);
+
+  const { alerts, toasts, addAlert, removeAlert, resetTriggered, dismissToast } = usePriceAlerts(
+    chain,
+    contractAddress,
+    tokenMetadata?.symbol ?? '',
+    tokenData?.price,
+  );
 
   // Restore scroll position when user navigates back
   useScrollRestoration('tokenPageScroll');
@@ -486,6 +496,13 @@ export default function TokenPage() {
                               logo: `/api/${chain}/logo/${contractAddress}`,
                             }}
                             className="w-full justify-center"
+                          />
+                          <PriceAlertButton
+                            alerts={alerts}
+                            currentPrice={tokenData?.price}
+                            onAdd={addAlert}
+                            onRemove={removeAlert}
+                            onReset={resetTriggered}
                           />
                         </div>
                       </div>
@@ -1071,6 +1088,13 @@ export default function TokenPage() {
                         }}
                         className="w-full justify-center"
                       />
+                      <PriceAlertButton
+                        alerts={alerts}
+                        currentPrice={tokenData?.price}
+                        onAdd={addAlert}
+                        onRemove={removeAlert}
+                        onReset={resetTriggered}
+                      />
                     </div>
 
                     <div className="mt-8 space-y-4">
@@ -1300,6 +1324,8 @@ export default function TokenPage() {
           )
         )}
       </main>
+      <AlertToast toasts={toasts} onDismiss={dismissToast} />
+
       <div className="md:hidden">
         <Footer
           onTabChange={setActiveTab}
