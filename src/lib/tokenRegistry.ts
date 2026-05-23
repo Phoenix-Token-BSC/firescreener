@@ -186,6 +186,7 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
   { address: "0x2e221f0A81EabAd8BC3606e51890895e4aF813c7", symbol: "babyfrog", name: "Baby Frog Coin", chain:"bsc", isBurn: false},
   { address: "0x8B4E7b09c4c88fAA543945910437c831deC9A91b", symbol: "gracia", name: "Gracia Token", chain: "bsc", isBurn: false},
   { address: "0x23cd470179e3354BeD205F3F2382573712E938a9", symbol:"bsfm",  name: "BABY SAFEMOON",  chain: "bsc", isBurn: false},
+  { address: "0xeE06A9C439446b360520f049Eec2E43B52674444", symbol: "cky", name: "Cakey", chain: "bsc", isBurn: false},
 
 
   { address: "0xf20f989CAf263C513f9183B4Fed88F14Fc04c8dB", symbol: "shalom", name: "Shalom", chain: "rwa", isBurn: false },
