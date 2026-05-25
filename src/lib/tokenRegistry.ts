@@ -181,12 +181,13 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
   { address: "0x1d547f9d0890EE5AbfB49d7d53cA19Df85Da4444", symbol: "b4", name: "BUILD4", chain: "bsc", isBurn: false},
   { address: "0xb44816216ad4057282E4F4b8A4983f8Fb81615A7", symbol: "evana", name: "EVANA", chain: "bsc", isBurn: false},
   { address: "0xadfaA5A90654276dC7110Ebd366ab5BF69a6C3fd", symbol: "fwc", name: "FIFA WORLD CUP", chain: "bsc", isBurn: false},
-  { address:"0x0a3eb4a67f9a1f7a7fe06de5c21cb5aeca083d7b", symbol: "mty", name: "EmptyCoin", chain:"bsc", isBurn: false},
+  { address:"0x0a3eb4a67f9a1f7a7fe06de5c21cb5aeca083d7b", symbol: "mty", name: "Emptycoin", chain:"bsc", isBurn: false},
   { address: "0x18D1632B35071CD965B0679854E28383d6F983b6", symbol: "sncat", name:"SNOWCAT", chain: "bsc", isBurn: false},
   { address: "0x2e221f0A81EabAd8BC3606e51890895e4aF813c7", symbol: "babyfrog", name: "Baby Frog Coin", chain:"bsc", isBurn: false},
   { address: "0x8B4E7b09c4c88fAA543945910437c831deC9A91b", symbol: "gracia", name: "Gracia Token", chain: "bsc", isBurn: false},
   { address: "0x23cd470179e3354BeD205F3F2382573712E938a9", symbol:"bsfm",  name: "BABY SAFEMOON",  chain: "bsc", isBurn: false},
   { address: "0xeE06A9C439446b360520f049Eec2E43B52674444", symbol: "cky", name: "Cakey", chain: "bsc", isBurn: false},
+  { address: "0x379629a21bA155dC7870D914B468AcF7262D24ab", symbol: "BNBBull", name: "BNB Bull", chain: "bsc", isBurn: false},
 
 
   { address: "0xf20f989CAf263C513f9183B4Fed88F14Fc04c8dB", symbol: "shalom", name: "Shalom", chain: "rwa", isBurn: false },
