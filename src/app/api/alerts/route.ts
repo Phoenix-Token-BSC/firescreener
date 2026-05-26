@@ -3,18 +3,18 @@ import { supabaseServer } from '@/lib/supabase-server';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const subscriptionId = searchParams.get('subscriptionId');
+  const deviceId = searchParams.get('deviceId');
   const chain = searchParams.get('chain');
   const address = searchParams.get('address');
 
-  if (!subscriptionId || !chain || !address) {
+  if (!deviceId || !chain || !address) {
     return NextResponse.json({ error: 'Missing params' }, { status: 400 });
   }
 
   const { data, error } = await supabaseServer
     .from('price_alerts')
     .select('*')
-    .eq('subscription_id', subscriptionId)
+    .eq('device_id', deviceId)
     .eq('chain', chain)
     .eq('contract_address', address.toLowerCase())
     .order('created_at', { ascending: true });
@@ -25,9 +25,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { subscriptionId, chain, contractAddress, tokenSymbol, type, threshold } = body;
+  const { deviceId, pushToken, chain, contractAddress, tokenSymbol, type, threshold } = body;
 
-  if (!subscriptionId || !chain || !contractAddress || !tokenSymbol || !type || threshold == null) {
+  if (!deviceId || !chain || !contractAddress || !tokenSymbol || !type || threshold == null) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
   }
 
@@ -38,7 +38,8 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabaseServer
     .from('price_alerts')
     .insert({
-      subscription_id: subscriptionId,
+      device_id: deviceId,
+      push_token: pushToken ?? null,
       chain,
       contract_address: contractAddress.toLowerCase(),
       token_symbol: tokenSymbol,

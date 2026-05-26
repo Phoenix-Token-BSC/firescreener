@@ -33,6 +33,18 @@ function mapAlert(row: SupabaseAlertRow): PriceAlert {
   };
 }
 
+// Stable device identifier — generated once per browser, lives in localStorage.
+// Used as the Supabase row key so alerts work even before OneSignal is ready.
+function getDeviceId(): string {
+  const key = 'fs-device-id';
+  let id = localStorage.getItem(key);
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(key, id);
+  }
+  return id;
+}
+
 function fmtPrice(price: number) {
   if (price < 0.0001) return price.toExponential(4);
   if (price < 1) return price.toFixed(8);
@@ -58,7 +70,6 @@ async function showLocalNotification(
     requireInteraction: true,
   };
 
-  // Prefer SW notification so notificationclick fires (OneSignal SW handles the click).
   if ('serviceWorker' in navigator) {
     try {
       const reg = await navigator.serviceWorker.getRegistration('/');
@@ -79,44 +90,63 @@ export function usePriceAlerts(
 ) {
   const [alerts, setAlerts] = useState<PriceAlert[]>([]);
   const [notifPermission, setNotifPermission] = useState<NotifPermission>('default');
-  const [subscriptionId, setSubscriptionId] = useState<string | null>(null);
+  // deviceId is the stable Supabase key — always available after mount.
+  const [deviceId, setDeviceId] = useState<string | null>(null);
+  // oneSignalId is the push token — may be null until OneSignal initialises.
+  const [oneSignalId, setOneSignalId] = useState<string | null>(null);
   const alertsRef = useRef<PriceAlert[]>([]);
   alertsRef.current = alerts;
 
-  // Sync OneSignal subscription ID and notification permission state.
+  // Initialise deviceId from localStorage and read notification permission.
   useEffect(() => {
-    function sync() {
-      try {
-        setSubscriptionId(OneSignal.User?.PushSubscription?.id ?? null);
-      } catch {}
-      if (!('Notification' in window)) {
-        setNotifPermission('unsupported');
-      } else {
-        setNotifPermission(Notification.permission as NotifPermission);
-      }
+    setDeviceId(getDeviceId());
+    if (!('Notification' in window)) {
+      setNotifPermission('unsupported');
+    } else {
+      setNotifPermission(Notification.permission as NotifPermission);
     }
+  }, []);
 
-    sync();
+  // Sync OneSignal subscription ID separately — doesn't block alert creation.
+  useEffect(() => {
+    function syncOneSignal() {
+      try {
+        const id = OneSignal.User?.PushSubscription?.id ?? null;
+        setOneSignalId(id);
+      } catch {}
+    }
+    syncOneSignal();
     try {
-      OneSignal.User.PushSubscription.addEventListener('change', sync);
-      return () => OneSignal.User.PushSubscription.removeEventListener('change', sync);
+      OneSignal.User.PushSubscription.addEventListener('change', syncOneSignal);
+      return () => OneSignal.User.PushSubscription.removeEventListener('change', syncOneSignal);
     } catch {
       return undefined;
     }
   }, []);
 
-  // Load alerts from Supabase whenever chain, address, or subscription changes.
+  // When OneSignal subscription ID becomes available, link it to all existing
+  // alerts for this device so the cron worker can deliver push notifications.
   useEffect(() => {
-    if (!chain || !contractAddress || !subscriptionId) return;
+    if (!deviceId || !oneSignalId) return;
+    fetch('/api/push/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deviceId, pushToken: oneSignalId }),
+    }).catch(() => {});
+  }, [deviceId, oneSignalId]);
+
+  // Load alerts from Supabase whenever chain, address, or deviceId changes.
+  useEffect(() => {
+    if (!chain || !contractAddress || !deviceId) return;
     fetch(
-      `/api/alerts?subscriptionId=${subscriptionId}&chain=${chain}&address=${contractAddress.toLowerCase()}`,
+      `/api/alerts?deviceId=${deviceId}&chain=${chain}&address=${contractAddress.toLowerCase()}`,
     )
       .then((r) => r.json())
       .then((rows) => {
         if (Array.isArray(rows)) setAlerts(rows.map(mapAlert));
       })
       .catch(() => {});
-  }, [chain, contractAddress, subscriptionId]);
+  }, [chain, contractAddress, deviceId]);
 
   const fireAlerts = useCallback(
     (price: number) => {
@@ -140,20 +170,22 @@ export function usePriceAlerts(
           alert.type === 'price_above'
             ? `Price crossed above $${alert.threshold} — now $${fmtPrice(price)}`
             : `Price dropped below $${alert.threshold} — now $${fmtPrice(price)}`;
-        const tag = `price-alert-${alert.id}`;
-        const url = `${window.location.origin}/${chain}/${contractAddress}`;
-        const icon = `${window.location.origin}/api/${chain}/logo/${contractAddress}`;
 
-        showLocalNotification(title, body, tag, url, icon);
+        showLocalNotification(
+          title,
+          body,
+          `price-alert-${alert.id}`,
+          `${window.location.origin}/${chain}/${contractAddress}`,
+          `${window.location.origin}/api/${chain}/logo/${contractAddress}`,
+        );
 
         // Tell the server the alert fired so the cron worker doesn't double-send.
-        const subId = subscriptionId;
-        if (subId) {
+        if (deviceId) {
           fetch(`/api/alerts/${alert.id}`, {
             method: 'PATCH',
             headers: {
               'Content-Type': 'application/json',
-              'x-subscription-id': subId,
+              'x-device-id': deviceId,
             },
             body: JSON.stringify({ triggered: true }),
           }).catch(() => {});
@@ -165,10 +197,9 @@ export function usePriceAlerts(
         prev.map((a) => (triggered.includes(a.id) ? { ...a, triggered: true } : a)),
       );
     },
-    [chain, contractAddress, subscriptionId],
+    [chain, contractAddress, deviceId],
   );
 
-  // Check alerts on every polling tick.
   useEffect(() => {
     const price = parseFloat(String(currentPrice));
     fireAlerts(price);
@@ -177,25 +208,29 @@ export function usePriceAlerts(
   const requestPermission = useCallback(async (): Promise<NotifPermission> => {
     if (!('Notification' in window)) return 'unsupported';
     try {
-      // optIn() requests browser permission AND creates the OneSignal subscription.
-      await OneSignal.User.PushSubscription.optIn();
-      // Poll until the subscription ID is available (OneSignal assigns it async).
-      for (let i = 0; i < 10; i++) {
+      // Try OneSignal first — gets push subscription + browser permission together.
+      await Promise.race([
+        OneSignal.User.PushSubscription.optIn(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('onesignal-timeout')), 15_000),
+        ),
+      ]);
+      try {
         const id = OneSignal.User?.PushSubscription?.id;
-        if (id) { setSubscriptionId(id); break; }
-        await new Promise((r) => setTimeout(r, 500));
-      }
-      const perm = Notification.permission as NotifPermission;
-      setNotifPermission(perm);
-      return perm;
+        if (id) setOneSignalId(id);
+      } catch {}
     } catch {
-      return 'unsupported';
+      // OneSignal failed or timed out — native permission still works for local notifications.
+      try { await Notification.requestPermission(); } catch {}
     }
+    const perm = Notification.permission as NotifPermission;
+    setNotifPermission(perm);
+    return perm;
   }, []);
 
   const addAlert = useCallback(
     async (type: PriceAlert['type'], threshold: number) => {
-      if (!chain || !contractAddress) return;
+      if (!chain || !contractAddress || !deviceId) return;
 
       let permission = notifPermission;
       if (permission === 'default') {
@@ -203,15 +238,12 @@ export function usePriceAlerts(
       }
       if (permission !== 'granted') return;
 
-      // Read from singleton in case requestPermission() just set it.
-      const subId = OneSignal.User?.PushSubscription?.id ?? subscriptionId;
-      if (!subId) return;
-
       const res = await fetch('/api/alerts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          subscriptionId: subId,
+          deviceId,
+          pushToken: oneSignalId,   // may be null — that's fine
           chain,
           contractAddress,
           tokenSymbol,
@@ -220,43 +252,43 @@ export function usePriceAlerts(
         }),
       });
 
-      if (!res.ok) return;
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `Server error ${res.status}`);
+      }
       const row: SupabaseAlertRow = await res.json();
       setAlerts((prev) => [...prev, mapAlert(row)]);
     },
-    [chain, contractAddress, subscriptionId, tokenSymbol, notifPermission, requestPermission],
+    [chain, contractAddress, deviceId, oneSignalId, tokenSymbol, notifPermission, requestPermission],
   );
 
   const removeAlert = useCallback(
     (id: string) => {
-      const subId = subscriptionId;
-      if (!subId) return;
-      // Optimistic removal — fire-and-forget server delete.
+      if (!deviceId) return;
       setAlerts((prev) => prev.filter((a) => a.id !== id));
       fetch(`/api/alerts/${id}`, {
         method: 'DELETE',
-        headers: { 'x-subscription-id': subId },
+        headers: { 'x-device-id': deviceId },
       }).catch(() => {});
     },
-    [subscriptionId],
+    [deviceId],
   );
 
   const resetTriggered = useCallback(
     async (id: string) => {
-      const subId = subscriptionId;
-      if (!subId) return;
+      if (!deviceId) return;
       const res = await fetch(`/api/alerts/${id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'x-subscription-id': subId,
+          'x-device-id': deviceId,
         },
         body: JSON.stringify({ triggered: false }),
       });
       if (!res.ok) return;
       setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, triggered: false } : a)));
     },
-    [subscriptionId],
+    [deviceId],
   );
 
   return {

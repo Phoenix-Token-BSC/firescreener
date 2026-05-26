@@ -19,10 +19,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // Only process alerts that have a push token — no token means no delivery target.
   const { data: alerts, error } = await supabaseServer
     .from('price_alerts')
     .select('*')
-    .eq('triggered', false);
+    .eq('triggered', false)
+    .not('push_token', 'is', null);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!alerts || alerts.length === 0) {
@@ -62,7 +64,7 @@ export async function GET(req: NextRequest) {
             : `Price dropped below $${alert.threshold} — now $${fmtPrice(price)}`;
 
         await sendPriceAlertNotification(
-          [alert.subscription_id],
+          [alert.push_token],
           title,
           body,
           `${appUrl}/${chain}/${address}`,

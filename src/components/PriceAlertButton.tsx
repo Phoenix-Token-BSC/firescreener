@@ -38,11 +38,16 @@ export default function PriceAlertButton({
       return;
     }
     setAdding(true);
-    await onAdd(type, val);
-    setAdding(false);
-    setThreshold('');
     setError('');
-    setTab('list');
+    try {
+      await onAdd(type, val);
+      setThreshold('');
+      setTab('list');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create alert');
+    } finally {
+      setAdding(false);
+    }
   }
 
   function formatThreshold(n: number) {

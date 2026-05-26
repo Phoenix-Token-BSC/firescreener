@@ -6,17 +6,17 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> },
 ) {
   const { id } = await context.params;
-  const subscriptionId = req.headers.get('x-subscription-id');
+  const deviceId = req.headers.get('x-device-id');
 
-  if (!subscriptionId) {
-    return NextResponse.json({ error: 'Missing x-subscription-id header' }, { status: 400 });
+  if (!deviceId) {
+    return NextResponse.json({ error: 'Missing x-device-id header' }, { status: 400 });
   }
 
   const { error } = await supabaseServer
     .from('price_alerts')
     .delete()
     .eq('id', id)
-    .eq('subscription_id', subscriptionId);
+    .eq('device_id', deviceId);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return new NextResponse(null, { status: 204 });
@@ -27,10 +27,10 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> },
 ) {
   const { id } = await context.params;
-  const subscriptionId = req.headers.get('x-subscription-id');
+  const deviceId = req.headers.get('x-device-id');
 
-  if (!subscriptionId) {
-    return NextResponse.json({ error: 'Missing x-subscription-id header' }, { status: 400 });
+  if (!deviceId) {
+    return NextResponse.json({ error: 'Missing x-device-id header' }, { status: 400 });
   }
 
   const body = await req.json().catch(() => ({}));
@@ -40,7 +40,7 @@ export async function PATCH(
     .from('price_alerts')
     .update({ triggered })
     .eq('id', id)
-    .eq('subscription_id', subscriptionId)
+    .eq('device_id', deviceId)
     .select()
     .single();
 
