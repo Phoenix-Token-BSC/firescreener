@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
-import { publishPriceUpdate } from '@/lib/ably-publisher';
 // import { getTokenByAddress } from '@/lib/tokenRegistry';
 
 const DEXSCREENER_API_URL = "https://api.dexscreener.com/latest/dex/tokens";
@@ -64,18 +63,9 @@ export async function GET(request: NextRequest) {
           processed++;
           const [chain, address] = tokenKey.split(':');
 
-          const result = chain === 'rwa'
-            ? await refreshAssetChainData(address)
-            : await refreshDexScreenerData(address);
-
-          // Push real-time price update to Ably so client-side alerts can fire
-          await publishPriceUpdate(chain, address, {
-            price: String(result.price),
-            marketCap: String(result.marketCap),
-            volume: String(result.volume),
-            change24h: String(result.change24h ?? 'N/A'),
-            liquidity: String(result.liquidity ?? 'N/A'),
-          });
+          await (chain === 'rwa'
+            ? refreshAssetChainData(address)
+            : refreshDexScreenerData(address));
 
           successful++;
         } catch (error) {
