@@ -999,33 +999,10 @@ export default function TokenPage() {
 
                     </div>
 
-                    {chain && contractAddress && chain.toLowerCase() !== 'sol' && (
-                      <>
-                        <div className="mt-8 flex flex-col border-2 border-orange-500 p-2 rounded-xl gap-2">
-                          <WaraGuardAnalysis
-                            chain={chain}
-                            contractAddress={contractAddress}
-                          />
-                          <SecurityAnalysis
-                            chain={chain}
-                            contractAddress={contractAddress}
-                          />
-                          <HoneypotAnalysis
-                            chain={chain}
-                            contractAddress={contractAddress}
-                          />
-                        </div>
-                      </>
-                    )}
+      
 
 
-
-                    <div className="mt-4 flex flex-col justify-center gap-4">
-                      <VolumeTxnsInfo
-                        chain={chain?.toLowerCase() as "bsc" | "eth" | "sol"}
-                        contractAddress={contractAddress}
-                      />
-                    </div>
+                    
 
                     {chain?.toLowerCase() !== 'sol' && (
                     <div className="mt-4 flex flex-col gap-4">
