@@ -5,6 +5,7 @@ import { redis } from '@/lib/redis';
 interface FeaturedToken {
   address: string;
   symbol: string;
+  name: string;
   chain: string;
   addedAt: string;
   daysActive: number;
