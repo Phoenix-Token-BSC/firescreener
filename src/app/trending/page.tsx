@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import TokenLoadingSkeleton from '@/components/TokenLoadingSkeleton';
 import TokenCard from '@/components/TokenCard';
@@ -21,16 +21,6 @@ function TrendingRow({ token }: { token: TrendingToken }) {
   const volFlash = useFlashOnChange(token.volume);
   const liqFlash = useFlashOnChange(token.liquidity);
 
-  // Debug: check if isFeatured exists
-  if ((token as any).isFeatured) {
-    console.log(`[Trending Row Render] Rendering ${token.symbol} with isFeatured = true`);
-  }
-
-  React.useEffect(() => {
-    if ((token as any).isFeatured) {
-      console.log(`[Trending] Featured token detected: ${token.symbol}`);
-    }
-  }, [token.symbol, (token as any).isFeatured]);
 
   const { display, isExponential, zeros, rest } = formatPrice(token.price);
   const priceDisplay = display === 'N/A' ? (

@@ -21,10 +21,10 @@ export async function GET() {
         chain: t.chain,
         isFeatured: t.isFeatured,
       })),
-      allTokens: data.map(t => ({
+      allTokens: (data as any[]).map((t: any) => ({
         symbol: t.symbol,
         address: t.address,
-        isFeatured: (t as any).isFeatured || 'undefined',
+        isFeatured: t.isFeatured || 'undefined',
       })),
     });
   } catch (error) {
