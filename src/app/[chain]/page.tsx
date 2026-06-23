@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback, use } from 'react';
+import Link from 'next/link';
 import TokenCard from '@/components/TokenCard';
 import TokenLoadingSkeleton from '@/components/TokenLoadingSkeleton';
+import { useFlashOnChange, formatCompactNumber, formatPrice } from '@/lib/tokenFormatting';
 
 interface Token {
   symbol: string;
@@ -23,6 +25,105 @@ interface PageProps {
 }
 
 const REFRESH_INTERVAL = 15_000;
+
+const TokenRow = React.memo(function TokenRow({ token }: { token: Token }) {
+  const priceFlash = useFlashOnChange(token.price);
+  const changeFlash = useFlashOnChange(token.change24h ?? 'N/A');
+  const mcFlash = useFlashOnChange(token.marketCap);
+  const volFlash = useFlashOnChange(token.volume);
+  const liqFlash = useFlashOnChange(token.liquidity);
+
+  const { display, isExponential, zeros, rest } = formatPrice(token.price);
+  const priceDisplay = display === 'N/A' ? (
+    <span className="text-neutral-400">N/A</span>
+  ) : isExponential ? (
+    <>{display}0<sub>{zeros}</sub>{rest}</>
+  ) : display;
+
+  return (
+    <tr className="border-b border-orange-500 hover:bg-orange-600 transition-colors">
+      <td className="px-5 py-2 text-sm sticky left-0 z-10 min-w-[150px] border-l border-orange-800 border-r border-orange-800">
+        <Link href={`/${token.chain}/${token.address}`} className="flex items-center hover:opacity-80">
+          <div className="relative flex-shrink-0 mr-3">
+            <img
+              src={`/api/${token.chain}/logo/${token.address}`}
+              alt={token.symbol}
+              width={24}
+              height={24}
+              className="rounded-full"
+              onError={(e) => { (e.target as HTMLImageElement).src = '/logo.png'; }}
+            />
+            <img
+              src={`/${token.chain}-logo.png`}
+              alt={token.chain}
+              width={10}
+              height={10}
+              className="absolute -bottom-1 -right-1 rounded-sm border-2 border-black"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-white whitespace-nowrap font-medium text-sm">{token.symbol.toUpperCase()}</span>
+            <span className="text-gray-400 text-xs whitespace-nowrap">{token.name}</span>
+          </div>
+        </Link>
+      </td>
+
+      <td className="px-5 py-2 text-sm min-w-[120px] border-r border-orange-800">
+        <span
+          className="text-white text-sm whitespace-nowrap transition-opacity duration-300"
+          style={{ opacity: priceFlash ? 0.4 : 1 }}
+        >
+          {priceDisplay}
+        </span>
+      </td>
+
+      <td className="px-5 py-2 text-xs min-w-[120px] border-r border-orange-800">
+        {token.change24h === 'N/A' || token.change24h === undefined ? (
+          <span className="text-white whitespace-nowrap">N/A</span>
+        ) : (() => {
+          const change = parseFloat(String(token.change24h));
+          const isPositive = change >= 0;
+          return (
+            <span
+              className={`whitespace-nowrap font-medium transition-opacity duration-300 ${isPositive ? 'text-green-500' : 'text-red-500'}`}
+              style={{ opacity: changeFlash ? 0.4 : 1 }}
+            >
+              {isPositive ? '+' : ''}{change.toFixed(2)}%
+            </span>
+          );
+        })()}
+      </td>
+
+      <td className="px-5 py-2 text-sm min-w-[120px] border-r border-orange-800">
+        <span
+          className="text-white whitespace-nowrap transition-opacity duration-300"
+          style={{ opacity: mcFlash ? 0.4 : 1 }}
+        >
+          ${formatCompactNumber(token.marketCap)}
+        </span>
+      </td>
+
+      <td className="px-5 py-2 text-sm min-w-[120px] border-r border-orange-800">
+        <span
+          className="text-white whitespace-nowrap transition-opacity duration-300"
+          style={{ opacity: liqFlash ? 0.4 : 1 }}
+        >
+          {token.liquidity === 'N/A' ? 'N/A' : `$${formatCompactNumber(token.liquidity)}`}
+        </span>
+      </td>
+
+      <td className="px-5 py-2 text-sm min-w-[120px] border-r border-orange-800">
+        <span
+          className="text-white whitespace-nowrap transition-opacity duration-300"
+          style={{ opacity: volFlash ? 0.4 : 1 }}
+        >
+          {token.volume === 'N/A' ? 'N/A' : `$${formatCompactNumber(token.volume)}`}
+        </span>
+      </td>
+    </tr>
+  );
+});
 
 function sortByMarketCap(tokens: Token[]): Token[] {
   return [...tokens].sort((a, b) => {
@@ -109,30 +210,44 @@ export default function ChainPage({ params }: PageProps) {
 
   return (
     <div className="container mx-auto">
-      <div className="px-4 pt-8">
+      <div className="p-2">
         {loading ? (
           <TokenLoadingSkeleton />
         ) : error ? (
           <div className="text-center py-10 text-red-400">{error}</div>
         ) : (
-          <div className="flex flex-col">
-            {tokens.map((token: Token) => (
-              <TokenCard key={token.address} token={token} />
-            ))}
-          </div>
-        )}
+          <>
+            {/* Mobile: Card Layout */}
+            <div className="md:hidden flex flex-col gap-2">
+              {tokens.map((token: Token) => (
+                <TokenCard key={token.address} token={token} />
+              ))}
+            </div>
 
-        {/* Back to all tokens link */}
-        {/* {!loading && !error && (
-          <div className="mt-6 text-center">
-            <Link
-              href="/"
-              className="text-orange-500 hover:text-orange-400 transition-colors duration-200 font-medium"
-            >
-              ← View all chains
-            </Link>
-          </div>
-        )} */}
+            {/* Desktop: Table Layout */}
+            <div className="hidden md:block shadow rounded-lg overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[600px]">
+                  <thead>
+                    <tr className="bg-orange-500 border-b border-orange-800">
+                      <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left sticky left-0 bg-orange-500 z-20 min-w-[150px] border-l border-orange-800 border-r border-orange-800">Token</th>
+                      <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px] border-r border-orange-800">Price</th>
+                      <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px] border-r border-orange-800">24H Change</th>
+                      <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px] border-r border-orange-800">Market Cap</th>
+                      <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px] border-r border-orange-800">Liquidity</th>
+                      <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px] border-r border-orange-800">24H Volume</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tokens.map((token) => (
+                      <TokenRow key={token.address} token={token} />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
