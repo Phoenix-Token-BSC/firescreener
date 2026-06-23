@@ -1,6 +1,7 @@
 import { TOKEN_REGISTRY } from '@/lib/tokenRegistry';
 import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
+import { createClient } from '@supabase/supabase-js';
 
 interface FeaturedToken {
   address: string;
@@ -29,6 +30,8 @@ interface TokenMetrics {
   volumeScore: number;
   liquidityScore: number;
   momentumScore: number;
+  communityVotes?: number;
+  communityScore?: number;
   isFeatured?: boolean;
 }
 
@@ -49,6 +52,46 @@ function parseNumericValue(value: string | number | undefined): number {
   if (!value || value === 'N/A') return 0;
   const str = String(value).replace(/[^0-9.-]/g, '');
   return parseFloat(str) || 0;
+}
+
+async function getCommunityVotes(tokenAddress: string): Promise<number> {
+  const cacheKey = `votes:${tokenAddress.toLowerCase()}`;
+
+  try {
+    // Check Redis cache first
+    const cached = await redis.get(cacheKey);
+    if (cached) return parseInt(cached as string);
+  } catch {}
+
+  try {
+    // Fetch from Supabase token-reactions table
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+      process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+    );
+
+    const { data, error } = await supabase
+      .from('token_reactions')
+      .select('emoji_1,emoji_2,emoji_3,emoji_4,emoji_5')
+      .eq('contract_address', tokenAddress.toLowerCase())
+      .single();
+
+    if (error || !data) {
+      // Token reactions don't exist yet, return 0
+      return 0;
+    }
+
+    // Calculate positive score (emoji_1: 🔥 + emoji_2: 🚀 + emoji_3: ❤️‍🔥)
+    const positiveVotes = (data.emoji_1 || 0) + (data.emoji_2 || 0) + (data.emoji_3 || 0);
+
+    // Cache the result for 5 minutes
+    await redis.setex(cacheKey, 300, positiveVotes).catch(() => {});
+
+    return positiveVotes;
+  } catch (error) {
+    console.error(`Failed to get community votes for ${tokenAddress}:`, error);
+    return 0;
+  }
 }
 
 async function getTokenMetrics(address: string): Promise<Partial<TokenMetrics> | null> {
@@ -95,23 +138,28 @@ function calculateTrendScore(metrics: Partial<TokenMetrics>): TokenMetrics | nul
   const liquidity = metrics.liquidity || 0;
   const marketCap = metrics.marketCap || 1; // Default to 1 to avoid division by zero
   const change24h = metrics.change24h || 0;
+  const communityVotes = metrics.communityVotes || 0;
 
   if (marketCap === 0) return null;
 
-  // Volume Score (0-40): High volume normalized by market cap
+  // Volume Score (0-35): High volume normalized by market cap
   // Tokens with high volume relative to market cap are more active
   const volumeToMcRatio = volume / marketCap;
-  const volumeScore = Math.min(40, volumeToMcRatio * 100); // Normalized scale
+  const volumeScore = Math.min(35, volumeToMcRatio * 100); // Normalized scale
 
-  // Liquidity Score (0-25): High liquidity ratio is good for trading
+  // Liquidity Score (0-20): High liquidity ratio is good for trading
   const liquidityToMcRatio = liquidity / marketCap;
-  const liquidityScore = Math.min(25, liquidityToMcRatio * 100); // Higher liquidity = better trading
+  const liquidityScore = Math.min(20, liquidityToMcRatio * 100); // Higher liquidity = better trading
 
   // Momentum Score (0-20): Price change indicates market sentiment
   const momentumScore = Math.min(20, Math.max(-20, change24h * 1)); // Positive or negative momentum
 
-  // Base score from volume + liquidity + momentum
-  const trendScore = Math.max(1, volumeScore + liquidityScore + Math.abs(momentumScore));
+  // Community Score (0-25): Community engagement and interest
+  // Votes are log-scaled to prevent one token from dominating
+  const communityScore = Math.min(25, Math.log(communityVotes + 1) * 5); // Log scale for community votes
+
+  // Base score from volume + liquidity + momentum + community
+  const trendScore = Math.max(1, volumeScore + liquidityScore + Math.abs(momentumScore) + communityScore);
 
   return {
     ...metrics,
@@ -119,6 +167,7 @@ function calculateTrendScore(metrics: Partial<TokenMetrics>): TokenMetrics | nul
     volumeScore: parseFloat(volumeScore.toFixed(2)),
     liquidityScore: parseFloat(liquidityScore.toFixed(2)),
     momentumScore: parseFloat(momentumScore.toFixed(2)),
+    communityScore: parseFloat(communityScore.toFixed(2)),
   } as TokenMetrics;
 }
 
@@ -154,11 +203,15 @@ async function fetchTrendingTokens(): Promise<TokenMetrics[]> {
       const metrics = await getTokenMetrics(token.address);
       if (!metrics) return null;
 
+      // Fetch community votes from Supabase
+      const communityVotes = await getCommunityVotes(token.address);
+
       return calculateTrendScore({
         symbol: token.symbol,
         name: token.name,
         address: token.address,
         chain: token.chain,
+        communityVotes,
         ...metrics,
       });
     } catch {
@@ -198,6 +251,9 @@ async function fetchTrendingTokens(): Promise<TokenMetrics[]> {
         console.warn(`Could not fetch metrics for featured token ${featuredToken.address}:`, error);
       }
 
+      // Fetch community votes from Supabase for featured token
+      const communityVotes = await getCommunityVotes(featuredToken.address);
+
       const token: TokenMetrics = {
         symbol: String(featuredToken.symbol).toUpperCase(),
         name: String(featuredToken.name),
@@ -208,10 +264,12 @@ async function fetchTrendingTokens(): Promise<TokenMetrics[]> {
         liquidity: marketData?.liquidity || 0,
         marketCap: marketData?.marketCap || 0,
         change24h: marketData?.change24h || 0,
-        trendScore: 100,
+        trendScore: 100, // Featured tokens get a boost
         volumeScore: 0,
         liquidityScore: 0,
         momentumScore: 0,
+        communityVotes,
+        communityScore: 0,
         isFeatured: true,
       };
       featuredMetrics.push(token);
