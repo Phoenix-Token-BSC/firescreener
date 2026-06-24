@@ -66,9 +66,14 @@ const TokenCard = React.memo(function TokenCard({
           />
         </div>
         <div className="flex flex-col min-w-0 flex-1">
-          <span className="text-white font-bold text-lg whitespace-nowrap truncate">
-            {token.symbol.toUpperCase()}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-white font-bold text-lg whitespace-nowrap truncate">
+              {token.symbol.toUpperCase()}
+            </span>
+            {(token as any).isFeatured && (
+              <span className="text-lg flex-shrink-0">🔥</span>
+            )}
+          </div>
           <span className="text-neutral-200 text-xs whitespace-nowrap truncate">{token.name}</span>
         </div>
       </div>

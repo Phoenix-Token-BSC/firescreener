@@ -134,23 +134,23 @@ export default function WatchlistPage() {
                             <div className="overflow-x-auto">
                                 <table className="w-full min-w-[600px]">
                                     <thead>
-                                        <tr className="bg-orange-500">
-                                            <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left sticky left-0 bg-orange-500 z-20 min-w-[150px]">
+                                        <tr className="bg-orange-500 border-b border-orange-800">
+                                            <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left sticky left-0 bg-orange-500 z-20 min-w-[150px] border-l border-orange-800 border-r border-orange-800">
                                                 Token
                                             </th>
-                                            <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px]">
+                                            <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px] border-r border-orange-800">
                                                 Price
                                             </th>
-                                            <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px]">
+                                            <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px] border-r border-orange-800">
                                                 24H Change
                                             </th>
-                                            <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px]">
+                                            <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px] border-r border-orange-800">
                                                 Market Cap
                                             </th>
-                                            <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px]">
+                                            <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px] border-r border-orange-800">
                                                 Liquidity
                                             </th>
-                                            <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px]">
+                                            <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px] border-r border-orange-800">
                                                 24H Volume
                                             </th>
                                         </tr>
@@ -166,7 +166,7 @@ export default function WatchlistPage() {
                                             tokens.map((token) => (
                                                 <tr key={`${token.chain}-${token.address}`} className="border-b border-orange-500 hover:bg-orange-600 transition-colors">
                                                     {/* Token column - sticky on mobile */}
-                                                    <td className="px-5 py-4 text-sm sticky left-0 z-10 min-w-[150px]">
+                                                    <td className="px-5 py-4 text-sm sticky left-0 z-10 min-w-[150px] border-r border-orange-800">
                                                         <Link href={`/${token.chain}/${token.address}`} className="flex items-center hover:opacity-80">
                                                             {/* Token Icon with Chain Badge */}
                                                             <div className="relative flex-shrink-0 mr-3">
@@ -204,7 +204,7 @@ export default function WatchlistPage() {
                                                     </td>
 
                                                     {/* Price column */}
-                                                    <td className="px-5 py-4 text-sm min-w-[120px]">
+                                                    <td className="px-5 py-4 text-sm min-w-[120px] border-r border-orange-800">
                                                         <span className="text-white whitespace-nowrap">
                                                             {token.price === 'N/A' ? 'N/A' : (() => {
                                                                 const { display, isExponential, zeros, rest } = formatPrice(token.price);
@@ -219,7 +219,7 @@ export default function WatchlistPage() {
                                                     </td>
 
                                                     {/* 24h Change column */}
-                                                    <td className="px-5 py-4 text-sm min-w-[120px]">
+                                                    <td className="px-5 py-4 text-sm min-w-[120px] border-r border-orange-800">
                                                         {token.change24h === 'N/A' || token.change24h === undefined ? (
                                                             <span className="text-white whitespace-nowrap">N/A</span>
                                                         ) : (
@@ -236,21 +236,21 @@ export default function WatchlistPage() {
                                                     </td>
 
                                                     {/* Market Cap column */}
-                                                    <td className="px-5 py-4 text-sm min-w-[120px]">
+                                                    <td className="px-5 py-4 text-sm min-w-[120px] border-r border-orange-800">
                                                         <span className="text-white whitespace-nowrap">
                                                             ${formatCompactNumber(token.marketCap)}
                                                         </span>
                                                     </td>
 
                                                     {/* Liquidity column */}
-                                                    <td className="px-5 py-4 text-sm min-w-[120px]">
+                                                    <td className="px-5 py-4 text-sm min-w-[120px] border-r border-orange-800">
                                                         <span className="text-white whitespace-nowrap">
                                                             {token.liquidity === 'N/A' ? 'N/A' : `$${formatCompactNumber(token.liquidity)}`}
                                                         </span>
                                                     </td>
 
                                                     {/* Volume column */}
-                                                    <td className="px-5 py-4 text-sm min-w-[120px]">
+                                                    <td className="px-5 py-4 text-sm min-w-[120px] border-r border-orange-800">
                                                         <span className="text-white whitespace-nowrap">
                                                             {token.volume === 'N/A' ? 'N/A' : `$${formatCompactNumber(token.volume)}`}
                                                         </span>

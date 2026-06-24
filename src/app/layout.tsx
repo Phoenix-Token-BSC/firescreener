@@ -3,6 +3,7 @@ import {  Nunito } from "next/font/google";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/next";
 import Header from "@/components/Header";
+import Sidebar from "@/components/Sidebar";
 // import Script from "next/script";
 
 // const spaceGrotesk = Space_Grotesk({
@@ -32,13 +33,16 @@ export default function RootLayout({
       <head>
         <script defer src="https://cloud.umami.is/script.js" data-website-id="23de30be-d6d1-4152-b10c-7442a99240ce"></script>
       </head>
-      
-      
+
+
       <body
-        className={`${nunito.variable} antialiased`}
+        className={`${nunito.variable} antialiased flex flex-col md:flex-row h-screen overflow-hidden`}
       >
-        <Header />
-        <main>{children}</main>
+        <Sidebar />
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <Header />
+          <main className="flex-1 overflow-y-auto min-h-0">{children}</main>
+        </div>
         {/* <script defer src="https://cloud.umami.is/script.js" data-website-id="23de30be-d6d1-4152-b10c-7442a99240ce"></script> */}
         <Analytics />
       </body>
