@@ -1,37 +1,26 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback, use } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import TokenCard from '@/components/TokenCard';
 import TokenLoadingSkeleton from '@/components/TokenLoadingSkeleton';
-import { useFlashOnChange, formatCompactNumber, formatPrice } from '@/lib/tokenFormatting';
+import TokenCard from '@/components/TokenCard';
+import { useFlashOnChange, formatCompactNumber, formatPrice, Token } from '@/lib/tokenFormatting';
+import { useScrollRestoration, useSessionStorage } from '@/hooks/useScrollRestoration';
 
-interface Token {
-  symbol: string;
-  name: string;
-  address: string;
-  chain: string;
-  price: string | number;
-  marketCap: string | number;
-  volume: string | number;
-  liquidity: string | number;
-  change24h: string | number;
+const REFRESH_INTERVAL = 30_000;
+
+interface TrendingToken extends Token {
+  trendScore: number;
+  isFeatured?: boolean;
 }
 
-interface PageProps {
-  params: Promise<{
-    chain: string;
-  }>;
-}
-
-const REFRESH_INTERVAL = 15_000;
-
-const TokenRow = React.memo(function TokenRow({ token }: { token: Token }) {
+function TrendingRow({ token }: { token: TrendingToken }) {
   const priceFlash = useFlashOnChange(token.price);
   const changeFlash = useFlashOnChange(token.change24h ?? 'N/A');
   const mcFlash = useFlashOnChange(token.marketCap);
   const volFlash = useFlashOnChange(token.volume);
   const liqFlash = useFlashOnChange(token.liquidity);
+
 
   const { display, isExponential, zeros, rest } = formatPrice(token.price);
   const priceDisplay = display === 'N/A' ? (
@@ -41,7 +30,7 @@ const TokenRow = React.memo(function TokenRow({ token }: { token: Token }) {
   ) : display;
 
   return (
-    <tr className="border-b border-orange-500 hover:bg-orange-600 transition-colors">
+    <tr className="border-b border-orange-800 hover:bg-orange-800 transition-colors">
       <td className="px-5 py-2 text-sm sticky left-0 z-10 min-w-[150px] border-l border-orange-800 border-r border-orange-800">
         <Link href={`/${token.chain}/${token.address}`} className="flex items-center hover:opacity-80">
           <div className="relative flex-shrink-0 mr-3">
@@ -63,7 +52,14 @@ const TokenRow = React.memo(function TokenRow({ token }: { token: Token }) {
             />
           </div>
           <div className="flex flex-col">
-            <span className="text-white whitespace-nowrap font-medium text-sm">{token.symbol.toUpperCase()}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-white font-medium text-sm">
+                {token.symbol.toUpperCase()}
+              </span>
+              {(token as any).isFeatured && (
+                <span className="text-lg leading-none">🔥</span>
+              )}
+            </div>
             <span className="text-gray-400 text-xs whitespace-nowrap">{token.name}</span>
           </div>
         </Link>
@@ -123,108 +119,84 @@ const TokenRow = React.memo(function TokenRow({ token }: { token: Token }) {
       </td>
     </tr>
   );
-});
-
-function sortByMarketCap(tokens: Token[]): Token[] {
-  return [...tokens].sort((a, b) => {
-    const mcA = parseFloat(String(a.marketCap).replace(/[^0-9.-]/g, '')) || 0;
-    const mcB = parseFloat(String(b.marketCap).replace(/[^0-9.-]/g, '')) || 0;
-    return mcB - mcA;
-  });
 }
 
-export default function ChainPage({ params }: PageProps) {
-  const resolvedParams = use(params);
-  const chain = resolvedParams.chain.toLowerCase();
-
-  const [tokens, setTokens] = useState<Token[]>([]);
+export default function TrendingPage() {
+  const [tokens, setTokens] = useSessionStorage<TrendingToken[]>('trendingTokens', []);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const fetchTokens = useCallback(async (isBackground = false) => {
+  useScrollRestoration('trendingScroll');
+
+  const fetchTrending = useCallback(async (isBackground = false) => {
     try {
-      if (!isBackground) {
-        setLoading(true);
-        setError(null);
+      const response = await fetch('/api/trending', { signal: AbortSignal.timeout(15000) });
+      if (!response.ok) throw new Error(`Failed to fetch trending: ${response.status}`);
+
+      const data: TrendingToken[] = await response.json();
+
+      // Debug log
+      const featuredCount = data.filter((t: any) => t.isFeatured).length;
+      console.log(`[Trending Page] Received ${data.length} tokens, ${featuredCount} are featured`);
+      if (featuredCount > 0) {
+        console.log(`[Trending Page] Featured tokens:`, data.filter((t: any) => t.isFeatured).map(t => ({ symbol: t.symbol, isFeatured: (t as any).isFeatured })));
       }
 
-      const response = await fetch('/api/tokens');
-      if (!response.ok) throw new Error('Failed to fetch tokens');
-      const data: Token[] = await response.json();
-
-      const filtered = data.filter(t => t.chain.toLowerCase() === chain);
-
-      if (!isBackground && filtered.length === 0) {
-        setError(`No tokens found for chain: ${chain.toUpperCase()}`);
-      }
-
-      setTokens(prev => {
-        if (!isBackground) return sortByMarketCap(filtered);
-
-        // Merge: update changed values then re-sort by market cap.
-        // Unchanged tokens keep same object reference → React.memo skips re-render.
-        const incoming = new Map(filtered.map(t => [t.address, t]));
-        const updated = prev.map(t => {
-          const fresh = incoming.get(t.address);
-          if (!fresh) return t;
-          const changed =
-            t.price !== fresh.price ||
-            t.marketCap !== fresh.marketCap ||
-            t.volume !== fresh.volume ||
-            t.liquidity !== fresh.liquidity ||
-            t.change24h !== fresh.change24h;
-          return changed ? fresh : t;
-        });
-        return sortByMarketCap(updated);
-      });
-    } catch (err) {
+      setTokens(data);
+    } catch (error) {
       if (!isBackground) {
-        console.error('Error fetching tokens:', err);
-        setError('Failed to load tokens. Please try again later.');
+        console.error('Error fetching trending:', error);
+        setLoading(false);
       }
     } finally {
       if (!isBackground) setLoading(false);
     }
-  }, [chain]);
+  }, [setTokens]);
 
   useEffect(() => {
-    fetchTokens(false);
-
-    intervalRef.current = setInterval(() => {
-      fetchTokens(true);
-    }, REFRESH_INTERVAL);
+    fetchTrending(false);
+    intervalRef.current = setInterval(() => fetchTrending(true), REFRESH_INTERVAL);
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [fetchTokens]);
+  }, [fetchTrending]);
 
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === 'visible') fetchTokens(true);
+      if (document.visibilityState === 'visible') fetchTrending(true);
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [fetchTokens]);
+  }, [fetchTrending]);
 
   return (
     <div className="container mx-auto">
       <div className="p-2">
+        <div className="mb-4">
+          <h1 className="text-orange-500 text-2xl font-bold">Trending Tokens</h1>
+          {/* <p className="text-gray-400 text-sm">Most active tokens by volume, liquidity, and momentum</p> */}
+        </div>
+
         {loading ? (
-          <TokenLoadingSkeleton />
-        ) : error ? (
-          <div className="text-center py-10 text-red-400">{error}</div>
+          <TokenLoadingSkeleton count={15} />
+        ) : tokens.length === 0 ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="text-center">
+              <p className="text-white text-lg mb-2">No trending tokens available</p>
+              <p className="text-gray-400">Check back soon for active tokens.</p>
+            </div>
+          </div>
         ) : (
           <>
-            {/* Mobile: Card Layout */}
+            {/* Mobile */}
             <div className="md:hidden flex flex-col gap-2">
-              {tokens.map((token: Token) => (
+              {tokens.map(token => (
                 <TokenCard key={token.address} token={token} />
               ))}
             </div>
 
-            {/* Desktop: Table Layout */}
+            {/* Desktop */}
             <div className="hidden md:block shadow rounded-lg overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[600px]">
@@ -239,9 +211,13 @@ export default function ChainPage({ params }: PageProps) {
                     </tr>
                   </thead>
                   <tbody>
-                    {tokens.map((token) => (
-                      <TokenRow key={token.address} token={token} />
-                    ))}
+                    {tokens.map((token, idx) => {
+                      if (idx === 0) {
+                        console.log(`[Trending Table] First token:`, token);
+                        console.log(`[Trending Table] Tokens array:`, tokens.filter((t: any) => t.isFeatured));
+                      }
+                      return <TrendingRow key={token.address} token={token} />;
+                    })}
                   </tbody>
                 </table>
               </div>

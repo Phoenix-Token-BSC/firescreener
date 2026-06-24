@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { FiGlobe } from "react-icons/fi";
 import {
     TOKEN_REGISTRY,
     getTokenByAddress,
@@ -75,10 +76,7 @@ export default function Header() {
     const pathname = usePathname();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
-    const [isDesktopMenuOpen, setIsDesktopMenuOpen] = useState(false);
     const [isDesktopSearchFocused, setIsDesktopSearchFocused] = useState(false);
-    const [isChainDropdownOpen, setIsChainDropdownOpen] = useState(false);
-    const dropdownInteractingRef = useRef(false);
     const [search, setSearch] = useState<string>("");
     const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
     const [trendingTokens, setTrendingTokens] = useState<Token[]>([]);
@@ -98,16 +96,15 @@ export default function Header() {
 
     const activeChain = getActiveChain();
 
-    // Get chain display info
     const getChainInfo = (chain: string | null) => {
-        if (!chain) return { name: 'All Chains', logo: null, gradient: false };
-        const chainInfo: { [key: string]: { name: string; logo: string | null; gradient: boolean } } = {
-            bsc: { name: 'BSC', logo: '/bsc-logo.png', gradient: false },
-            eth: { name: 'Ethereum', logo: '/eth-logo.png', gradient: false },
-            rwa: { name: 'RWA Chain', logo: '/rwa-logo.png', gradient: false },
-            sol: { name: 'Solana', logo: '/sol-logo.png', gradient: false },
+        if (!chain) return { name: 'All Chains', logo: null };
+        const chainInfo: { [key: string]: { name: string; logo: string | null } } = {
+            bsc: { name: 'BSC', logo: '/bsc-logo.png' },
+            eth: { name: 'Ethereum', logo: '/eth-logo.png' },
+            rwa: { name: 'RWA Chain', logo: '/rwa-logo.png' },
+            sol: { name: 'Solana', logo: '/sol-logo.png' },
         };
-        return chainInfo[chain] || { name: 'All Chains', logo: null, gradient: false };
+        return chainInfo[chain] || { name: 'All Chains', logo: null };
     };
 
     const currentChainInfo = getChainInfo(activeChain);
@@ -272,10 +269,12 @@ export default function Header() {
         fetchTrendingTokens();
     }, [isSearchOpen, isDesktopSearchFocused, sortMetric]);
 
+    const [isMobileChainDropdownOpen, setIsMobileChainDropdownOpen] = useState(false);
+
     return (
-        <header className="sticky top-0 z-50 px-4 md:px-16 py-2 bg-white text-neutral-900">
+        <header className="sticky top-0 z-50 px-4 md:px-8 py-2 bg-white text-neutral-900 md:bg-neutral-50">
             <nav className="flex flex-row justify-between items-center">
-                <Link href="/" className="font-bold flex flex-row items-center">
+                <Link href="/" className="font-bold flex flex-row items-center md:hidden">
                     <Image
                         src="/logo-fixed.png"
                         alt="FireScreener Logo"
@@ -295,7 +294,7 @@ export default function Header() {
                 )}
 
                 {/* Desktop Search (Center) - Replaces the old Nav Links */}
-                <div className="hidden md:flex flex-1 max-w-2xl mx-8 relative z-50">
+                <div className="hidden md:flex flex-1 max-w-2xl mx-0 relative z-50">
                     <div className="relative w-full">
                         <div className="relative">
                             <svg
@@ -459,21 +458,14 @@ export default function Header() {
 
                 {/* Right side buttons */}
                 <div className="flex items-center gap-2">
-                    {/* Chain Selector Dropdown */}
-                    <div className="relative">
+                    {/* Mobile Chain Dropdown */}
+                    <div className="relative md:hidden">
                         <button
-                            onClick={() => setIsChainDropdownOpen(!isChainDropdownOpen)}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition duration-200 ${activeChain
-                                    ? 'bg-orange-100 hover:bg-orange-200 text-orange-900 border border-orange-300'
-                                    : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-900'
-                                }`}
+                            onClick={() => setIsMobileChainDropdownOpen(!isMobileChainDropdownOpen)}
+                            className="flex items-center justify-center p-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-900 rounded-lg transition duration-200"
                             aria-label="Select Chain"
                         >
-                            {activeChain && currentChainInfo.gradient ? (
-                                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-purple-500 to-green-400 flex items-center justify-center flex-shrink-0">
-                                    <span className="text-white font-bold text-[9px]">S</span>
-                                </div>
-                            ) : activeChain && currentChainInfo.logo ? (
+                            {activeChain && currentChainInfo.logo ? (
                                 <Image
                                     src={currentChainInfo.logo}
                                     alt={activeChain}
@@ -482,196 +474,69 @@ export default function Header() {
                                     className="rounded-sm"
                                 />
                             ) : (
-                                <svg
-                                    className="h-5 w-5"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth="2"
-                                        d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
-                                    />
-                                </svg>
+                                <FiGlobe className="h-5 w-5" />
                             )}
-                            <span className="hidden sm:inline text-sm font-medium">
-                                {activeChain ? currentChainInfo.name : 'Chains'}
-                            </span>
-                            <svg
-                                className={`h-4 w-4 transition-transform duration-200 ${isChainDropdownOpen ? 'rotate-180' : ''}`}
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth="2"
-                                    d="M19 9l-7 7-7-7"
-                                />
-                            </svg>
                         </button>
 
-                        {/* Dropdown Menu */}
-                        {isChainDropdownOpen && (
+                        {isMobileChainDropdownOpen && (
                             <>
                                 <div
                                     className="fixed inset-0 z-10"
-                                    onClick={() => setIsChainDropdownOpen(false)}
+                                    onClick={() => setIsMobileChainDropdownOpen(false)}
                                 />
-                                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-neutral-200 py-2 z-20">
-                                    <Link
-                                        href="/bsc"
-                                        className={`flex items-center gap-3 px-4 py-2 transition-colors duration-200 ${activeChain === 'bsc'
-                                                ? 'bg-orange-100 text-orange-900 font-semibold'
-                                                : 'hover:bg-neutral-100'
-                                            }`}
-                                        onClick={() => setIsChainDropdownOpen(false)}
-                                    >
-                                        <Image
-                                            src="/bsc-logo.png"
-                                            alt="BSC"
-                                            width={24}
-                                            height={24}
-                                        />
-                                        <span className="text-sm font-medium">BSC</span>
-                                        {activeChain === 'bsc' && (
-                                            <svg
-                                                className="h-4 w-4 ml-auto text-orange-600"
-                                                fill="currentColor"
-                                                viewBox="0 0 20 20"
-                                            >
-                                                <path
-                                                    fillRule="evenodd"
-                                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                                    clipRule="evenodd"
-                                                />
-                                            </svg>
-                                        )}
-                                    </Link>
-                                    <Link
-                                        href="/eth"
-                                        className={`flex items-center gap-3 px-4 py-2 transition-colors duration-200 ${activeChain === 'eth'
-                                                ? 'bg-orange-100 text-orange-900 font-semibold'
-                                                : 'hover:bg-neutral-100'
-                                            }`}
-                                        onClick={() => setIsChainDropdownOpen(false)}
-                                    >
-                                        <Image
-                                            src="/eth-logo.png"
-                                            alt="ETH"
-                                            width={24}
-                                            height={24}
-                                        />
-                                        <span className="text-sm font-medium">ETH</span>
-                                        {activeChain === 'eth' && (
-                                            <svg
-                                                className="h-4 w-4 ml-auto text-orange-600"
-                                                fill="currentColor"
-                                                viewBox="0 0 20 20"
-                                            >
-                                                <path
-                                                    fillRule="evenodd"
-                                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                                    clipRule="evenodd"
-                                                />
-                                            </svg>
-                                        )}
-                                    </Link>
-                                    <Link
-                                        href="/rwa"
-                                        className={`flex items-center gap-3 px-4 py-2 transition-colors duration-200 ${activeChain === 'rwa'
-                                                ? 'bg-orange-100 text-orange-900 font-semibold'
-                                                : 'hover:bg-neutral-100'
-                                            }`}
-                                        onClick={() => setIsChainDropdownOpen(false)}
-                                    >
-                                        <Image
-                                            src="/rwa-logo.png"
-                                            alt="RWA"
-                                            width={24}
-                                            height={24}
-                                        />
-                                        <span className="text-sm font-medium">RWA Chain</span>
-                                        {activeChain === 'rwa' && (
-                                            <svg
-                                                className="h-4 w-4 ml-auto text-orange-600"
-                                                fill="currentColor"
-                                                viewBox="0 0 20 20"
-                                            >
-                                                <path
-                                                    fillRule="evenodd"
-                                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                                    clipRule="evenodd"
-                                                />
-                                            </svg>
-                                        )}
-                                    </Link>
-                                    <Link
-                                        href="/sol"
-                                        className={`flex items-center gap-3 px-4 py-2 transition-colors duration-200 ${activeChain === 'sol'
-                                                ? 'bg-orange-100 text-orange-900 font-semibold'
-                                                : 'hover:bg-neutral-100'
-                                            }`}
-                                        onClick={() => setIsChainDropdownOpen(false)}
-                                    >
-                                        {/* Solana logo — add /public/sol-logo.png to show the image */}
-                                        <Image src="/sol-logo.png" alt="Solana" width={24} height={24} />
-                                        <span className="text-sm font-medium">Solana</span>
-                                        {activeChain === 'sol' && (
-                                            <svg
-                                                className="h-4 w-4 ml-auto text-orange-600"
-                                                fill="currentColor"
-                                                viewBox="0 0 20 20"
-                                            >
-                                                <path
-                                                    fillRule="evenodd"
-                                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                                    clipRule="evenodd"
-                                                />
-                                            </svg>
-                                        )}
-                                    </Link>
-
-                                    <div className="border-t border-neutral-200 my-2"></div>
-                                    <Link
-                                        href="/"
-                                        className={`flex items-center gap-3 px-4 py-2 transition-colors duration-200 ${!activeChain
-                                                ? 'bg-orange-100 text-orange-900 font-semibold'
-                                                : 'hover:bg-neutral-100'
-                                            }`}
-                                        onClick={() => setIsChainDropdownOpen(false)}
-                                    >
-                                        <svg
-                                            className="h-5 w-5 text-neutral-600"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            viewBox="0 0 24 24"
+                                <div className="absolute right-0 mt-2 w-32 bg-white rounded-lg shadow-lg border border-neutral-200 p-2 z-20">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <Link
+                                            href="/"
+                                            className={`flex items-center justify-center p-3 rounded-lg transition-colors duration-200 ${!activeChain
+                                                    ? 'bg-orange-100'
+                                                    : 'hover:bg-neutral-100'
+                                                }`}
+                                            onClick={() => setIsMobileChainDropdownOpen(false)}
                                         >
-                                            <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth="2"
-                                                d="M4 6h16M4 12h16M4 18h16"
-                                            />
-                                        </svg>
-                                        <span className="text-sm font-medium">All Chains</span>
-                                        {!activeChain && (
-                                            <svg
-                                                className="h-4 w-4 ml-auto text-orange-600"
-                                                fill="currentColor"
-                                                viewBox="0 0 20 20"
-                                            >
-                                                <path
-                                                    fillRule="evenodd"
-                                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                                    clipRule="evenodd"
-                                                />
-                                            </svg>
-                                        )}
-                                    </Link>
+                                            <FiGlobe className="h-5 w-5 text-neutral-600" />
+                                        </Link>
+                                        <Link
+                                            href="/bsc"
+                                            className={`flex items-center justify-center p-3 rounded-lg transition-colors duration-200 ${activeChain === 'bsc'
+                                                    ? 'bg-orange-100'
+                                                    : 'hover:bg-neutral-100'
+                                                }`}
+                                            onClick={() => setIsMobileChainDropdownOpen(false)}
+                                        >
+                                            <Image src="/bsc-logo.png" alt="BSC" width={20} height={20} />
+                                        </Link>
+                                        <Link
+                                            href="/eth"
+                                            className={`flex items-center justify-center p-3 rounded-lg transition-colors duration-200 ${activeChain === 'eth'
+                                                    ? 'bg-orange-100'
+                                                    : 'hover:bg-neutral-100'
+                                                }`}
+                                            onClick={() => setIsMobileChainDropdownOpen(false)}
+                                        >
+                                            <Image src="/eth-logo.png" alt="ETH" width={20} height={20} />
+                                        </Link>
+                                        <Link
+                                            href="/rwa"
+                                            className={`flex items-center justify-center p-3 rounded-lg transition-colors duration-200 ${activeChain === 'rwa'
+                                                    ? 'bg-orange-100'
+                                                    : 'hover:bg-neutral-100'
+                                                }`}
+                                            onClick={() => setIsMobileChainDropdownOpen(false)}
+                                        >
+                                            <Image src="/rwa-logo.png" alt="RWA" width={20} height={20} />
+                                        </Link>
+                                        <Link
+                                            href="/sol"
+                                            className={`flex items-center justify-center p-3 rounded-lg transition-colors duration-200 ${activeChain === 'sol'
+                                                    ? 'bg-orange-100'
+                                                    : 'hover:bg-neutral-100'
+                                                }`}
+                                            onClick={() => setIsMobileChainDropdownOpen(false)}
+                                        >
+                                            <Image src="/sol-logo.png" alt="Solana" width={20} height={20} />
+                                        </Link>
+                                    </div>
                                 </div>
                             </>
                         )}
@@ -699,35 +564,6 @@ export default function Header() {
                         </svg>
                     </button>
 
-                    {/* Desktop Menu Dropdown */}
-                    <div className="relative hidden md:block">
-                        <button
-                            onClick={() => setIsDesktopMenuOpen(!isDesktopMenuOpen)}
-                            className="flex items-center gap-2 px-3 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-900 rounded-lg transition duration-200"
-                        >
-                            <span className="font-medium">Menu</span>
-                            <svg className={`h-4 w-4 transition-transform ${isDesktopMenuOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                            </svg>
-                        </button>
-
-                        {isDesktopMenuOpen && (
-                            <>
-                                <div className="fixed inset-0 z-10" onClick={() => setIsDesktopMenuOpen(false)} />
-                                <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-neutral-200 py-2 z-20">
-                                    <Link href="/" className="block px-4 py-2 hover:bg-neutral-100 text-neutral-900" onClick={() => setIsDesktopMenuOpen(false)}>Home</Link>
-                                    {/* <Link href="#" className="block px-4 py-2 hover:bg-neutral-100 text-neutral-900" onClick={() => setIsDesktopMenuOpen(false)}>Burns</Link> */}
-                                    <Link href="/price-predict" className="block px-4 py-2 hover:bg-neutral-100 text-neutral-900" onClick={() => setIsDesktopMenuOpen(false)}>Price Predict</Link>
-                                    <Link href="/gains" className="block px-4 py-2 hover:bg-neutral-100 text-neutral-900" onClick={() => setIsDesktopMenuOpen(false)}>Gains</Link>
-                                    <Link href="/watchlist" className="block px-4 py-2 hover:bg-neutral-100 text-neutral-900" onClick={() => setIsDesktopMenuOpen(false)}>Watchlist</Link>
-                                    <Link href="https://www.phoenixtoken.community" className="block px-4 py-2 hover:bg-neutral-100 text-neutral-900" onClick={() => setIsDesktopMenuOpen(false)}>Token</Link>
-                                    <div className="border-t border-neutral-200 my-2"></div>
-                                    {/* <Link href="/auth/login" className="block px-4 py-2 hover:bg-neutral-100 text-orange-600 font-medium" onClick={() => setIsDesktopMenuOpen(false)}>Login</Link>
-                                    <Link href="/auth/signup" className="block px-4 py-2 hover:bg-neutral-100 text-orange-600 font-medium" onClick={() => setIsDesktopMenuOpen(false)}>Signup</Link> */}
-                                </div>
-                            </>
-                        )}
-                    </div>
 
                     {/* Mobile Menu Button */}
                     <button
@@ -763,6 +599,13 @@ export default function Header() {
                     >
                         Home
                     </Link>
+                    <Link
+                        href="/trending"
+                        className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
+                        onClick={toggleMenu}
+                    >
+                        Trending
+                    </Link>
                     {/* <Link
                         href="#"
                         className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
@@ -797,7 +640,7 @@ export default function Header() {
                         className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
                         onClick={toggleMenu}
                     >
-                        Add Your Token
+                        List Token
                     </Link>
                     {/* <Link
                         href="/auth/login"

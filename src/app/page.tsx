@@ -27,8 +27,8 @@ const TokenRow = React.memo(function TokenRow({ token }: { token: Token }) {
 
 
   return (
-    <tr className="border-b border-orange-500 hover:bg-orange-600 transition-colors">
-      <td className="px-5 py-2 text-sm sticky left-0 z-10 min-w-[150px]">
+    <tr className="border-b border-orange-800 hover:bg-black/50 transition-colors">
+      <td className="px-5 py-2 text-sm sticky left-0 z-10 min-w-[150px] border-l border-orange-800 border-r border-orange-800">
         <Link href={`/${token.chain}/${token.address}`} className="flex items-center hover:opacity-80">
           <div className="relative flex-shrink-0 mr-3">
             <img
@@ -55,7 +55,7 @@ const TokenRow = React.memo(function TokenRow({ token }: { token: Token }) {
         </Link>
       </td>
 
-      <td className="px-5 py-2 text-sm min-w-[120px]">
+      <td className="px-5 py-2 text-sm min-w-[120px] border-r border-orange-800">
         <span
           className="text-white text-sm whitespace-nowrap transition-opacity duration-300"
           style={{ opacity: priceFlash ? 0.4 : 1 }}
@@ -64,7 +64,7 @@ const TokenRow = React.memo(function TokenRow({ token }: { token: Token }) {
         </span>
       </td>
 
-      <td className="px-5 py-2 text-xs min-w-[120px]">
+      <td className="px-5 py-2 text-xs min-w-[120px] border-r border-orange-800">
         {token.change24h === 'N/A' || token.change24h === undefined ? (
           <span className="text-white whitespace-nowrap">N/A</span>
         ) : (() => {
@@ -81,7 +81,7 @@ const TokenRow = React.memo(function TokenRow({ token }: { token: Token }) {
         })()}
       </td>
 
-      <td className="px-5 py-2 text-sm min-w-[120px]">
+      <td className="px-5 py-2 text-sm min-w-[120px] border-r border-orange-800">
         <span
           className="text-white whitespace-nowrap transition-opacity duration-300"
           style={{ opacity: mcFlash ? 0.4 : 1 }}
@@ -90,7 +90,7 @@ const TokenRow = React.memo(function TokenRow({ token }: { token: Token }) {
         </span>
       </td>
 
-      <td className="px-5 py-2 text-sm min-w-[120px]">
+      <td className="px-5 py-2 text-sm min-w-[120px] border-r border-orange-800">
         <span
           className="text-white whitespace-nowrap transition-opacity duration-300"
           style={{ opacity: liqFlash ? 0.4 : 1 }}
@@ -99,7 +99,7 @@ const TokenRow = React.memo(function TokenRow({ token }: { token: Token }) {
         </span>
       </td>
 
-      <td className="px-5 py-2 text-sm min-w-[120px]">
+      <td className="px-5 py-2 text-sm min-w-[120px] border-r border-orange-800">
         <span
           className="text-white whitespace-nowrap transition-opacity duration-300"
           style={{ opacity: volFlash ? 0.4 : 1 }}
@@ -237,13 +237,13 @@ export default function Home() {
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[600px]">
                     <thead>
-                      <tr className="bg-orange-500">
-                        <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left sticky left-0 bg-orange-500 z-20 min-w-[150px]">Token</th>
-                        <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px]">Price</th>
-                        <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px]">24H Change</th>
-                        <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px]">Market Cap</th>
-                        <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px]">Liquidity</th>
-                        <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px]">24H Volume</th>
+                      <tr className="bg-orange-500 border-b border-orange-800">
+                        <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left sticky left-0 bg-orange-500 z-20 min-w-[150px] border-r border-orange-800 border-l border-orange-800">Token</th>
+                        <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px] border-r border-orange-800">Price</th>
+                        <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px] border-r border-orange-800">24H Change</th>
+                        <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px] border-r border-orange-800">Market Cap</th>
+                        <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px] border-r border-orange-800">Liquidity</th>
+                        <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px] border-r border-orange-800">24H Volume</th>
                       </tr>
                     </thead>
                     <tbody>
