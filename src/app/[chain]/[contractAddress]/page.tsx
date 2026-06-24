@@ -945,7 +945,7 @@ export default function TokenPage() {
 
                     <div className="flex flex-col gap-2 bg-orange-950 border-2 border-orange-900 p-4 mt-4 rounded-xl">
                     {tokenData.description && tokenData.description !== "N/A" ? (
-                        <div className="mt-2 bg-orange-950 border border-orange-800 p-4 rounded-xl">
+                        <div className="mt-2 bg-orange-950 p-4 rounded-xl">
                           <div className="flex items-center justify-between mb-1.5">
                             <p className="text-xs text-gray-500 uppercase tracking-wider">About</p>
                             <Link href="/dev/auth" className="text-xs rounded-lg bg-orange-500 px-2 py-1 text-white font-medium">Update Token Info</Link>
