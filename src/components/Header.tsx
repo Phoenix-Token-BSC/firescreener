@@ -599,6 +599,13 @@ export default function Header() {
                     >
                         Home
                     </Link>
+                    <Link
+                        href="/trending"
+                        className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
+                        onClick={toggleMenu}
+                    >
+                        Trending
+                    </Link>
                     {/* <Link
                         href="#"
                         className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
