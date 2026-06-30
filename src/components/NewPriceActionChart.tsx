@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { createChart, ColorType, IChartApi, Time, ISeriesApi, CandlestickSeries, CrosshairMode } from 'lightweight-charts';
+import { createChart, ColorType, IChartApi, Time, ISeriesApi, AreaSeries, CrosshairMode } from 'lightweight-charts';
 
 type SupportedChain = "bsc" | "sol" | "rwa" | "eth";
 
@@ -51,12 +51,7 @@ interface CrosshairPrice {
     price: number;
 }
 
-const TIMEFRAMES = [
-    { label: "1D", days: 1 },
-    { label: "7D", days: 7 },
-    { label: "30D", days: 30 },
-    { label: "90D", days: 90 },
-] as const;
+const MAX_TIMEFRAME_DAYS = 365; // Always fetch 1 year of data
 
 function getPlatformId(chain: SupportedChain): string {
     return chain === "bsc" ? "binance-smart-chain" : "ethereum" ;
@@ -129,11 +124,17 @@ export default function PriceActionChart({
     const candlestickSeriesRef = useRef<any>(null);
     const cacheRef = useRef<Map<string, { data: CandlestickData[]; ts: number }>>(new Map());
     const coinIdCache = useRef<Map<string, string>>(new Map());
+    const dataRef = useRef<CandlestickData[] | null>(null);
+    const hourlyDataRef = useRef<CandlestickData[] | null>(null);
+    const activeDataTypeRef = useRef<'daily' | 'hourly'>('daily');
     const [data, setData] = useState<CandlestickData[] | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState<boolean>(true);
-    const [selectedTimeframe, setSelectedTimeframe] = useState<number>(1);
     const [priceTicks, setPriceTicks] = useState<PriceTick[]>([]);
+    const [chartHeight, setChartHeight] = useState<number>(360);
+    const [hourlyData, setHourlyData] = useState<CandlestickData[] | null>(null);
+    const [activeDataType, setActiveDataType] = useState<'daily' | 'hourly'>('daily');
+    const hourlyDataCacheRef = useRef<Map<string, { data: CandlestickData[]; ts: number }>>(new Map());
 
     // Get CryptoCompare API key from environment variable
     const cryptocompareApiKey = process.env.CRYPTOCOMPARE_API_KEY || "a2908b51095ddf69552f5dd2caabe3f9a12d2507f8ed32987008c936c1caff61";
@@ -141,7 +142,7 @@ export default function PriceActionChart({
 
     const coingeckoUrl = `https://api.coingecko.com/api/v3/coins/${getPlatformId(chain)}/contract/${encodeURIComponent(
         contractAddress
-    )}/market_chart?vs_currency=usd&days=${selectedTimeframe}`;
+    )}/market_chart?vs_currency=usd&days=${MAX_TIMEFRAME_DAYS}`;
 
     // Fetch data with fallback logic, retries, and abort handling
     useEffect(() => {
@@ -216,7 +217,7 @@ export default function PriceActionChart({
 
         // Fetch from internal RWA price-data route
         async function fetchFromRWA(signal: AbortSignal): Promise<CandlestickData[]> {
-            const selector = selectedTimeframe <= 1 ? 'D' : selectedTimeframe <= 7 ? 'W' : 'Y';
+            const selector = MAX_TIMEFRAME_DAYS <= 1 ? 'D' : MAX_TIMEFRAME_DAYS <= 7 ? 'W' : 'Y';
             const url = `/api/rwa/price-data/${encodeURIComponent(contractAddress)}?selector=${encodeURIComponent(selector)}`;
           //  console.log('Fetching from RWA internal API:', url);
 
@@ -304,7 +305,7 @@ export default function PriceActionChart({
                     // Map timeframe days to CoinGecko valid OHLC days: 1, 7, 14, 30, 90, 180, 365, max
                     // We have 1, 7, 30, 90 -> direct match
                     try {
-                        const ohlcData = await fetchOHLC(coinId, selectedTimeframe, signal);
+                        const ohlcData = await fetchOHLC(coinId, MAX_TIMEFRAME_DAYS, signal);
                         //console.log('Loaded real OHLC data from CoinGecko');
                         return ohlcData;
                     } catch (ohlcErr) {
@@ -375,22 +376,22 @@ export default function PriceActionChart({
             let aggregate = 1;
             let limit = 100;
 
-            if (selectedTimeframe <= 1) {
+            if (MAX_TIMEFRAME_DAYS <= 1) {
                 timeframe = 'minute';
                 aggregate = 5;
                 limit = 300; // ~25 hours
-            } else if (selectedTimeframe <= 7) {
+            } else if (MAX_TIMEFRAME_DAYS <= 7) {
                 timeframe = 'hour';
                 aggregate = 1;
                 limit = 168; // 7 days
-            } else if (selectedTimeframe <= 30) {
+            } else if (MAX_TIMEFRAME_DAYS <= 30) {
                 timeframe = 'hour';
                 aggregate = 4;
                 limit = 180; // 30 days
             } else {
                 timeframe = 'day';
                 aggregate = 1;
-                limit = selectedTimeframe;
+                limit = MAX_TIMEFRAME_DAYS;
             }
 
             const url = `https://api.geckoterminal.com/api/v2/networks/${network}/tokens/${contractAddress}/ohlcv/${timeframe}?aggregate=${aggregate}&limit=${limit}&currency=usd&token=base`;
@@ -464,18 +465,18 @@ export default function PriceActionChart({
             let timeframe = '1d';
             let limit = 100;
 
-            if (selectedTimeframe <= 1) {
+            if (MAX_TIMEFRAME_DAYS <= 1) {
                 timeframe = '5m';
                 limit = 300;
-            } else if (selectedTimeframe <= 7) {
+            } else if (MAX_TIMEFRAME_DAYS <= 7) {
                 timeframe = '1h';
                 limit = 168;
-            } else if (selectedTimeframe <= 30) {
+            } else if (MAX_TIMEFRAME_DAYS <= 30) {
                 timeframe = '4h';
                 limit = 180;
             } else {
                 timeframe = '1d';
-                limit = selectedTimeframe;
+                limit = MAX_TIMEFRAME_DAYS;
             }
 
             const url = `https://deep-index.moralis.io/api/v2.2/pairs/${pairAddress}/ohlc?chain=${chainHex}&timeframe=${timeframe}&currency=usd&limit=${limit}`;
@@ -512,8 +513,8 @@ export default function PriceActionChart({
         // Fetch from CryptoCompare - already has OHLC data
         async function fetchFromCryptoCompare(signal: AbortSignal): Promise<CandlestickData[]> {
             const symbol = getSymbolFromChain(chain);
-            const endpoint = getHistoEndpoint(selectedTimeframe);
-            const limit = getHistoLimit(selectedTimeframe);
+            const endpoint = getHistoEndpoint(MAX_TIMEFRAME_DAYS);
+            const limit = getHistoLimit(MAX_TIMEFRAME_DAYS);
 
             let url = `https://min-api.cryptocompare.com/data/v2/${endpoint}?fsym=${symbol}&tsym=USD&limit=${limit}`;
 
@@ -572,7 +573,7 @@ export default function PriceActionChart({
             try {
                 setLoading(true);
                 setError(null);
-                const key = `${chain}:${contractAddress}:${selectedTimeframe}`;
+                const key = `${chain}:${contractAddress}:${MAX_TIMEFRAME_DAYS}`;
 
                 // Serve stale cache immediately if present
                 const cached = cacheRef.current.get(key);
@@ -599,10 +600,10 @@ export default function PriceActionChart({
                             const supabaseBase = 'https://enpdzndcjxlzupmxpmms.supabase.co';
 
                             let timeframeParam = '1y';
-                            if (selectedTimeframe <= 1) timeframeParam = '24h';
-                            else if (selectedTimeframe <= 7) timeframeParam = '7d';
-                            else if (selectedTimeframe <= 30) timeframeParam = '30d';
-                            else if (selectedTimeframe <= 90) timeframeParam = '3m';
+                            if (MAX_TIMEFRAME_DAYS <= 1) timeframeParam = '24h';
+                            else if (MAX_TIMEFRAME_DAYS <= 7) timeframeParam = '7d';
+                            else if (MAX_TIMEFRAME_DAYS <= 30) timeframeParam = '30d';
+                            else if (MAX_TIMEFRAME_DAYS <= 90) timeframeParam = '3m';
 
                             const url = `${supabaseBase}/functions/v1/token-analysis-api?chain=${encodeURIComponent(chain)}&token=${encodeURIComponent(contractAddress)}&timeframe=${encodeURIComponent(timeframeParam)}`;
                            // console.log('Fetching from Supabase (direct) in NewPriceActionChart:', url);
@@ -720,7 +721,82 @@ export default function PriceActionChart({
             cancelled = true;
             abortController.abort('Chart fetch cancelled');
         };
-    }, [coingeckoUrl, contractAddress, selectedTimeframe, chain, cryptocompareApiKey]);
+    }, [coingeckoUrl, contractAddress, MAX_TIMEFRAME_DAYS, chain, cryptocompareApiKey]);
+
+    // Keep refs in sync with state
+    useEffect(() => {
+        dataRef.current = data;
+        hourlyDataRef.current = hourlyData;
+        activeDataTypeRef.current = activeDataType;
+    }, [data, hourlyData, activeDataType]);
+
+    // Fetch hourly data when needed
+    useEffect(() => {
+        if (!data || activeDataType !== 'daily') return;
+
+        async function fetchHourlyData() {
+            if (!chain || !contractAddress) return;
+
+            const cacheKey = `${chain}:${contractAddress}:hourly`;
+            const cached = hourlyDataCacheRef.current.get(cacheKey);
+
+            // Return cached if available and fresh (within 5 mins)
+            if (cached && Date.now() - cached.ts < 5 * 60 * 1000) {
+                setHourlyData(cached.data);
+                return;
+            }
+
+            try {
+                let network = '';
+                if (chain === 'bsc') network = 'bsc';
+                else if (chain === 'eth') network = 'ethereum';
+                else if (chain === 'sol') network = 'solana';
+                else return;
+
+                // Fetch hourly data from GeckoTerminal
+                const url = `https://api.geckoterminal.com/api/v2/networks/${network}/tokens/${contractAddress}/ohlcv/hour?aggregate=1&limit=24&currency=usd&token=base`;
+
+                const resp = await fetch(url);
+                if (!resp.ok) throw new Error(`GeckoTerminal hourly fetch failed: ${resp.status}`);
+
+                const json = await resp.json();
+                const ohlcvList = json?.data?.attributes?.ohlcv_list;
+
+                if (!Array.isArray(ohlcvList) || ohlcvList.length === 0) {
+                    throw new Error('No hourly data available');
+                }
+
+                const hourlyCandles: CandlestickData[] = ohlcvList.map((d: number[]) => ({
+                    time: d[0],
+                    open: d[1],
+                    high: d[2],
+                    low: d[3],
+                    close: d[4]
+                }));
+
+                hourlyDataCacheRef.current.set(cacheKey, { data: hourlyCandles, ts: Date.now() });
+                setHourlyData(hourlyCandles);
+            } catch (err) {
+                console.warn('Failed to fetch hourly data:', err);
+                setHourlyData(null);
+            }
+        }
+
+        fetchHourlyData();
+    }, [data, chain, contractAddress, activeDataType]);
+
+    // Set responsive chart height based on viewport
+    useEffect(() => {
+        const updateChartHeight = () => {
+            const isMobile = window.innerWidth < 768;
+            const height = isMobile ? 300 : 500;
+            setChartHeight(height);
+        };
+
+        updateChartHeight();
+        window.addEventListener('resize', updateChartHeight);
+        return () => window.removeEventListener('resize', updateChartHeight);
+    }, []);
 
     // Create and update chart
     useEffect(() => {
@@ -752,11 +828,22 @@ export default function PriceActionChart({
                     },
                 },
                 width: chartContainerRef.current.clientWidth,
-                height: 360,                      // slightly taller for better look
+                height: chartHeight,
                 timeScale: {
                     timeVisible: true,
-                    secondsVisible: false,
+                    secondsVisible: true,
                     borderVisible: false,
+                    tickMarkFormatter: (time: any, tickMarkType: any) => {
+                        const date = new Date(time * 1000);
+                        const hours = String(date.getUTCHours()).padStart(2, '0');
+                        const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+                        const day = String(date.getUTCDate()).padStart(2, '0');
+                        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+
+                        // Show time if within 1 day view, otherwise show date
+                        if (tickMarkType === 0) return `${hours}:${minutes}`;
+                        return `${month}/${day}`;
+                    },
                 },
                 localization: {
                     priceFormatter: formatChartPrice,
@@ -765,12 +852,11 @@ export default function PriceActionChart({
                 handleScale: true,
             });
 
-            const candlestickSeries = chart.addSeries(CandlestickSeries, {
-                upColor: '#26a69a',
-                downColor: '#ef5350',
-                borderVisible: false,
-                wickUpColor: '#26a69a',
-                wickDownColor: '#ef5350',
+            const areaSeries = chart.addSeries(AreaSeries, {
+                lineColor: '#f97316',
+                topColor: 'rgba(249, 115, 22, 0.4)',
+                bottomColor: 'rgba(249, 115, 22, 0.05)',
+                lineWidth: 2,
                 priceFormat: {
                     type: 'custom',
                     formatter: formatChartPrice,
@@ -778,14 +864,29 @@ export default function PriceActionChart({
                 },
             });
 
-            candlestickSeriesRef.current = candlestickSeries;
+            candlestickSeriesRef.current = areaSeries as any;
             chartRef.current = chart;
 
-            // Set data
-            candlestickSeries.setData(
-                data.map(d => ({ ...d, time: d.time as Time }))
-            );
-            chart.timeScale().fitContent();
+            // Use daily data converted to area series (close price only)
+            const areaData = data.map(d => ({
+                time: d.time as Time,
+                value: d.close
+            }));
+            areaSeries.setData(areaData);
+
+            // Set default zoom to show ~30 days of daily candles
+            if (data.length > 0) {
+                const lastCandle = data[data.length - 1];
+                const secondsIn30Days = 30 * 24 * 60 * 60;
+                const fromTime = ((lastCandle.time as number) - secondsIn30Days) as Time;
+                const toTime = lastCandle.time as Time;
+                chart.timeScale().setVisibleRange({
+                    from: fromTime,
+                    to: toTime,
+                });
+            } else {
+                chart.timeScale().fitContent();
+            }
 
             // ─── Custom right-side price labels ───────────────────────
             const updatePriceTicks = () => {
@@ -826,6 +927,37 @@ export default function PriceActionChart({
                 requestAnimationFrame(updatePriceTicks);
             });
 
+            // Detect zoom level and swap to hourly data if zoomed to ≤24 hours
+            const checkZoomLevel = () => {
+                const range = chart.timeScale().getVisibleRange();
+                if (!range) return;
+
+                const timeRangeSeconds = (range.to as number) - (range.from as number);
+                const oneDay = 24 * 60 * 60;
+
+                // Switch to hourly data if zoomed to ≤24 hours and hourly data is available
+                if (timeRangeSeconds <= oneDay) {
+                    if (activeDataTypeRef.current === 'daily' && hourlyDataRef.current) {
+                        setActiveDataType('hourly');
+                        candlestickSeriesRef.current?.setData(
+                            hourlyDataRef.current.map(d => ({ time: d.time as Time, value: d.close }))
+                        );
+                    }
+                } else {
+                    // Switch back to daily data if zoomed out beyond 24 hours
+                    if (activeDataTypeRef.current === 'hourly' && dataRef.current) {
+                        setActiveDataType('daily');
+                        candlestickSeriesRef.current?.setData(
+                            dataRef.current.map(d => ({ time: d.time as Time, value: d.close }))
+                        );
+                    }
+                }
+            };
+
+            chart.timeScale().subscribeVisibleTimeRangeChange(() => {
+                checkZoomLevel();
+            });
+
             // Initial update
             setTimeout(updatePriceTicks, 150);
 
@@ -849,9 +981,12 @@ export default function PriceActionChart({
                 }
             };
         } else if (candlestickSeriesRef.current) {
-            // Update data only
+            // Update data only with daily line data
             candlestickSeriesRef.current.setData(
-                data.map(d => ({ ...d, time: d.time as Time }))
+                data.map(d => ({
+                    time: d.time as Time,
+                    value: d.close
+                }))
             );
             chartRef.current.timeScale().fitContent();
             setTimeout(() => {
@@ -874,26 +1009,10 @@ export default function PriceActionChart({
                 }
             }, 150);
         }
-    }, [data, loading]);
+    }, [data, loading, chartHeight]);
 
     return (
         <div className="rounded-lg border border-neutral-700 bg-neutral-900/40 p-4">
-            {/* Timeframe buttons — moved ABOVE the chart */}
-            <div className="flex justify-start items-center gap-2 mb-4">
-                {TIMEFRAMES.map((tf) => (
-                    <button
-                        key={tf.days}
-                        onClick={() => setSelectedTimeframe(tf.days)}
-                        className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${selectedTimeframe === tf.days
-                                ? "bg-orange-600 text-white shadow-sm"
-                                : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
-                            }`}
-                    >
-                        {tf.label}
-                    </button>
-                ))}
-            </div>
-
             {/* Chart container + custom price labels */}
             <div className="relative">
                 {/* Always-visible price labels on the right */}
@@ -904,12 +1023,17 @@ export default function PriceActionChart({
                     {priceTicks.map((tick, i) => (
                         <div
                             key={i}
-                            className="text-right text-xs font-mono text-neutral-400 pr-2"
+                            className="text-right text-xs font-mono font-semibold pr-2 py-0.5 px-2 rounded"
                             style={{
-                                transform: `translateY(${tick.y}px)`,
+                                transform: `translateY(${tick.y}px) translateY(-50%)`,
                                 position: 'absolute',
                                 right: 0,
                                 width: '100%',
+                                color: '#f97316',
+                                textShadow: '0 0 8px rgba(249, 115, 22, 0.4)',
+                                backgroundColor: 'rgba(249, 115, 22, 0.05)',
+                                backdropFilter: 'blur(4px)',
+                                borderLeft: '2px solid rgba(249, 115, 22, 0.3)',
                             }}
                         >
                             {formatChartPrice(tick.price)}
@@ -920,7 +1044,8 @@ export default function PriceActionChart({
                 {/* Main chart area */}
                 <div
                     ref={chartContainerRef}
-                    className="w-full h-[360px] min-h-[320px]"
+                    className="w-full"
+                    style={{ height: `${chartHeight}px` }}
                 />
 
                 {loading && (

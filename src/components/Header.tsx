@@ -590,7 +590,7 @@ export default function Header() {
             </nav>
 
             {/* Mobile Menu */}
-            <div className={`md:hidden ${isMenuOpen ? 'block' : 'hidden'} bg-white border-t border-neutral-200 mt-2`}>
+            <div className={`md:hidden ${isMenuOpen ? 'block border-b-2 border-neutral-300' : 'hidden'} bg-white border-t border-neutral-200 mt-2`}>
                 <div className="">
                     <Link
                         href="https://firescreener.com"

@@ -415,7 +415,7 @@ export default function TokenPage() {
   return (
     <div className="min-h-screen flex flex-col">
 
-      <main className="flex-1 px-3 md:px-8 mt-8">
+      <main className="">
         {loading ? (
           <LoadingWithLogo tokenSymbol={tokenMetadata?.symbol} />
         ) : error ? (
@@ -447,14 +447,14 @@ export default function TokenPage() {
                                     
                                 </div> */}
                 <div className={activeTab === "info" ? "" : "hidden"}>
-                  <section className="px-2">
+                  <section className="">
                     {showHeaderImage && (
-                      <div className="w-full h-32 rounded-xl overflow-hidden">
+                      <div className="w-full h-32 rounded-xl overflow-hidden mx-4">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={headerImage!} alt="Token banner" className="w-full h-full object-cover" onError={() => setHeaderImageBroken(true)} />
                       </div>
                     )}
-                    <div className={`mb-4 sticky top-[60px] z-10 flex flex-col bg-white rounded-lg p-2 justify-between md:items-end w-full transition-shadow duration-200 ${isScrolled ? "shadow-lg" : ""}`}>
+                    <div className={`sticky top-0 z-10 flex flex-col bg-white justify-between md:items-end w-full transition-all duration-200 ${isScrolled ? "shadow-lg p-2 rounded-none" : "mb-4 p-2 rounded-lg"}`}>
                       <div className="flex items-center justify-between">
                         <div className="flex flex-row items-center gap-2 flex-1 min-w-0">
                           <img
@@ -491,6 +491,7 @@ export default function TokenPage() {
                       </div>
                     </div>
 
+                    <div className="px-4">
                     <TokenStatsGrid
                       chain={chain}
                       contractAddress={contractAddress}
@@ -711,9 +712,10 @@ export default function TokenPage() {
                                                 className="w-full justify-center"
                                             />
                                         </div> */}
+                    </div>
                   </section>
 
-                  <section className="mt-8 flex flex-col my-16">
+                  <section className="mt-8 flex flex-col my-16 px-4">
                     {/* <div className="flex-1">
                                             <div className="my-8 space-y-4">
                                                 <DataCard
@@ -854,7 +856,7 @@ export default function TokenPage() {
 
                 {/* Chart Tab */}
                 <div className={activeTab === "chart" ? "" : "hidden"}>
-                  <section className="px-2 pt-4 pb-20">
+                  <section className="px-4 pt-4 pb-20">
                     {chain && contractAddress && (
                       <NewPriceActionChart
                         tokenSymbol={tokenMetadata?.symbol?.toUpperCase() || ""}
@@ -869,7 +871,7 @@ export default function TokenPage() {
                 {/* Burns Tab */}
                 <div className={activeTab === "burns" ? "" : "hidden"}>
                   {showBurns && (
-                    <section className="mt-8 flex flex-col">
+                    <section className="mt-8 flex flex-col px-4">
                       <div className="flex-1">
                         {tokenMetadata && (
                           <BurnIntervals
