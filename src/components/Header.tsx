@@ -4,13 +4,14 @@ import Link from "next/link";
 import Image from "next/image";
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { FiGlobe } from "react-icons/fi";
+import { FiGlobe, FiLogOut, FiUser } from "react-icons/fi";
 import {
     TOKEN_REGISTRY,
     getTokenByAddress,
     getTokensBySymbol,
     isValidContractAddress,
 } from "@/lib/tokenRegistry";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Format price with subscript zeros for very small numbers (matches page.tsx)
 function formatPrice(price: number | string): { display: string; isExponential: boolean; zeros?: number; rest?: string } {
@@ -74,6 +75,7 @@ const MAX_SUGGESTIONS = 25;
 export default function Header() {
     const router = useRouter();
     const pathname = usePathname();
+    const { user, isAuthenticated, logout, isLoading: authLoading } = useAuth();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [isDesktopSearchFocused, setIsDesktopSearchFocused] = useState(false);
@@ -239,7 +241,7 @@ export default function Header() {
                 }
 
                 const tokens: Token[] = (data.tokens || []).map(
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                     
                     (t: any) => ({
                         symbol: t.symbol?.toLowerCase() || "",
                         fullName: t.name || t.symbol || "",
@@ -285,176 +287,8 @@ export default function Header() {
                     FIRESCREENER
                 </Link>
 
-                {/* Backdrop overlay when search is focused */}
-                {isDesktopSearchFocused && (
-                    <div
-                        className="fixed inset-0 bg-black/40 z-40"
-                        onClick={() => setIsDesktopSearchFocused(false)}
-                    />
-                )}
 
-                {/* Desktop Search (Center) - Replaces the old Nav Links */}
-                <div className="hidden md:flex flex-1 max-w-2xl mx-0 relative z-50">
-                    <div className="relative w-full">
-                        <div className="relative">
-                            <svg
-                                className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth="2"
-                                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                                />
-                            </svg>
-                            <input
-                                type="text"
-                                placeholder="Search tokens (e.g., WKC or WikiCat)..."
-                                value={search}
-                                onChange={onChange}
-                                onFocus={() => setIsDesktopSearchFocused(true)}
-                                className="w-full pl-10 pr-4 py-2 bg-neutral-100 text-neutral-900 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 transition duration-200"
-                            />
-                        </div>
-
-                        {/* Desktop Search Suggestions/Trending Dropdown */}
-                        {isDesktopSearchFocused && (
-                            <div
-                                className="absolute top-full left-0 right-0 mt-2 bg-neutral-900 border border-orange-500 rounded-lg shadow-xl p-4 max-h-[80vh] overflow-y-auto w-full"
-                            >
-                                {/* Suggestions */}
-                                {suggestions.length > 0 && (
-                                    <ul className="bg-neutral-800 border-2 border-orange-500 rounded-md max-h-40 overflow-y-auto mb-4">
-                                        {suggestions.map((suggestion, index) => (
-                                            <li
-                                                key={index}
-                                                onMouseDown={() => onSuggestionClick(suggestion)}
-                                                className="px-4 py-2 hover:bg-neutral-700 cursor-pointer flex justify-between items-center"
-                                            >
-                                                <div>
-                                                    <span className="font-medium text-white">{suggestion.fullName}</span>
-                                                    <span className="text-gray-400 text-sm ml-2">{suggestion.symbol.toUpperCase()}</span>
-                                                </div>
-                                                <span className="text-gray-400 text-xs uppercase">
-                                                    {suggestion.chain?.toUpperCase() || "UNKNOWN"}
-                                                </span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
-
-                                <div className="flex justify-between items-center mb-3">
-                                    <h3 className="text-lg font-semibold text-white">
-                                        🔥 Top Performing Tokens
-                                    </h3>
-                                    <select
-                                        value={sortMetric}
-                                        onChange={(e) => setSortMetric(e.target.value as typeof sortMetric)}
-                                        onMouseDown={(e) => e.stopPropagation()}
-                                        className="bg-neutral-800 text-white text-xs border border-orange-500 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-orange-500"
-                                    >
-                                        <option value="change24h">24h Change</option>
-                                        <option value="change6h">6h Change</option>
-                                        <option value="change3h">3h Change</option>
-                                        <option value="change1h">1h Change</option>
-                                        <option value="volume">24h Volume</option>
-                                    </select>
-                                </div>
-
-                                {isLoading ? (
-                                    <div className="flex items-center justify-center py-6">
-                                        <div className="animate-spin inline-block w-5 h-5 border-2 border-orange-500 border-t-transparent rounded-full" />
-                                        <span className="ml-2 text-gray-400 text-sm">Loading top tokens...</span>
-                                    </div>
-                                ) : trendingTokens.length > 0 ? (
-                                    <div className="rounded-md overflow-hidden border border-neutral-700 max-w-full">
-                                        <div className="w-full overflow-x-auto">
-                                            <table className="min-w-[640px] w-full text-left text-sm table-fixed">
-                                            <thead className="bg-neutral-800">
-                                                <tr>
-                                                    <th className="px-3 py-2 text-gray-400 text-xs font-medium w-[44px]">#</th>
-                                                    <th className="px-3 py-2 text-gray-400 text-xs font-medium w-[120px]">Token</th>
-                                                    <th className="px-3 py-2 text-right text-gray-400 text-xs font-medium">
-                                                        {sortMetric === 'volume' ? '24h Vol' : (
-                                                            sortMetric === 'change1h' ? '1h %' :
-                                                            sortMetric === 'change3h' ? '3h %' :
-                                                            sortMetric === 'change6h' ? '6h %' : '24h %'
-                                                        )}
-                                                    </th>
-                                                    <th className="px-3 py-2 text-right text-gray-400 text-xs font-medium">Price</th>
-                                                    <th className="px-3 py-2 text-gray-400 text-xs font-medium">Chain</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {trendingTokens.map((token, index) => {
-                                                    const changeVal = sortMetric === 'volume'
-                                                        ? token.volume24h
-                                                        : parseFloat(
-                                                            sortMetric === 'change1h' ? token.change1h :
-                                                            sortMetric === 'change3h' ? token.change3h :
-                                                            sortMetric === 'change6h' ? token.change6h :
-                                                            token.change24h
-                                                          ) || 0;
-                                                    const isPositive = changeVal > 0;
-                                                    const isVolume = sortMetric === 'volume';
-                                                    return (
-                                                        <tr
-                                                            key={token.address || index}
-                                                            onMouseDown={() => {
-                                                                if (token.chain && token.address) {
-                                                                    router.push(`/${token.chain}/${token.address}`);
-                                                                    setIsDesktopSearchFocused(false);
-                                                                    setSuggestions([]);
-                                                                }
-                                                            }}
-                                                            className="border-t border-neutral-700/50 hover:bg-neutral-800 cursor-pointer transition-colors duration-150"
-                                                        >
-                                                            <td className="px-3 py-2 text-gray-500 text-xs">{index + 1}</td>
-                                                            <td className="px-3 py-2">
-                                                                <span className="text-white font-medium text-sm truncate block">
-                                                                    {token.symbol.toUpperCase()}
-                                                                </span>
-                                                            </td>
-                                                            <td className={`px-3 py-2 text-right text-sm font-medium ${
-                                                                isVolume ? 'text-white' : isPositive ? 'text-green-400' : 'text-red-400'
-                                                            }`}>
-                                                                {isVolume
-                                                                    ? `$${changeVal.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                                                                    : `${isPositive ? '+' : ''}${changeVal.toFixed(2)}%`
-                                                                }
-                                                            </td>
-                                                            <td className="px-3 py-2 text-right text-white text-sm">
-                                                                {(() => {
-                                                                    const { display, isExponential, zeros, rest } = formatPrice(token.price);
-                                                                    if (display === 'N/A') return <span className="text-neutral-400">N/A</span>;
-                                                                    if (isExponential) return <>{display}0<sub>{zeros}</sub>{rest}</>;
-                                                                    return display;
-                                                                })()}
-                                                            </td>
-                                                            <td className="px-3 py-2">
-                                                                <span className="text-xs px-1.5 py-0.5 rounded bg-neutral-800 text-gray-400 border border-neutral-700">
-                                                                    {token.chain.toUpperCase()}
-                                                                </span>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-4 text-gray-400">
-                                        No trending tokens available
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                </div>
+              
 
                 {/* Right side buttons */}
                 <div className="flex items-center gap-2">
@@ -484,7 +318,7 @@ export default function Header() {
                                     className="fixed inset-0 z-10"
                                     onClick={() => setIsMobileChainDropdownOpen(false)}
                                 />
-                                <div className="absolute right-0 mt-2 w-32 bg-white rounded-lg shadow-lg border border-neutral-200 p-2 z-20">
+                                <div className="absolute right-0 mt-2 w-32 bg-white rounded-lg shadow-lg border border-orange-400 p-2 z-20">
                                     <div className="grid grid-cols-2 gap-2">
                                         <Link
                                             href="/"
@@ -567,7 +401,7 @@ export default function Header() {
 
                     {/* Mobile Menu Button */}
                     <button
-                        className="md:hidden flex items-center p-2 border border-neutral-300 rounded text-neutral-900"
+                        className="md:hidden flex items-center p-2 border border-orange-400 rounded text-neutral-900"
                         onClick={toggleMenu}
                         aria-label="Toggle menu"
                     >
@@ -589,8 +423,16 @@ export default function Header() {
                 </div>
             </nav>
 
+            {/* Mobile Menu Backdrop */}
+            {isMenuOpen && (
+                <div
+                    className="fixed inset-0 md:hidden z-30"
+                    onClick={() => setIsMenuOpen(false)}
+                />
+            )}
+
             {/* Mobile Menu */}
-            <div className={`md:hidden ${isMenuOpen ? 'block border-b-2 border-neutral-300' : 'hidden'} bg-white border-t border-neutral-200 mt-2`}>
+            <div className={`fixed md:hidden top-13 left-0 right-0 z-40 ${isMenuOpen ? 'block border-b-2 border-orange-340' : 'hidden'} bg-white border-t border-orange-200 max-h-[calc(100vh-64px)] overflow-y-auto`}>
                 <div className="">
                     <Link
                         href="https://firescreener.com"
@@ -642,20 +484,63 @@ export default function Header() {
                     >
                         List Token
                     </Link>
-                    {/* <Link
-                        href="/auth/login"
-                        className="text-orange-600 font-bold block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
-                        onClick={toggleMenu}
-                    >
-                        Login
-                    </Link>
-                    <Link
-                        href="/auth/signup"
-                        className="text-orange-600 font-bold block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
-                        onClick={toggleMenu}
-                    >
-                        Signup
-                    </Link> */}
+
+                    {/* Mobile Auth Section */}
+                    <div className="border-t border-orange-400 mt-4 pt-4">
+                        {!authLoading && (
+                            <>
+                                {isAuthenticated && user ? (
+                                    <>
+                                        <div className="flex items-center gap-2 px-3 py-2 mb-2 bg-orange-50 rounded-md">
+                                            <FiUser size={18} className="text-orange-500" />
+                                            <span className="text-sm font-medium text-neutral-900">{user.username}</span>
+                                        </div>
+                                        <Link
+                                            href="/dashboard"
+                                            className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
+                                            onClick={toggleMenu}
+                                        >
+                                            Dashboard
+                                        </Link>
+                                        <Link
+                                            href="/blaze-claim"
+                                            className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
+                                            onClick={toggleMenu}
+                                        >
+                                            Claim BLAZING Rewards
+                                        </Link>
+                                        <button
+                                            onClick={() => {
+                                                logout();
+                                                toggleMenu();
+                                            }}
+                                            className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-md text-base text-red-600 hover:text-red-700 hover:bg-red-50"
+                                        >
+                                            <FiLogOut size={16} />
+                                            Logout
+                                        </button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Link
+                                            href="/auth/login"
+                                            className="text-orange-600 font-bold block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
+                                            onClick={toggleMenu}
+                                        >
+                                            Login
+                                        </Link>
+                                        <Link
+                                            href="/auth/signup"
+                                            className="text-orange-600 font-bold block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
+                                            onClick={toggleMenu}
+                                        >
+                                            Sign Up
+                                        </Link>
+                                    </>
+                                )}
+                            </>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -749,7 +634,7 @@ export default function Header() {
                                     <option value="volume">24h Volume</option>
                                 </select>
                             </div>
-                            <div className="bg-neutral-800 rounded-md overflow-hidden border border-neutral-700 max-w-full">
+                            <div className="bg-neutral-800 rounded-md overflow-hidden border border-orange-400 max-w-full">
                                 {isLoading ? (
                                     <div className="flex items-center justify-center py-6">
                                         <div className="animate-spin inline-block w-5 h-5 border-2 border-orange-500 border-t-transparent rounded-full" />
@@ -797,7 +682,7 @@ export default function Header() {
                                                                     setSuggestions([]);
                                                                 }
                                                             }}
-                                                            className="border-t border-neutral-700/50 hover:bg-neutral-700 cursor-pointer transition-colors duration-150"
+                                                            className="border-t border-orange-500/50 hover:bg-neutral-700 cursor-pointer transition-colors duration-150"
                                                         >
                                                             <td className="px-3 py-2 text-gray-500 text-xs">{index + 1}</td>
                                                             <td className="px-3 py-2">
@@ -822,7 +707,7 @@ export default function Header() {
                                                                 })()}
                                                             </td>
                                                             <td className="px-3 py-2">
-                                                                <span className="text-xs px-1.5 py-0.5 rounded bg-neutral-800 text-gray-400 border border-neutral-700">
+                                                                <span className="text-xs px-1.5 py-0.5 rounded bg-neutral-800 text-gray-400 border border-orange-500">
                                                                     {token.chain.toUpperCase()}
                                                                 </span>
                                                             </td>

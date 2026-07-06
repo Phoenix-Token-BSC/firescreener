@@ -310,7 +310,7 @@ export default function TokenPage() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [shouldSkipFetch, fetchTokenData, cacheKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [shouldSkipFetch, fetchTokenData, cacheKey]);  
 
   // Refresh on tab becoming visible again
   useEffect(() => {

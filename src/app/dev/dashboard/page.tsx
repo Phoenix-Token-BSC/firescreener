@@ -339,7 +339,7 @@ export default function DevDashboard() {
     });
 
     return () => subscription.unsubscribe();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [router]);
 
   // ── Fetch all linked tokens ───────────────────────────────────────────────

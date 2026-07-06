@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Mail, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -14,20 +14,63 @@ export default function Login({ onSwitch }: { onSwitch: () => void }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Debug: Log component mount
+  useEffect(() => {
+    console.log("Login component mounted, supabase available:", !!supabase);
+    console.log("Supabase auth:", supabase?.auth);
+  }, []);
+
   async function handleLogin(e: { preventDefault: () => void }) {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    try {
+      console.log("🔐 Starting login for:", email);
 
-    if (error) {
-      setError(error.message);
+      // Add timeout to prevent infinite hang
+      const loginPromise = supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Login timeout - took too long")), 10000)
+      );
+
+      const { data, error } = await Promise.race([
+        loginPromise,
+        timeoutPromise
+      ]) as any;
+
+      console.log("✅ Login response received:", { hasData: !!data, hasError: !!error });
+
+      if (error) {
+        console.error("❌ Auth error:", error.message);
+        setError(error.message);
+        setLoading(false);
+        return;
+      }
+
+      if (!data?.session) {
+        console.error("❌ No session in response");
+        setError("No session returned from login");
+        setLoading(false);
+        return;
+      }
+
+      console.log("✅ Session created, waiting for cookies to persist...");
+      // Wait a moment for session to be saved to cookies
+      // Then use window.location for full page reload
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log("✅ Redirecting to dashboard");
+      window.location.href = "/dev/dashboard";
+    } catch (err) {
+      console.error("❌ Login error:", err);
+      const message = err instanceof Error ? err.message : "An error occurred";
+      setError(message);
       setLoading(false);
-      return;
     }
-
-    router.push("/dev/dashboard");
   }
 
   return (
