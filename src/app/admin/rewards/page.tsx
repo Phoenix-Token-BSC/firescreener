@@ -53,10 +53,19 @@ export default function AdminRewardsPage() {
   const [loadingClaims, setLoadingClaims] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string;
+    description: string;
+    type: 'instant' | 'fcfs' | 'ticket';
+    cost: number;
+    stock: number;
+    icon: string;
+    color: string;
+    badge: string;
+  }>({
     name: '',
     description: '',
-    type: 'instant' as const,
+    type: 'instant',
     cost: 100,
     stock: 10,
     icon: '🎁',
