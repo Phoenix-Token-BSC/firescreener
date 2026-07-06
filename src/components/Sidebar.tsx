@@ -358,6 +358,17 @@ export default function Sidebar() {
                 <FiZap className="h-4 w-4" />
                 <span>Blaze Rewards</span>
               </Link>
+              <Link
+                href="/rewards"
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${
+                  isActive('/rewards')
+                    ? 'bg-orange-500/20 text-orange-400 font-medium'
+                    : 'text-gray-300 hover:bg-orange-500/10'
+                }`}
+              >
+                <FiBookmark className="h-4 w-4" />
+                <span>Rewards Store</span>
+              </Link>
               <button
                 onClick={logout}
                 className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm text-red-400 hover:bg-red-500/10"

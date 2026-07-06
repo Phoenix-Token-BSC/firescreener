@@ -4,9 +4,17 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useAdmin } from '@/contexts/AdminContext';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit2, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Edit2, AlertCircle, Copy, Check } from 'lucide-react';
 import { adminFetch } from '@/lib/adminApi';
 import Link from 'next/link';
+
+interface RewardClaim {
+  id: string;
+  user_id: string;
+  wallet_address: string;
+  cost_paid: number;
+  claimed_at: string;
+}
 
 interface Reward {
   id: string;
@@ -38,6 +46,11 @@ export default function AdminRewardsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [claimsModalOpen, setClaimsModalOpen] = useState(false);
+  const [selectedReward, setSelectedReward] = useState<Reward | null>(null);
+  const [claims, setClaims] = useState<RewardClaim[]>([]);
+  const [loadingClaims, setLoadingClaims] = useState(false);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -69,6 +82,34 @@ export default function AdminRewardsPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchClaims = async (rewardId: string) => {
+    try {
+      setLoadingClaims(true);
+      const response = await adminFetch(`/api/admin/rewards/${rewardId}/claims`);
+
+      if (!response.ok) throw new Error('Failed to fetch claims');
+
+      const data = await response.json();
+      setClaims(data.claims || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error fetching claims');
+    } finally {
+      setLoadingClaims(false);
+    }
+  };
+
+  const handleViewClaims = (reward: Reward) => {
+    setSelectedReward(reward);
+    setClaimsModalOpen(true);
+    fetchClaims(reward.id);
+  };
+
+  const copyToClipboard = (text: string, index: number) => {
+    navigator.clipboard.writeText(text);
+    setCopiedIndex(index);
+    setTimeout(() => setCopiedIndex(null), 2000);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -340,6 +381,13 @@ export default function AdminRewardsPage() {
 
                   <div className="flex gap-2">
                     <button
+                      onClick={() => handleViewClaims(reward)}
+                      className="p-2 bg-green-500/20 hover:bg-green-500/30 text-green-400 rounded-lg transition-colors"
+                      title="View claims and wallet addresses"
+                    >
+                      <AlertCircle size={18} />
+                    </button>
+                    <button
                       onClick={() => handleEdit(reward)}
                       className="p-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg transition-colors"
                     >
@@ -359,6 +407,82 @@ export default function AdminRewardsPage() {
           </div>
         )}
       </div>
+
+      {/* Claims Modal */}
+      {claimsModalOpen && selectedReward && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-neutral-800 border border-neutral-700 rounded-lg max-w-2xl w-full max-h-[80vh] flex flex-col">
+            <div className="p-6 border-b border-neutral-700">
+              <h2 className="text-xl font-bold text-white">{selectedReward.name} - Claims</h2>
+              <p className="text-gray-400 text-sm mt-1">{selectedReward.description}</p>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              {loadingClaims ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin inline-block w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full"></div>
+                </div>
+              ) : claims.length === 0 ? (
+                <p className="text-gray-400 text-center py-8">No claims yet for this reward</p>
+              ) : (
+                <div className="space-y-4">
+                  {claims.map((claim, index) => (
+                    <div
+                      key={claim.id}
+                      className="bg-neutral-700/50 border border-neutral-600 rounded-lg p-4"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <p className="text-gray-300 text-sm mb-2">
+                            <span className="font-semibold text-gray-400">User ID:</span> {claim.user_id}
+                          </p>
+                          <p className="text-gray-300 text-sm mb-2">
+                            <span className="font-semibold text-gray-400">Wallet:</span>{' '}
+                            <code className="bg-neutral-600 px-2 py-1 rounded text-xs">
+                              {claim.wallet_address || '(not provided)'}
+                            </code>
+                          </p>
+                          <p className="text-gray-300 text-sm">
+                            <span className="font-semibold text-gray-400">Cost:</span> {claim.cost_paid} points
+                          </p>
+                          <p className="text-gray-400 text-xs mt-2">
+                            {new Date(claim.claimed_at).toLocaleString()}
+                          </p>
+                        </div>
+                        {claim.wallet_address && (
+                          <button
+                            onClick={() => copyToClipboard(claim.wallet_address, index)}
+                            className="p-2 bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 rounded-lg transition-colors flex-shrink-0"
+                          >
+                            {copiedIndex === index ? (
+                              <Check size={18} />
+                            ) : (
+                              <Copy size={18} />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-neutral-700">
+              <button
+                onClick={() => {
+                  setClaimsModalOpen(false);
+                  setSelectedReward(null);
+                  setClaims([]);
+                }}
+                className="w-full px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-semibold transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

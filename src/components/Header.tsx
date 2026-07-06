@@ -509,6 +509,13 @@ export default function Header() {
                                         >
                                             Claim BLAZING Rewards
                                         </Link>
+                                        <Link
+                                            href="/rewards"
+                                            className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
+                                            onClick={toggleMenu}
+                                        >
+                                            Rewards Store
+                                        </Link>
                                         <button
                                             onClick={() => {
                                                 logout();

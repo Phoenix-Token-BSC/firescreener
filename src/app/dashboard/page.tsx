@@ -5,6 +5,7 @@ import { useBlazeClaim } from '@/hooks/useBlazeClaim';
 import { useState } from 'react';
 import { Settings, LogOut, User, Lock, Bell, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
+import RewardsClaimsWidget from '@/components/RewardsClaimsWidget';
 
 export default function DashboardPage() {
   const { user, logout, isAuthenticated } = useAuth();
@@ -96,7 +97,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Main Content */}
-          <div className="lg:col-span-3">
+          <div className="">
             {activeTab === 'overview' ? (
               <div className="space-y-6">
                 {/* Total Blaze Points Card */}
@@ -162,18 +163,20 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Rewards Component */}
+                <RewardsClaimsWidget />
               </div>
             ) : (
               /* Settings Tab */
               <div className="space-y-6">
-                <div className="bg-neutral-800 rounded-lg border border-neutral-700 p-8">
+                <div className="bg-orange-500/10 rounded-lg border border-orange-500 p-8">
                   <h3 className="text-2xl font-bold text-white mb-6">Account Settings</h3>
 
                   <div className="space-y-6">
                     {/* Profile Section */}
                     <div className="pb-6 border-b border-neutral-700">
                       <div className="flex items-start gap-4">
-                        <User size={24} className="text-orange-400 mt-1" />
                         <div className="flex-1">
                           <h4 className="text-lg font-semibold text-white mb-2">Profile Information</h4>
                           <div className="space-y-3">
@@ -185,22 +188,19 @@ export default function DashboardPage() {
                               <p className="text-gray-400 text-sm">Email</p>
                               <p className="text-white font-medium">{user.email}</p>
                             </div>
-                            <div>
-                              <p className="text-gray-400 text-sm">Member Since</p>
-                              <p className="text-white font-medium">{user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}</p>
-                            </div>
+                        
                           </div>
                         </div>
-                        <button className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors text-sm">
+                
+                      </div>
+                      <button className="mt-4 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors text-sm">
                           Edit
                         </button>
-                      </div>
                     </div>
 
                     {/* Security Section */}
-                    <div className="pb-6 border-b border-neutral-700">
+                    <div className="">
                       <div className="flex items-start gap-4">
-                        <Lock size={24} className="text-blue-400 mt-1" />
                         <div className="flex-1">
                           <h4 className="text-lg font-semibold text-white mb-2">Security</h4>
                           <p className="text-gray-400 text-sm mb-4">Manage your password and security settings</p>
@@ -211,41 +211,6 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    {/* Notifications Section */}
-                    <div>
-                      <div className="flex items-start gap-4">
-                        <Bell size={24} className="text-purple-400 mt-1" />
-                        <div className="flex-1">
-                          <h4 className="text-lg font-semibold text-white mb-2">Notifications</h4>
-                          <p className="text-gray-400 text-sm mb-4">Control how you receive updates</p>
-                          <div className="space-y-3">
-                            <label className="flex items-center gap-3 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                defaultChecked
-                                className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                              />
-                              <span className="text-gray-300 text-sm">Email notifications for rewards</span>
-                            </label>
-                            <label className="flex items-center gap-3 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                defaultChecked
-                                className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                              />
-                              <span className="text-gray-300 text-sm">Daily reward reminder</span>
-                            </label>
-                            <label className="flex items-center gap-3 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                              />
-                              <span className="text-gray-300 text-sm">Tier upgrade notifications</span>
-                            </label>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
                   </div>
                 </div>
 

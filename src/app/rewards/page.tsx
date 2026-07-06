@@ -2,8 +2,8 @@
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useBlazeClaim } from '@/hooks/useBlazeClaim';
-import { useState } from 'react';
-import { Zap, Gift, Flame, Lock, ChevronDown } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Zap, Gift, Flame, Lock } from 'lucide-react';
 import Link from 'next/link';
 
 interface Reward {
@@ -19,69 +19,6 @@ interface Reward {
   badge?: string;
 }
 
-const DEMO_REWARDS: Reward[] = [
-  {
-    id: 'early-bird-eth',
-    name: 'Early Bird ETH Bundle',
-    description: 'Limited FCFS - Get 0.01 ETH before it runs out',
-    type: 'fcfs',
-    cost: 500,
-    stock: 10,
-    claimed: 7,
-    icon: '💎',
-    color: 'blue',
-    badge: 'LIMITED',
-  },
-  {
-    id: 'mystery-token-10x',
-    name: 'Mystery Token 10x Entry',
-    description: 'Get early access to a mystery token with 10x potential',
-    type: 'fcfs',
-    cost: 250,
-    stock: 25,
-    claimed: 18,
-    icon: '🎰',
-    color: 'purple',
-    badge: 'HOT',
-  },
-  {
-    id: 'ticket-binance-listing',
-    name: 'Binance Listing Lottery Ticket',
-    description: 'Win a chance at exclusive Binance listing presale',
-    type: 'ticket',
-    cost: 150,
-    icon: '🎟️',
-    color: 'orange',
-  },
-  {
-    id: 'ticket-solana-nft',
-    name: 'Solana NFT Collection Pass',
-    description: 'Enter raffle for exclusive Solana NFT collection',
-    type: 'ticket',
-    cost: 200,
-    icon: '🎨',
-    color: 'green',
-  },
-  {
-    id: 'instant-bsc-token',
-    name: 'Instant BSC Token Airdrop',
-    description: 'Instantly receive 1000 BSC chain tokens',
-    type: 'instant',
-    cost: 100,
-    icon: '⚡',
-    color: 'orange',
-  },
-  {
-    id: 'premium-analytics',
-    name: 'Premium Analytics (30 Days)',
-    description: 'Unlock advanced price prediction and analytics tools',
-    type: 'instant',
-    cost: 300,
-    icon: '📊',
-    color: 'blue',
-  },
-];
-
 const REWARD_TYPE_LABELS = {
   fcfs: 'First Come, First Served',
   ticket: 'Raffle/Lottery Ticket',
@@ -95,10 +32,10 @@ const REWARD_COLORS = {
   green: 'from-green-600 to-green-500',
 };
 
-function RewardCard({ reward, userBalance, onRedeem }: { reward: Reward; userBalance: number; onRedeem: (reward: Reward) => void }) {
+function RewardCard({ reward, userBalance, isRedeeming, hasClaimed, onRedeem }: { reward: Reward; userBalance: number; isRedeeming: boolean; hasClaimed: boolean; onRedeem: (reward: Reward) => void }) {
   const canAfford = userBalance >= reward.cost;
   const isOutOfStock = reward.type === 'fcfs' && reward.stock && reward.claimed && reward.claimed >= reward.stock;
-  const isClaimable = canAfford && !isOutOfStock;
+  const isClaimable = !hasClaimed && canAfford && !isOutOfStock && !isRedeeming;
 
   const stockPercentage = reward.stock && reward.claimed ? (reward.claimed / reward.stock) * 100 : 0;
 
@@ -163,10 +100,21 @@ function RewardCard({ reward, userBalance, onRedeem }: { reward: Reward; userBal
             className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all transform ${
               isClaimable
                 ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:shadow-lg hover:shadow-orange-500/50 active:scale-95 cursor-pointer'
+                : hasClaimed
+                ? 'bg-green-500/20 border border-green-500/50 text-green-400 cursor-default'
                 : 'bg-neutral-700 text-gray-500 cursor-not-allowed'
             }`}
           >
-            {isOutOfStock ? (
+            {isRedeeming ? (
+              <>
+                <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></span>
+                Redeeming...
+              </>
+            ) : hasClaimed ? (
+              <>
+                ✓ Claimed
+              </>
+            ) : isOutOfStock ? (
               <>
                 <Lock size={14} className="inline mr-1" />
                 Sold Out
@@ -194,18 +142,133 @@ function RewardCard({ reward, userBalance, onRedeem }: { reward: Reward; userBal
 
 export default function RewardsPage() {
   const { user, isAuthenticated } = useAuth();
-  const { loading, balance } = useBlazeClaim(user?.id);
+  const { loading, balance, loading: balanceLoading } = useBlazeClaim(user?.id);
+  const [rewards, setRewards] = useState<Reward[]>([]);
+  const [loadingRewards, setLoadingRewards] = useState(true);
+  const [rewardsError, setRewardsError] = useState<string | null>(null);
+  const [userClaimedIds, setUserClaimedIds] = useState<string[]>([]);
   const [redeemSuccess, setRedeemSuccess] = useState(false);
-  const [expandedCategory, setExpandedCategory] = useState<string | null>('fcfs');
+  const [redeemError, setRedeemError] = useState<string | null>(null);
+  const [redeemingId, setRedeemingId] = useState<string | null>(null);
+  const [walletModalOpen, setWalletModalOpen] = useState(false);
+  const [walletAddress, setWalletAddress] = useState('');
+  const [pendingReward, setPendingReward] = useState<Reward | null>(null);
 
-  const fcfsRewards = DEMO_REWARDS.filter(r => r.type === 'fcfs');
-  const ticketRewards = DEMO_REWARDS.filter(r => r.type === 'ticket');
-  const instantRewards = DEMO_REWARDS.filter(r => r.type === 'instant');
+  // Fetch rewards on mount
+  useEffect(() => {
+    const fetchRewards = async () => {
+      try {
+        setLoadingRewards(true);
+        setRewardsError(null);
+        const response = await fetch('/api/rewards');
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch rewards');
+        }
+
+        const data = await response.json();
+        setRewards(data.rewards || []);
+      } catch (err) {
+        console.error('Fetch rewards error:', err);
+        setRewardsError(err instanceof Error ? err.message : 'Failed to fetch rewards');
+      } finally {
+        setLoadingRewards(false);
+      }
+    };
+
+    fetchRewards();
+  }, []);
+
+  // Fetch user's claimed rewards
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const fetchUserClaims = async () => {
+      try {
+        const response = await fetch('/api/rewards/user-claims', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.id }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setUserClaimedIds(data.claimedRewardIds || []);
+        }
+      } catch (err) {
+        console.error('Fetch user claims error:', err);
+      }
+    };
+
+    fetchUserClaims();
+  }, [user?.id]);
+
 
   const handleRedeem = (reward: Reward) => {
-    if (balance.totalBlaze >= reward.cost) {
+    if (!user) return;
+    setPendingReward(reward);
+    setWalletModalOpen(true);
+    setWalletAddress('');
+    setRedeemError(null);
+  };
+
+  const handleWalletSubmit = async () => {
+    if (!user || !pendingReward || !walletAddress.trim()) {
+      setRedeemError('Please enter a wallet address');
+      return;
+    }
+
+    setRedeemingId(pendingReward.id);
+
+    try {
+      const response = await fetch('/api/rewards/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          rewardId: pendingReward.id,
+          walletAddress: walletAddress.trim(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setRedeemError(data.error || 'Failed to redeem reward');
+        return;
+      }
+
       setRedeemSuccess(true);
+      setWalletModalOpen(false);
+      setWalletAddress('');
+      setPendingReward(null);
       setTimeout(() => setRedeemSuccess(false), 5000);
+
+      // Refetch rewards to update claimed counts and user claims
+      const rewardsResponse = await fetch('/api/rewards');
+      if (rewardsResponse.ok) {
+        const rewardsData = await rewardsResponse.json();
+        setRewards(rewardsData.rewards || []);
+      }
+
+      // Refresh user's claimed rewards
+      if (user?.id) {
+        const claimsResponse = await fetch('/api/rewards/user-claims', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.id }),
+        });
+
+        if (claimsResponse.ok) {
+          const claimsData = await claimsResponse.json();
+          setUserClaimedIds(claimsData.claimedRewardIds || []);
+        }
+      }
+    } catch (err) {
+      console.error('Redeem error:', err);
+      setRedeemError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setRedeemingId(null);
     }
   };
 
@@ -226,7 +289,7 @@ export default function RewardsPage() {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-4xl font-bold text-white mb-2">Rewards Store 🎁</h1>
+              <h1 className="text-4xl font-bold text-white mb-2">Rewards Store</h1>
               <p className="text-gray-400">Spend your BLAZE points on exclusive rewards</p>
             </div>
             <Link
@@ -247,19 +310,12 @@ export default function RewardsPage() {
           <div className="bg-gradient-to-r from-orange-600/20 to-orange-500/10 border border-orange-500/30 rounded-2xl p-6 mb-8">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="text-4xl">💰</div>
                 <div>
                   <p className="text-gray-400 text-sm font-medium mb-1">Your BLAZE Points</p>
                   <p className="text-4xl font-bold text-orange-400">{balance.totalBlaze.toLocaleString()}</p>
                 </div>
               </div>
-              <div className="text-right">
-                <p className="text-gray-400 text-sm mb-2">Total Available</p>
-                <div className="flex items-center gap-2">
-                  <Zap size={20} className="text-orange-400" />
-                  <span className="text-2xl font-bold text-white">{balance.totalBlaze}</span>
-                </div>
-              </div>
+            
             </div>
           </div>
         )}
@@ -275,113 +331,47 @@ export default function RewardsPage() {
           </div>
         )}
 
-        {/* Rewards by Category */}
-        <div className="space-y-8">
-          {/* FCFS Rewards */}
-          <div>
-            <button
-              onClick={() => setExpandedCategory(expandedCategory === 'fcfs' ? null : 'fcfs')}
-              className="w-full flex items-center justify-between mb-4 group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="text-2xl">💎</div>
-                <div className="text-left">
-                  <h2 className="text-2xl font-bold text-white group-hover:text-orange-400 transition-colors">
-                    Limited FCFS Rewards
-                  </h2>
-                  <p className="text-gray-400 text-sm">Grab these before they sell out!</p>
-                </div>
-              </div>
-              <ChevronDown
-                size={24}
-                className={`text-gray-400 transition-transform ${expandedCategory === 'fcfs' ? 'rotate-180' : ''}`}
-              />
-            </button>
-
-            {expandedCategory === 'fcfs' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {fcfsRewards.map((reward) => (
-                  <RewardCard
-                    key={reward.id}
-                    reward={reward}
-                    userBalance={balance.totalBlaze}
-                    onRedeem={handleRedeem}
-                  />
-                ))}
-              </div>
-            )}
+        {/* Error notification */}
+        {redeemError && (
+          <div className="mb-6 bg-red-500/20 border border-red-500/50 rounded-lg p-4 flex items-center gap-3">
+            <div className="text-2xl">❌</div>
+            <div>
+              <p className="text-red-400 font-semibold">Redemption Failed</p>
+              <p className="text-red-300 text-sm">{redeemError}</p>
+            </div>
           </div>
+        )}
 
-          {/* Ticket Rewards */}
-          <div>
-            <button
-              onClick={() => setExpandedCategory(expandedCategory === 'ticket' ? null : 'ticket')}
-              className="w-full flex items-center justify-between mb-4 group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="text-2xl">🎟️</div>
-                <div className="text-left">
-                  <h2 className="text-2xl font-bold text-white group-hover:text-orange-400 transition-colors">
-                    Raffle & Lottery Tickets
-                  </h2>
-                  <p className="text-gray-400 text-sm">Enter for a chance to win big prizes</p>
-                </div>
-              </div>
-              <ChevronDown
-                size={24}
-                className={`text-gray-400 transition-transform ${expandedCategory === 'ticket' ? 'rotate-180' : ''}`}
-              />
-            </button>
-
-            {expandedCategory === 'ticket' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {ticketRewards.map((reward) => (
-                  <RewardCard
-                    key={reward.id}
-                    reward={reward}
-                    userBalance={balance.totalBlaze}
-                    onRedeem={handleRedeem}
-                  />
-                ))}
-              </div>
-            )}
+        {/* All Rewards */}
+        {loadingRewards ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="animate-spin inline-block w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full mb-4"></div>
+              <p className="text-gray-400">Loading rewards...</p>
+            </div>
           </div>
-
-          {/* Instant Rewards */}
-          <div>
-            <button
-              onClick={() => setExpandedCategory(expandedCategory === 'instant' ? null : 'instant')}
-              className="w-full flex items-center justify-between mb-4 group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="text-2xl">⚡</div>
-                <div className="text-left">
-                  <h2 className="text-2xl font-bold text-white group-hover:text-orange-400 transition-colors">
-                    Instant Rewards
-                  </h2>
-                  <p className="text-gray-400 text-sm">Get instant benefits applied to your account</p>
-                </div>
-              </div>
-              <ChevronDown
-                size={24}
-                className={`text-gray-400 transition-transform ${expandedCategory === 'instant' ? 'rotate-180' : ''}`}
-              />
-            </button>
-
-            {expandedCategory === 'instant' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {instantRewards.map((reward) => (
-                  <RewardCard
-                    key={reward.id}
-                    reward={reward}
-                    userBalance={balance.totalBlaze}
-                    onRedeem={handleRedeem}
-                  />
-                ))}
-              </div>
-            )}
+        ) : rewardsError ? (
+          <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 mb-8">
+            <p className="text-red-400">{rewardsError}</p>
           </div>
-        </div>
+        ) : rewards.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-gray-400 mb-4">No rewards available yet.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {rewards.map((reward) => (
+              <RewardCard
+                key={reward.id}
+                reward={reward}
+                userBalance={balance.totalBlaze}
+                isRedeeming={redeemingId === reward.id}
+                hasClaimed={userClaimedIds.includes(reward.id)}
+                onRedeem={handleRedeem}
+              />
+            ))}
+          </div>
+        )}
 
         {/* Info Section */}
         <div className="mt-12 bg-neutral-800/50 border border-neutral-700/50 rounded-2xl p-8">
@@ -434,6 +424,61 @@ export default function RewardsPage() {
           </div>
         </div>
       </div>
+
+      {/* Wallet Modal */}
+      {walletModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-neutral-800 border border-neutral-700 rounded-lg p-6 max-w-md w-full">
+            <h2 className="text-xl font-bold text-white mb-4">Enter Wallet Address</h2>
+            <p className="text-gray-400 text-sm mb-4">
+              Please provide your wallet address where we'll send your reward:
+            </p>
+            {pendingReward && (
+              <div className="bg-neutral-700/50 rounded-lg p-3 mb-4">
+                <p className="text-gray-300 text-sm">{pendingReward.name}</p>
+              </div>
+            )}
+            <input
+              type="text"
+              value={walletAddress}
+              onChange={(e) => setWalletAddress(e.target.value)}
+              placeholder="e.g., 0x742d35Cc6634C0532925a3b844Bc9e7595f42fda"
+              className="w-full px-4 py-2 bg-neutral-700 border border-neutral-600 text-white rounded-lg focus:outline-none focus:border-orange-500 mb-4"
+            />
+            {redeemError && (
+              <div className="text-red-400 text-sm mb-4">{redeemError}</div>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={handleWalletSubmit}
+                disabled={!walletAddress.trim() || redeemingId === pendingReward?.id}
+                className="flex-1 px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg font-semibold transition-colors hover:shadow-lg hover:shadow-orange-500/50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {redeemingId === pendingReward?.id ? (
+                  <>
+                    <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    Redeeming...
+                  </>
+                ) : (
+                  'Confirm & Redeem'
+                )}
+              </button>
+              <button
+                onClick={() => {
+                  setWalletModalOpen(false);
+                  setWalletAddress('');
+                  setPendingReward(null);
+                  setRedeemError(null);
+                }}
+                disabled={redeemingId === pendingReward?.id}
+                className="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
