@@ -102,13 +102,15 @@ export async function GET(request: NextRequest) {
       typeCounts[type as keyof typeof typeCounts]++;
     });
 
+    const redemptionCount = totalRedemptions ?? 0;
+
     return NextResponse.json({
       summary: {
         totalRewards,
-        totalRedemptions,
+        totalRedemptions: redemptionCount,
         totalPointsSpent,
         averagePointsPerRedemption:
-          totalRedemptions > 0 ? Math.round(totalPointsSpent / totalRedemptions) : 0,
+          redemptionCount > 0 ? Math.round(totalPointsSpent / redemptionCount) : 0,
       },
       topRewards: topRewardsList,
       redemptionsByType: typeCounts,
