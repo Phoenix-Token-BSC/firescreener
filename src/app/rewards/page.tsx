@@ -5,6 +5,7 @@ import { useBlazeClaim } from '@/hooks/useBlazeClaim';
 import { useState, useEffect } from 'react';
 import { Zap, Gift, Flame, Lock } from 'lucide-react';
 import Link from 'next/link';
+import LoadingWithLogo from '@/components/LoadingWithLogo';
 
 interface Reward {
   id: string;
@@ -344,12 +345,7 @@ export default function RewardsPage() {
 
         {/* All Rewards */}
         {loadingRewards ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <div className="animate-spin inline-block w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full mb-4"></div>
-              <p className="text-gray-400">Loading rewards...</p>
-            </div>
-          </div>
+          <LoadingWithLogo />
         ) : rewardsError ? (
           <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 mb-8">
             <p className="text-red-400">{rewardsError}</p>
@@ -373,56 +369,7 @@ export default function RewardsPage() {
           </div>
         )}
 
-        {/* Info Section */}
-        <div className="mt-12 bg-neutral-800/50 border border-neutral-700/50 rounded-2xl p-8">
-          <div className="grid md:grid-cols-2 gap-8">
-            <div>
-              <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                <Gift size={24} className="text-orange-400" />
-                How It Works
-              </h3>
-              <ul className="space-y-3">
-                <li className="flex gap-3">
-                  <span className="text-orange-400 font-bold min-w-fit">1.</span>
-                  <span className="text-gray-300">Claim BLAZE points daily from the rewards page</span>
-                </li>
-                <li className="flex gap-3">
-                  <span className="text-orange-400 font-bold min-w-fit">2.</span>
-                  <span className="text-gray-300">Browse exclusive rewards in this store</span>
-                </li>
-                <li className="flex gap-3">
-                  <span className="text-orange-400 font-bold min-w-fit">3.</span>
-                  <span className="text-gray-300">Redeem your points for tokens, tickets, or premiums</span>
-                </li>
-                <li className="flex gap-3">
-                  <span className="text-orange-400 font-bold min-w-fit">4.</span>
-                  <span className="text-gray-300">Enjoy your rewards instantly or participate in raffles</span>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                <Flame size={24} className="text-orange-400" />
-                Reward Types
-              </h3>
-              <ul className="space-y-3">
-                <li className="text-gray-300">
-                  <span className="font-semibold text-orange-400">FCFS:</span> Limited quantity rewards, first come first served
-                </li>
-                <li className="text-gray-300">
-                  <span className="font-semibold text-orange-400">Tickets:</span> Lottery/raffle tickets for big prize pools
-                </li>
-                <li className="text-gray-300">
-                  <span className="font-semibold text-orange-400">Instant:</span> Immediately applied to your account
-                </li>
-                <li className="text-gray-300">
-                  <span className="font-semibold text-orange-400">Upcoming:</span> Custom admin-managed reward categories
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
+        
       </div>
 
       {/* Wallet Modal */}

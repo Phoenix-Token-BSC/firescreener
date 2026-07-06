@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Trash2, Edit2, AlertCircle, Copy, Check } from 'lucide-react';
 import { adminFetch } from '@/lib/adminApi';
 import Link from 'next/link';
+import LoadingWithLogo from '@/components/LoadingWithLogo';
 
 interface RewardClaim {
   id: string;
@@ -340,12 +341,7 @@ export default function AdminRewardsPage() {
 
         {/* Rewards List */}
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <div className="animate-spin inline-block w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full mb-4"></div>
-              <p className="text-gray-400">Loading rewards...</p>
-            </div>
-          </div>
+          <LoadingWithLogo />
         ) : (
           <div className="space-y-4">
             {rewards.length === 0 ? (
@@ -419,8 +415,14 @@ export default function AdminRewardsPage() {
 
             <div className="flex-1 overflow-y-auto p-6">
               {loadingClaims ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin inline-block w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full"></div>
+                <div className="space-y-4 animate-pulse">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="bg-neutral-700/50 border border-neutral-600 rounded-lg p-4 space-y-3">
+                      <div className="h-4 bg-neutral-600 rounded w-1/3"></div>
+                      <div className="h-4 bg-neutral-600 rounded w-2/3"></div>
+                      <div className="h-4 bg-neutral-600 rounded w-1/2"></div>
+                    </div>
+                  ))}
                 </div>
               ) : claims.length === 0 ? (
                 <p className="text-gray-400 text-center py-8">No claims yet for this reward</p>

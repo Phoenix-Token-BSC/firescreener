@@ -5,6 +5,7 @@ import { useBlazeClaim } from '@/hooks/useBlazeClaim';
 import { useState } from 'react';
 import { Clock, Zap, AlertCircle, Flame } from 'lucide-react';
 import Link from 'next/link';
+import LoadingWithLogo from '@/components/LoadingWithLogo';
 
 export default function BlazeClaimPage() {
   const { user, isAuthenticated } = useAuth();
@@ -79,12 +80,7 @@ export default function BlazeClaimPage() {
 
         {/* Main Claim Section */}
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <div className="animate-spin inline-block w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full mb-4"></div>
-              <p className="text-gray-400">Loading your rewards...</p>
-            </div>
-          </div>
+          <LoadingWithLogo />
         ) : (
           <>
             <div className="mb-8">

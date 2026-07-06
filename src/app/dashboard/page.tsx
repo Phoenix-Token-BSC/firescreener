@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { Settings, LogOut, User, Lock, Bell, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 import RewardsClaimsWidget from '@/components/RewardsClaimsWidget';
+import LoadingWithLogo from '@/components/LoadingWithLogo';
 
 export default function DashboardPage() {
   const { user, logout, isAuthenticated } = useAuth();

@@ -94,13 +94,19 @@ export default function RewardsClaimsWidget() {
 
   if (loading) {
     return (
-      <div className="bg-orange-800 rounded-lg border border-neutral-700 p-8">
+      <div className="bg-orange-500/10 rounded-lg border border-orange-400 p-8 animate-pulse">
         <div className="flex items-center gap-3 mb-6">
-          <Gift size={24} className="text-orange-400" />
-          <h3 className="text-2xl font-bold text-white">Your Rewards</h3>
+          <div className="w-6 h-6 bg-orange-400/30 rounded"></div>
+          <h3 className="text-2xl font-bold text-white bg-orange-400/20 rounded w-1/4 h-8"></h3>
         </div>
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin inline-block w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full"></div>
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-black/30 rounded-lg p-4 space-y-3">
+              <div className="h-5 bg-orange-400/20 rounded w-1/2"></div>
+              <div className="h-4 bg-orange-400/20 rounded w-full"></div>
+              <div className="h-4 bg-orange-400/20 rounded w-2/3"></div>
+            </div>
+          ))}
         </div>
       </div>
     );
