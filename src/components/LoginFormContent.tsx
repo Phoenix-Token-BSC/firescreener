@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import LoadingWithLogo from './LoadingWithLogo';
 
 const LoginFormContent: React.FC = () => {
   const router = useRouter();

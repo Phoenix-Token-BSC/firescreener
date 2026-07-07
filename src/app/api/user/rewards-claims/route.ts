@@ -6,10 +6,10 @@ const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { userId } = body;
+    const searchParams = request.nextUrl.searchParams;
+    const userId = searchParams.get('userId');
 
     if (!userId) {
       return NextResponse.json(

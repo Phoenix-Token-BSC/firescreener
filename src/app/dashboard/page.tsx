@@ -15,13 +15,7 @@ export default function DashboardPage() {
   const totalBlazePoints = balance.totalBlaze;
 
   if (!isAuthenticated || !user) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <p className="text-gray-500 mb-4">Loading...</p>
-        </div>
-      </div>
-    );
+    return <LoadingWithLogo />;
   }
 
   return (
@@ -98,7 +92,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Main Content */}
-          <div className="">
+          <div className="lg:col-span-3">
             {activeTab === 'overview' ? (
               <div className="space-y-6">
                 {/* Total Blaze Points Card */}
@@ -119,51 +113,6 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* Info Cards */}
-                <div className="bg-orange-500/10 rounded-lg border border-orange-400 p-8">
-                  <h3 className="text-2xl font-bold text-orange-400 mb-6">How It Works</h3>
-                  <div className="space-y-4">
-                    <div className="flex gap-4">
-                      <div className="w-10 h-10 bg-orange-500/20 rounded-full flex items-center justify-center flex-shrink-0">
-                        <span className="text-orange-400 font-bold">1</span>
-                      </div>
-                      <div>
-                        <h4 className="text-white font-semibold mb-1">Accumulate BLAZE</h4>
-                        <p className="text-gray-400 text-sm">Hold BLAZE tokens in your account</p>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-4">
-                      <div className="w-10 h-10 bg-orange-500/20 rounded-full flex items-center justify-center flex-shrink-0">
-                        <span className="text-orange-400 font-bold">2</span>
-                      </div>
-                      <div>
-                        <h4 className="text-white font-semibold mb-1">Unlock Tiers</h4>
-                        <p className="text-gray-400 text-sm">Reach higher tiers for better reward rates (0.5% - 10%)</p>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-4">
-                      <div className="w-10 h-10 bg-orange-500/20 rounded-full flex items-center justify-center flex-shrink-0">
-                        <span className="text-orange-400 font-bold">3</span>
-                      </div>
-                      <div>
-                        <h4 className="text-white font-semibold mb-1">Claim Daily</h4>
-                        <p className="text-gray-400 text-sm">Visit the claim page to collect your daily rewards</p>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-4">
-                      <div className="w-10 h-10 bg-orange-500/20 rounded-full flex items-center justify-center flex-shrink-0">
-                        <span className="text-orange-400 font-bold">4</span>
-                      </div>
-                      <div>
-                        <h4 className="text-white font-semibold mb-1">Withdraw Anytime</h4>
-                        <p className="text-gray-400 text-sm">Withdraw your claimed rewards to your wallet</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
 
                 {/* Rewards Component */}
                 <RewardsClaimsWidget />

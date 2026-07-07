@@ -507,14 +507,14 @@ export default function Header() {
                                             className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
                                             onClick={toggleMenu}
                                         >
-                                            Claim BLAZING Rewards
+                                            Blaze claim
                                         </Link>
                                         <Link
                                             href="/rewards"
                                             className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
                                             onClick={toggleMenu}
                                         >
-                                            Rewards Store
+                                            Rewards
                                         </Link>
                                         <button
                                             onClick={() => {

@@ -37,11 +37,7 @@ export default function RewardsClaimsWidget() {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch('/api/user/rewards-claims', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user.id }),
-        });
+        const response = await fetch(`/api/user/rewards-claims?userId=${user.id}`);
 
         if (!response.ok) {
           throw new Error('Failed to fetch rewards claims');

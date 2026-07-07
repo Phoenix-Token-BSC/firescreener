@@ -356,7 +356,7 @@ export default function Sidebar() {
                 }`}
               >
                 <FiZap className="h-4 w-4" />
-                <span>Blaze Rewards</span>
+                <span>Blaze Claim</span>
               </Link>
               <Link
                 href="/rewards"
@@ -367,7 +367,7 @@ export default function Sidebar() {
                 }`}
               >
                 <FiBookmark className="h-4 w-4" />
-                <span>Rewards Store</span>
+                <span>Rewards</span>
               </Link>
               <button
                 onClick={logout}
