@@ -109,7 +109,8 @@ export default function DashboardPage() {
                     ) : (
                       <h2 className="text-5xl font-bold text-white mb-2">{totalBlazePoints.toLocaleString()}</h2>
                     )}
-                    <p className="text-white/80 text-lg">Redeemable for tokens & rewards</p>
+                    <p className="text-white/80 text-lg pb-3">Redeemable for tokens & rewards</p>
+                    <Link href="/blaze-claim" className="px-4 py-2 bg-white text-black font-semibold rounded-xl">Claim more points</Link>
                   </div>
                 </div>
 

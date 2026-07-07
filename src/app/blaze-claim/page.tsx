@@ -147,8 +147,6 @@ export default function BlazeClaimPage() {
 
               {/* Stats Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div className="lg:col-span-2"></div>
-                <div className="space-y-4">
                 {/* Total Claimed */}
                 <div className="bg-neutral-800/50 backdrop-blur-sm rounded-xl border border-neutral-700/50 p-6 hover:border-neutral-600 transition-colors">
                   <div className="flex items-center justify-between mb-3">
@@ -186,8 +184,6 @@ export default function BlazeClaimPage() {
                 </div>
               </div>
             </div>
-            </div>
-
 
             {/* Info Box */}
             <div className="bg-orange-500/10 border border-orange-500/30 rounded-2xl p-8">
