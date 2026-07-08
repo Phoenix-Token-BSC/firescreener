@@ -191,7 +191,7 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
   { address: "0x23be6b07e8cd735f291f390a5fb1392bedf6879c", symbol: "wina", name: "WINA", chain: "bsc", isBurn: false},
   { address: "0x90a28183c3B110c7721FF8c1bd47c4D2Fc77374a", symbol: "yengu", name: "Yellow Pengu", chain: "bsc", isBurn: false},
   { address: "0xd9C15c88BA928DA13BBBA96DF5054290ed76d3cD", symbol: "clyst", name: "CATALYST", chain: "bsc", isBurn: false},
-  { address: "0xfaFb87fDA09f4a99CF432523b33C0522316871a9", symbol: "rapa", name: "Rap Arena", chain: "bsc", isBurn: false},
+  // { address: "0xfaFb87fDA09f4a99CF432523b33C0522316871a9", symbol: "rapa", name: "Rap Arena", chain: "bsc", isBurn: false},
   { address: "0x0B9237Fc2D9b2bA19023ddBCCF0Dd649092bb649", symbol: "amem", name: "The African Meme", chain: "bsc", isBurn: true},
   { address: "0xb41039E73C0b89B5c93c971D3B923704B11D24c6", symbol: "oggie", name: "Oggie the Frog", chain: "bsc", isBurn: false},
   { address: "0x85241765d5C9b9ADB0602209984c45921Bc8F273", symbol: "pitburn", name: "PitBurn", chain: "bsc", isBurn: false},
