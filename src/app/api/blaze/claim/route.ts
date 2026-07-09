@@ -111,39 +111,6 @@ export async function POST(request: NextRequest) {
     let currentDay = stats.current_streak_day;
     const now = new Date();
 
-    // Check if streak should be reset (missed a day = more than 48 hours since last claim)
-    if (stats.last_claim_at && stats.current_streak_day > 1) {
-      const lastClaimTime = new Date(stats.last_claim_at);
-      const timeSinceLastClaim = now.getTime() - lastClaimTime.getTime();
-      const fortyEightHours = 48 * 60 * 60 * 1000;
-
-      // If more than 48 hours have passed, they missed a day, so reset streak
-      if (timeSinceLastClaim > fortyEightHours) {
-        console.log(`[DEBUG] Streak reset triggered. Last claim: ${stats.last_claim_at}, Time since: ${timeSinceLastClaim}ms`);
-
-        // Reset streak to day 1 and clear last_claim_at
-        await supabase
-          .from('user_blaze_stats')
-          .update({
-            current_streak_day: 1,
-            last_claim_at: null,
-          })
-          .eq('user_id', userId);
-
-        // Reset all 7 days to unclaimed
-        await supabase
-          .from('blaze_daily_claims')
-          .update({
-            is_claimed: false,
-            claimed_at: null,
-            updated_at: now.toISOString(),
-          })
-          .eq('user_id', userId);
-
-        currentDay = 1;
-      }
-    }
-
     // Check 24-hour cooldown (can only claim once per day)
     if (stats.last_claim_at) {
       const lastClaimTime = new Date(stats.last_claim_at);
