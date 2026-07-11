@@ -123,6 +123,36 @@ const SignupFormContent: React.FC = () => {
     }
   };
 
+  const handleResendCode = async () => {
+    setError('');
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/auth/send-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          email,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || 'Failed to resend code');
+        return;
+      }
+
+      setVerificationCode('');
+      setTimeLeft(900);
+    } catch (err) {
+      setError('An error occurred while resending the code. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -276,6 +306,13 @@ const SignupFormContent: React.FC = () => {
               Enter the 6-digit code sent to your email
             </p>
 
+            {success && (
+              <div className="mb-6 p-4 bg-green-500/10 border border-green-500 rounded-lg flex items-center gap-2">
+                <CheckCircle size={20} className="text-green-500" />
+                <span className="text-green-500 text-sm">Email verified! Redirecting to login...</span>
+              </div>
+            )}
+
             {error && (
               <div className="mb-6 p-4 bg-red-500/10 border border-red-500 rounded-lg flex items-start gap-2">
                 <AlertCircle size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
@@ -301,8 +338,24 @@ const SignupFormContent: React.FC = () => {
               </div>
 
               <div className="text-center text-sm text-gray-400">
-                Code expires in: <span className="font-bold text-orange-400">{formatTime(timeLeft)}</span>
+                {timeLeft > 0 ? (
+                  <>Code expires in: <span className="font-bold text-orange-400">{formatTime(timeLeft)}</span></>
+                ) : (
+                  <span className="text-red-400">Code expired. Please request a new one.</span>
+                )}
               </div>
+
+              <p className="text-center text-sm text-gray-400">
+                Didn&apos;t receive the code?{' '}
+                <button
+                  type="button"
+                  onClick={handleResendCode}
+                  disabled={loading}
+                  className="text-orange-400 hover:text-orange-300 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Resend code
+                </button>
+              </p>
 
               <button
                 type="submit"

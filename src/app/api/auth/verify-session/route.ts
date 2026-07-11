@@ -18,23 +18,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if developer (in developer_accounts)
-    const { data: devUser } = await supabase
-      .from('developer_accounts')
-      .select('id')
-      .eq('id', userId)
-      .maybeSingle();
+    // Check developer_accounts and auth_users in parallel
+    const [{ data: devUser }, { data: regularUser, error }] = await Promise.all([
+      supabase
+        .from('developer_accounts')
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle(),
+      supabase
+        .from('auth_users')
+        .select('id, is_active')
+        .eq('id', userId)
+        .maybeSingle(),
+    ]);
 
     if (devUser) {
       return NextResponse.json({ success: true, userType: 'dev' }, { status: 200 });
     }
-
-    // Check if regular user (in auth_users)
-    const { data: regularUser, error } = await supabase
-      .from('auth_users')
-      .select('id, is_active')
-      .eq('id', userId)
-      .maybeSingle();
 
     if (error) {
       console.error('Session verification error:', error);

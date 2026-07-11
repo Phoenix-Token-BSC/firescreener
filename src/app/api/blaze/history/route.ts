@@ -18,18 +18,34 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Check if user exists (regular user or developer)
-    const { data: regularUser } = await supabase
-      .from('auth_users')
-      .select('id')
-      .eq('id', userId)
-      .maybeSingle();
-
-    const { data: devUser } = await supabase
-      .from('developer_accounts')
-      .select('id')
-      .eq('id', userId)
-      .maybeSingle();
+    // Run all lookups in parallel: user existence checks, blaze stats, and daily claims
+    const [
+      { data: regularUser },
+      { data: devUser },
+      { data: statsData, error: statsError },
+      { data: claimsData, error: claimsError },
+    ] = await Promise.all([
+      supabase
+        .from('auth_users')
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle(),
+      supabase
+        .from('developer_accounts')
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle(),
+      supabase
+        .from('user_blaze_stats')
+        .select('total_blaze_earned, last_claim_at, current_streak_day')
+        .eq('user_id', userId)
+        .maybeSingle(),
+      supabase
+        .from('blaze_daily_claims')
+        .select('day_number, amount, is_claimed, claimed_at')
+        .eq('user_id', userId)
+        .order('day_number', { ascending: true }),
+    ]);
 
     if (!regularUser && !devUser) {
       return NextResponse.json(
@@ -38,27 +54,39 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get user's blaze stats
-    let { data: stats, error: statsError } = await supabase
-      .from('user_blaze_stats')
-      .select('total_blaze_earned, last_claim_at, current_streak_day')
-      .eq('user_id', userId)
-      .maybeSingle();
+    let stats = statsData;
+    let dailyClaims = claimsData;
 
     // Auto-initialize if doesn't exist
     if (!stats) {
       console.log(`[BLAZE] Initializing blaze stats for user ${userId}`);
 
-      const { data: newStats, error: createStatsError } = await supabase
-        .from('user_blaze_stats')
-        .insert([{
-          user_id: userId,
-          total_blaze_earned: 0,
-          current_streak_day: 1,
-          is_active_today: false,
-        }])
-        .select()
-        .single();
+      const newClaims = Array.from({ length: 7 }, (_, i) => ({
+        user_id: userId,
+        day_number: i + 1,
+        amount: 10,
+        is_claimed: false,
+        claimed_at: null,
+      }));
+
+      const [
+        { data: newStats, error: createStatsError },
+        { error: createClaimsError },
+      ] = await Promise.all([
+        supabase
+          .from('user_blaze_stats')
+          .insert([{
+            user_id: userId,
+            total_blaze_earned: 0,
+            current_streak_day: 1,
+            is_active_today: false,
+          }])
+          .select()
+          .single(),
+        supabase
+          .from('blaze_daily_claims')
+          .insert(newClaims),
+      ]);
 
       if (createStatsError) {
         console.error('Failed to create blaze stats:', createStatsError);
@@ -67,18 +95,6 @@ export async function GET(request: NextRequest) {
           { status: 500 }
         );
       }
-
-      const claimsData = Array.from({ length: 7 }, (_, i) => ({
-        user_id: userId,
-        day_number: i + 1,
-        amount: 10,
-        is_claimed: false,
-        claimed_at: null,
-      }));
-
-      const { error: createClaimsError } = await supabase
-        .from('blaze_daily_claims')
-        .insert(claimsData);
 
       if (createClaimsError) {
         console.error('Failed to create daily claims:', createClaimsError);
@@ -89,6 +105,12 @@ export async function GET(request: NextRequest) {
       }
 
       stats = newStats;
+      dailyClaims = newClaims.map(({ day_number, amount, is_claimed, claimed_at }) => ({
+        day_number,
+        amount,
+        is_claimed,
+        claimed_at,
+      }));
     } else if (statsError) {
       console.error('Stats fetch error:', statsError);
       return NextResponse.json(
@@ -96,13 +118,6 @@ export async function GET(request: NextRequest) {
         { status: 500 }
       );
     }
-
-    // Get all 7 daily claims for this user
-    const { data: dailyClaims, error: claimsError } = await supabase
-      .from('blaze_daily_claims')
-      .select('day_number, amount, is_claimed, claimed_at')
-      .eq('user_id', userId)
-      .order('day_number', { ascending: true });
 
     if (claimsError) {
       console.error('Claims fetch error:', claimsError);

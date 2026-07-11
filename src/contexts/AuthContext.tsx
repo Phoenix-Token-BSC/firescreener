@@ -17,6 +17,7 @@ interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  login: (user: Omit<AuthUser, 'userType'> & { userType?: AuthUser['userType'] }) => void;
   logout: () => Promise<void>;
   refetchUser: () => Promise<void>;
 }
@@ -28,8 +29,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Verify the stored session in the background — the UI renders optimistically
+    // and is only logged out if the server says the session is invalid.
+    const verifySessionInBackground = async (storedUser: AuthUser) => {
+      try {
+        const response = await fetch('/api/auth/verify-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: storedUser.id }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setUser({
+            ...storedUser,
+            userType: data.userType || 'user',
+          });
+        } else {
+          console.log('User session invalid, clearing auth');
+          localStorage.removeItem('user');
+          localStorage.removeItem('auth_token');
+          setUser(null);
+        }
+      } catch (fetchError) {
+        // On network error, keep the optimistic user (might be offline)
+        console.error('Failed to verify session:', fetchError);
+      }
+    };
+
     const initializeAuth = async () => {
       try {
+        // Regular user session: hydrate from localStorage immediately so the
+        // dashboard can render without waiting on any network round trip.
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          const user = JSON.parse(storedUser);
+          const optimisticUser = { ...user, userType: user.userType || 'user' };
+          setUser(optimisticUser);
+          setIsLoading(false);
+          verifySessionInBackground(optimisticUser);
+          return;
+        }
+
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
         const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -43,48 +84,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             // Developer is logged in via Supabase Auth
             console.log('✅ Dev session found:', session.user.email);
             const username = session.user.user_metadata?.username || session.user.email?.split('@')[0] || 'dev';
-            console.log('Setting user:', { id: session.user.id, username, email: session.user.email, userType: 'dev' });
             setUser({
               id: session.user.id,
               username: username,
               email: session.user.email || '',
               userType: 'dev',
             });
-            console.log('User set complete');
-            setIsLoading(false);
-            return;
-          }
-        }
-
-        // Check for regular user session (localStorage)
-        const storedUser = localStorage.getItem('user');
-        if (storedUser) {
-          const user = JSON.parse(storedUser);
-
-          // Verify user still exists in database
-          try {
-            const response = await fetch('/api/auth/verify-session', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ userId: user.id }),
-            });
-
-            if (response.ok) {
-              const data = await response.json();
-              setUser({
-                ...user,
-                userType: data.userType || 'user',
-              });
-            } else {
-              // User not found or session invalid
-              console.log('User session invalid, clearing auth');
-              localStorage.removeItem('user');
-              localStorage.removeItem('auth_token');
-            }
-          } catch (fetchError) {
-            console.error('Failed to verify session:', fetchError);
-            // On network error, still load the user (might be offline)
-            setUser(user);
           }
         }
       } catch (error) {
@@ -98,6 +103,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     initializeAuth();
   }, []);
+
+  // Called right after a successful login so the context reflects the new
+  // session immediately — the provider's init effect only runs on first mount.
+  const login = (newUser: Omit<AuthUser, 'userType'> & { userType?: AuthUser['userType'] }) => {
+    setUser({ ...newUser, userType: newUser.userType || 'user' });
+    setIsLoading(false);
+  };
 
   const logout = async () => {
     try {
@@ -139,6 +151,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         isLoading,
         isAuthenticated: user !== null,
+        login,
         logout,
         refetchUser,
       }}

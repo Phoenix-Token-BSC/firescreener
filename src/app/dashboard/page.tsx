@@ -2,17 +2,25 @@
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useBlazeClaim } from '@/hooks/useBlazeClaim';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Settings, LogOut, User, Lock, Bell, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import RewardsClaimsWidget from '@/components/RewardsClaimsWidget';
 import LoadingWithLogo from '@/components/LoadingWithLogo';
 
 export default function DashboardPage() {
-  const { user, logout, isAuthenticated } = useAuth();
+  const { user, logout, isAuthenticated, isLoading } = useAuth();
+  const router = useRouter();
   const { balance, loading } = useBlazeClaim(user?.id);
   const [activeTab, setActiveTab] = useState<'overview' | 'settings'>('overview');
   const totalBlazePoints = balance.totalBlaze;
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.replace('/auth/login');
+    }
+  }, [isLoading, isAuthenticated, router]);
 
   if (!isAuthenticated || !user) {
     return <LoadingWithLogo />;

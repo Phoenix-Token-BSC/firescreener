@@ -1,11 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 import { hashPassword, validateEmail, validateUsername, validatePassword } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
+import { Resend } from 'resend';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const resendApiKey = process.env.RESEND_API_KEY!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+const resend = new Resend(resendApiKey);
 
 function generateVerificationCode(): string {
   return Math.random().toString().slice(2, 8);
@@ -159,16 +162,59 @@ export async function POST(request: NextRequest) {
 
     console.log('User created:', data.id);
 
-    // For now, skip email sending - just create the account
-    console.log('Account created successfully, skipping email for now');
+    // Send email verification code
+    const code = generateVerificationCode();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    const { error: verificationDbError } = await supabase
+      .from('email_verification')
+      .insert([
+        {
+          user_id: data.id,
+          email,
+          code,
+          expires_at: expiresAt.toISOString(),
+          is_verified: false,
+        },
+      ]);
+
+    if (verificationDbError) {
+      console.error('Verification code storage error:', verificationDbError);
+    } else {
+      const { error: emailError } = await resend.emails.send({
+        from: 'team@firescreener.com',
+        to: email,
+        subject: 'Verify Your Email Address',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2>Email Verification</h2>
+            <p>Thank you for signing up! To verify your email address, use the code below:</p>
+            <div style="background-color: #f5f5f5; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
+              <p style="font-size: 32px; font-weight: bold; letter-spacing: 2px; margin: 0;">${code}</p>
+            </div>
+            <p>This code expires in 15 minutes.</p>
+            <p>If you didn't create this account, please ignore this email.</p>
+            <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
+            <p style="font-size: 12px; color: #666;">
+              PHT Tracker - Your Crypto Rewards Dashboard
+            </p>
+          </div>
+        `,
+      });
+
+      if (emailError) {
+        // User can request a new code from the verification screen
+        console.error('Verification email send error:', emailError);
+      }
+    }
 
     const { password_hash, ...userWithoutPassword } = data;
 
     return NextResponse.json(
       {
-        message: 'Account created successfully',
+        message: 'Account created. Please verify your email.',
         user: userWithoutPassword,
-        requiresVerification: false,
+        requiresVerification: true,
       },
       { status: 201 }
     );
