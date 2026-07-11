@@ -435,7 +435,7 @@ export default function Header() {
             <div className={`fixed md:hidden top-13 left-0 right-0 z-40 ${isMenuOpen ? 'block border-b-2 border-orange-340' : 'hidden'} bg-white border-t border-orange-200 max-h-[calc(100vh-64px)] overflow-y-auto`}>
                 <div className="">
                     <Link
-                        href="https://firescreener.com"
+                        href="/"
                         className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
                         onClick={toggleMenu}
                     >
