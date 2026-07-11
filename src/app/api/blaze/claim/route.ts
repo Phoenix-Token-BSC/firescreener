@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { hasClaimedToday, isStreakBroken, timeUntilNextUtcMidnight } from '@/lib/blaze';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -111,27 +112,39 @@ export async function POST(request: NextRequest) {
     let currentDay = stats.current_streak_day;
     const now = new Date();
 
-    // Check 24-hour cooldown (can only claim once per day)
-    if (stats.last_claim_at) {
-      const lastClaimTime = new Date(stats.last_claim_at);
-      const timeDiff = now.getTime() - lastClaimTime.getTime();
-      const twentyFourHours = 24 * 60 * 60 * 1000;
+    // One claim per calendar day — resets at 00:00 UTC
+    if (hasClaimedToday(stats.last_claim_at, now)) {
+      const { hours, minutes } = timeUntilNextUtcMidnight(now);
 
-      if (timeDiff < twentyFourHours) {
-        const remainingTime = twentyFourHours - timeDiff;
-        const hours = Math.floor(remainingTime / (60 * 60 * 1000));
-        const minutes = Math.floor((remainingTime % (60 * 60 * 1000)) / (60 * 1000));
+      console.log(`[DEBUG] Daily claim already used. Last claim: ${stats.last_claim_at}, resets in ${hours}h ${minutes}m`);
 
-        console.log(`[DEBUG] 24h cooldown active. Last claim: ${stats.last_claim_at}, Time diff: ${timeDiff}ms, Hours: ${hours}h ${minutes}m`);
+      return NextResponse.json(
+        {
+          error: 'Already claimed today',
+          nextClaimAvailableIn: `${hours}h ${minutes}m`,
+        },
+        { status: 429 }
+      );
+    }
 
+    // Missed a day — streak goes back to day 1 with a fresh board
+    if (isStreakBroken(stats.last_claim_at, now)) {
+      console.log(`[BLAZE] Streak broken for user ${userId} (last claim: ${stats.last_claim_at}), resetting to day 1`);
+
+      const { error: resetError } = await supabase
+        .from('blaze_daily_claims')
+        .update({ is_claimed: false, claimed_at: null, updated_at: now.toISOString() })
+        .eq('user_id', userId);
+
+      if (resetError) {
+        console.error('Streak reset error:', resetError);
         return NextResponse.json(
-          {
-            error: 'Already claimed today',
-            nextClaimAvailableIn: `${hours}h ${minutes}m`,
-          },
-          { status: 429 }
+          { error: 'Failed to reset streak' },
+          { status: 500 }
         );
       }
+
+      currentDay = 1;
     }
 
     // Check if current day has already been claimed
@@ -151,10 +164,28 @@ export async function POST(request: NextRequest) {
     }
 
     if (existingClaim?.is_claimed) {
-      return NextResponse.json(
-        { error: 'Day already claimed' },
-        { status: 400 }
-      );
+      if (currentDay === 1) {
+        // Completed a full 7-day cycle with the streak intact — start a fresh board
+        console.log(`[BLAZE] User ${userId} starting a new 7-day cycle`);
+
+        const { error: cycleResetError } = await supabase
+          .from('blaze_daily_claims')
+          .update({ is_claimed: false, claimed_at: null, updated_at: now.toISOString() })
+          .eq('user_id', userId);
+
+        if (cycleResetError) {
+          console.error('Cycle reset error:', cycleResetError);
+          return NextResponse.json(
+            { error: 'Failed to start new cycle' },
+            { status: 500 }
+          );
+        }
+      } else {
+        return NextResponse.json(
+          { error: 'Day already claimed' },
+          { status: 400 }
+        );
+      }
     }
 
     // Mark this day as claimed

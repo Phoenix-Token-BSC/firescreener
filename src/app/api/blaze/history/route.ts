@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { hasClaimedToday, isStreakBroken, timeUntilNextUtcMidnight } from '@/lib/blaze';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -127,8 +128,29 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Build 7-day streak data from database
-    const streakData = dailyClaims?.map((claim) => {
+    const now = new Date();
+    const lastClaimAt = stats?.last_claim_at ?? null;
+    const claimedToday = hasClaimedToday(lastClaimAt, now);
+    const streakBroken = isStreakBroken(lastClaimAt, now);
+
+    let currentStreakDay = stats?.current_streak_day || 1;
+    let effectiveClaims = dailyClaims || [];
+
+    // Mirror the claim route's lazy reset in what we display: a broken streak
+    // (missed day) or a completed cycle rolling over shows a fresh board.
+    // The actual DB reset happens on the next claim.
+    const currentDayRow = effectiveClaims.find((c) => c.day_number === currentStreakDay);
+    if (streakBroken || (!claimedToday && currentStreakDay === 1 && currentDayRow?.is_claimed)) {
+      currentStreakDay = 1;
+      effectiveClaims = effectiveClaims.map((c) => ({
+        ...c,
+        is_claimed: false,
+        claimed_at: null,
+      }));
+    }
+
+    // Build 7-day streak data
+    const streakData = effectiveClaims.map((claim) => {
       const dayNames = [
         'Today',
         'Yesterday',
@@ -146,32 +168,12 @@ export async function GET(request: NextRequest) {
         amount: claim.amount,
         claimedAt: claim.claimed_at,
       };
-    }) || [];
+    });
 
-    // Determine if current day can be claimed
-    const currentStreakDay = stats?.current_streak_day || 1;
-    const currentDayData = dailyClaims?.find((c) => c.day_number === currentStreakDay);
-
-    // Check 24-hour cooldown
-    let canClaim = currentStreakDay <= 7 && !currentDayData?.is_claimed;
-    let timeUntilNextClaim = '';
-
-    if (stats?.last_claim_at) {
-      const now = new Date();
-      const lastClaimTime = new Date(stats.last_claim_at);
-      const timeDiff = now.getTime() - lastClaimTime.getTime();
-      const twentyFourHours = 24 * 60 * 60 * 1000;
-
-      if (timeDiff < twentyFourHours) {
-        // Still in cooldown period - can't claim yet
-        canClaim = false;
-        const remainingTime = twentyFourHours - timeDiff;
-        const hours = Math.floor(remainingTime / (60 * 60 * 1000));
-        const minutes = Math.floor((remainingTime % (60 * 60 * 1000)) / (60 * 1000));
-        const seconds = Math.floor((remainingTime % (60 * 1000)) / 1000);
-        timeUntilNextClaim = `${hours}h ${minutes}m ${seconds}s`;
-      }
-    }
+    // One claim per calendar day — resets at 00:00 UTC
+    const currentDayData = effectiveClaims.find((c) => c.day_number === currentStreakDay);
+    const canClaim = currentStreakDay <= 7 && !claimedToday && !currentDayData?.is_claimed;
+    const timeUntilNextClaim = claimedToday ? timeUntilNextUtcMidnight(now).formatted : '';
 
     console.log(`[HISTORY] User ${userId}: streak_day=${currentStreakDay}, can_claim=${canClaim}, day_is_claimed=${currentDayData?.is_claimed}, last_claim_at=${stats?.last_claim_at}, total_earned=${stats?.total_blaze_earned}`);
 

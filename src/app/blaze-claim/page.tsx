@@ -32,13 +32,7 @@ export default function BlazeClaimPage() {
   };
 
   if (!isAuthenticated || !user) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <p className="text-gray-500 mb-4">Loading...</p>
-        </div>
-      </div>
-    );
+    return <LoadingWithLogo />;
   }
 
   if (!loading && streak.data.length === 0) {
