@@ -17,22 +17,6 @@ interface MarketChartResponse {
     market_caps: [number, number][]; // [timestamp(ms), market_cap]
 }
 
-interface CryptoCompareResponse {
-    Data: {
-        Data: Array<{
-            time: number; // timestamp in seconds
-            close: number; // price
-            high: number;
-            low: number;
-            open: number;
-            volumefrom: number;
-            volumeto: number;
-        }>;
-    };
-    Response?: string;
-    Message?: string;
-}
-
 interface CandlestickData {
     time: number; // Unix timestamp in seconds
     open: number;
@@ -55,23 +39,6 @@ const MAX_TIMEFRAME_DAYS = 365; // Always fetch 1 year of data
 
 function getPlatformId(chain: SupportedChain): string {
     return chain === "bsc" ? "binance-smart-chain" : "ethereum" ;
-}
-
-function getSymbolFromChain(chain: SupportedChain): string {
-    return chain === "bsc" ? "BNB" : "eth";
-}
-
-function getHistoEndpoint(days: number): string {
-    if (days <= 1) return "histominute";
-    if (days <= 7) return "histohour";
-    return "histoday";
-}
-
-function getHistoLimit(days: number): number {
-    if (days <= 1) return 1440; // 24 hours * 60 minutes
-    if (days <= 7) return 168; // 7 days * 24 hours
-    if (days <= 30) return 30;
-    return 90;
 }
 
 const SUBSCRIPT_NUMBERS = ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉'];
@@ -136,8 +103,6 @@ export default function PriceActionChart({
     const [activeDataType, setActiveDataType] = useState<'daily' | 'hourly'>('daily');
     const hourlyDataCacheRef = useRef<Map<string, { data: CandlestickData[]; ts: number }>>(new Map());
 
-    // Get CryptoCompare API key from environment variable
-    const cryptocompareApiKey = process.env.CRYPTOCOMPARE_API_KEY || "a2908b51095ddf69552f5dd2caabe3f9a12d2507f8ed32987008c936c1caff61";
     const moralisApiKey = process.env.MORALIS_API_KEY; // User confirmed key is in env
 
     const coingeckoUrl = `https://api.coingecko.com/api/v3/coins/${getPlatformId(chain)}/contract/${encodeURIComponent(
@@ -510,61 +475,6 @@ export default function PriceActionChart({
             return processData(candlesticks);
         }
 
-        // Fetch from CryptoCompare - already has OHLC data
-        async function fetchFromCryptoCompare(signal: AbortSignal): Promise<CandlestickData[]> {
-            const symbol = getSymbolFromChain(chain);
-            const endpoint = getHistoEndpoint(MAX_TIMEFRAME_DAYS);
-            const limit = getHistoLimit(MAX_TIMEFRAME_DAYS);
-
-            let url = `https://min-api.cryptocompare.com/data/v2/${endpoint}?fsym=${symbol}&tsym=USD&limit=${limit}`;
-
-            if (cryptocompareApiKey) {
-                url += `&api_key=${cryptocompareApiKey}`;
-            }
-
-            //console.log('Fetching from CryptoCompare:', url.replace(cryptocompareApiKey || '', '***'));
-
-            const maxAttempts = 2;
-            let resp: Response | null = null;
-            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-                try {
-                    resp = await fetch(url, { signal });
-                    if (!resp.ok) {
-                        if ([429, 500, 502, 503, 504].includes(resp.status) && attempt < maxAttempts) {
-                            const delay = 300 * attempt;
-                            await new Promise((r) => setTimeout(r, delay));
-                            continue;
-                        }
-                        throw new Error(`CryptoCompare API failed: ${resp.status}`);
-                    }
-                    break;
-                } catch (err) {
-                    if (signal.aborted) throw err;
-                    if (attempt === maxAttempts) throw err;
-                }
-            }
-            if (!resp) throw new Error('CryptoCompare: no response');
-            const json = (await resp.json()) as CryptoCompareResponse;
-
-            if (json.Response === 'Error') {
-                throw new Error(json.Message || 'CryptoCompare API error');
-            }
-
-            if (!json.Data?.Data || json.Data.Data.length === 0) {
-                throw new Error('No data from CryptoCompare');
-            }
-
-            const candlesticks: CandlestickData[] = json.Data.Data.map((dataPoint) => ({
-                time: dataPoint.time,
-                open: dataPoint.open,
-                high: dataPoint.high,
-                low: dataPoint.low,
-                close: dataPoint.close,
-            }));
-
-            return processData(candlesticks);
-        }
-
         const abortController = new AbortController();
         const { signal } = abortController;
         let cancelled = false;
@@ -687,25 +597,10 @@ export default function PriceActionChart({
                     console.warn('Moralis failed, falling back to CoinGecko:', moralisErr);
                 }
 
-                // Try CoinGecko (Standard API)
-                try {
-                    const coinGeckoData = await fetchFromCoinGecko(signal);
-                 //   console.log('CoinGecko data loaded:', coinGeckoData.length, 'candlesticks');
-                    setData(coinGeckoData);
-                    cacheRef.current.set(key, { data: coinGeckoData, ts: Date.now() });
-                    return;
-                } catch (cgError) {
-                    console.warn('CoinGecko failed, trying CryptoCompare:', cgError);
-
-                    if (!cryptocompareApiKey) {
-                        throw new Error('CoinGecko failed and no CryptoCompare API key provided. Get a free key at https://www.cryptocompare.com/cryptopian/api-keys');
-                    }
-
-                    const cryptoCompareData = await fetchFromCryptoCompare(signal);
-                  //  console.log('CryptoCompare data loaded:', cryptoCompareData.length, 'candlesticks');
-                    setData(cryptoCompareData);
-                    cacheRef.current.set(key, { data: cryptoCompareData, ts: Date.now() });
-                }
+                // Try CoinGecko (Standard API, final fallback)
+                const coinGeckoData = await fetchFromCoinGecko(signal);
+                setData(coinGeckoData);
+                cacheRef.current.set(key, { data: coinGeckoData, ts: Date.now() });
             } catch (e) {
                 console.error('All data sources failed:', e);
                 setError(e instanceof Error ? e.message : "Failed to fetch price data from all sources");
@@ -721,7 +616,7 @@ export default function PriceActionChart({
             cancelled = true;
             abortController.abort('Chart fetch cancelled');
         };
-    }, [coingeckoUrl, contractAddress, MAX_TIMEFRAME_DAYS, chain, cryptocompareApiKey]);
+    }, [coingeckoUrl, contractAddress, MAX_TIMEFRAME_DAYS, chain]);
 
     // Keep refs in sync with state
     useEffect(() => {

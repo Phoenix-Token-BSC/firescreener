@@ -454,7 +454,7 @@ export default function TokenPage() {
                         <img src={headerImage!} alt="Token banner" className="w-full h-full object-cover" onError={() => setHeaderImageBroken(true)} />
                       </div>
                     )}
-                    <div className={`sticky top-0 z-10 flex flex-col bg-white justify-between md:items-end w-full transition-all duration-200 ${isScrolled ? "shadow-lg p-2 rounded-none" : "mb-4 p-2 rounded-lg"}`}>
+                    <div className={`sticky top-0 z-10 flex flex-col bg-white justify-between md:items-end w-full transition-all duration-200 ${isScrolled ? "shadow-lg p-2 rounded-none" : "mb-4 p-2 rounded-b-lg border-orange-400 border-b"}`}>
                       <div className="flex items-center justify-between">
                         <div className="flex flex-row items-center gap-2 flex-1 min-w-0">
                           <img
