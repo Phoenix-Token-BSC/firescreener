@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Login from "@/components/dev/Login";
 import Signup from "@/components/dev/Signup";
 import { supabase } from "@/lib/supabase";
+import LoadingWithLogo from "@/components/LoadingWithLogo";
 
 export default function DevAuthPage() {
   const router = useRouter();
@@ -19,7 +20,7 @@ export default function DevAuthPage() {
     });
   }, [router]);
 
-  if (checking) return null;
+  if (checking) return <LoadingWithLogo />;
 
   return (
     <main className="min-h-screen flex items-center justify-center px-4" style={{ background: "#360606" }}>

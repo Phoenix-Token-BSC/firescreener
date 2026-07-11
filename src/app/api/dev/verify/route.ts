@@ -55,6 +55,9 @@ export async function POST(req: NextRequest) {
   }
 
   const admin = adminClient();
+
+  // Confirm email in Supabase auth
+  // This triggers the database function to auto-create developer_accounts
   const { error: updateErr } = await admin.auth.admin.updateUserById(entry.userId, {
     email_confirm: true,
   });

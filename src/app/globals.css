@@ -3,7 +3,7 @@
 body {
   background: #360606;
   color: #ffffff;
-  font-family: "Nunito", sans-serif;
+  font-family: var(--font-space-grotesk);
   font-optical-sizing: auto;
   font-weight: 400;
   font-style: normal;

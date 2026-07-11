@@ -10,13 +10,51 @@ interface GainsCalculatorProps {
 
 type CalcMode = 'multiplier' | 'marketcap' | 'price';
 
-function formatPrice(price: number): string {
-  if (price === 0) return "0";
-  if (price >= 1) return price.toLocaleString(undefined, { maximumFractionDigits: 4 });
+interface PriceFormat {
+  display: string;
+  isExponential: boolean;
+  zeros?: number;
+  rest?: string;
+}
+
+function formatPrice(price: number): PriceFormat {
+  if (price === 0) return { display: "0", isExponential: false };
+  if (price >= 1) {
+    return {
+      display: price.toLocaleString(undefined, { maximumFractionDigits: 4 }),
+      isExponential: false
+    };
+  }
   const s = price.toFixed(20);
   const dec = s.split(".")[1] ?? "";
   const leadingZeros = dec.match(/^0+/)?.[0].length ?? 0;
-  return `0.${dec.substring(0, leadingZeros + 5)}`;
+  if (leadingZeros > 4) {
+    return {
+      display: "$0.",
+      isExponential: true,
+      zeros: leadingZeros,
+      rest: dec.substring(leadingZeros, leadingZeros + 5)
+    };
+  }
+  return {
+    display: `$0.${dec.substring(0, leadingZeros + 5)}`,
+    isExponential: false
+  };
+}
+
+function PriceDisplay({ price }: { price: number | null }) {
+  if (price === null) return <span className="text-gray-600">—</span>;
+  const formatted = formatPrice(price);
+
+  if (formatted.display === "0") return <span>$0</span>;
+
+  if (formatted.isExponential && formatted.zeros !== undefined && formatted.rest !== undefined) {
+    return <span>{formatted.display}0<sub>{formatted.zeros}</sub>{formatted.rest}</span>;
+  }
+
+  if (formatted.display.startsWith("$")) return <span>{formatted.display}</span>;
+
+  return <span>${formatted.display}</span>;
 }
 
 function formatMC(value: number): string {
@@ -165,7 +203,7 @@ export default function GainsCalculator({ tokenSymbol, currentPrice, marketCap }
             />
           </div>
           <div className="flex justify-between mt-1.5 text-xs text-gray-500">
-            {priceValid && <span>Current: ${formatPrice(price)}</span>}
+            {priceValid && <span>Current: <PriceDisplay price={price} /></span>}
             {effectiveMult !== null && <span>≈ {fmtMult(effectiveMult)} from current</span>}
           </div>
         </div>
@@ -243,7 +281,7 @@ export default function GainsCalculator({ tokenSymbol, currentPrice, marketCap }
           <div className="flex-1 bg-orange-900/40 rounded-lg p-3 text-center">
             <p className="text-xs text-gray-400 mb-1">Current Price</p>
             <p className="font-semibold text-sm truncate">
-              {priceValid ? `$${formatPrice(price)}` : "N/A"}
+              {priceValid ? <PriceDisplay price={price} /> : "N/A"}
             </p>
           </div>
           <div className="text-gray-500 text-lg">→</div>
@@ -252,7 +290,7 @@ export default function GainsCalculator({ tokenSymbol, currentPrice, marketCap }
               Implied Price
             </p>
             <p className="font-bold text-orange-400 text-sm truncate">
-              {targetPriceVal !== null ? `$${formatPrice(targetPriceVal)}` : <span className="text-gray-500">—</span>}
+              {targetPriceVal !== null ? <PriceDisplay price={targetPriceVal} /> : <span className="text-gray-500">—</span>}
             </p>
           </div>
         </div>
@@ -284,14 +322,14 @@ export default function GainsCalculator({ tokenSymbol, currentPrice, marketCap }
             <div className="flex-1 bg-orange-900/40 rounded-lg p-3 text-center">
               <p className="text-xs text-gray-400 mb-1">Current Price</p>
               <p className="font-semibold text-sm truncate">
-                {priceValid ? `$${formatPrice(price)}` : "N/A"}
+                {priceValid ? <PriceDisplay price={price} /> : "N/A"}
               </p>
             </div>
             <div className="text-gray-500 text-lg">→</div>
             <div className="flex-1 bg-orange-500/10 border border-orange-500/40 rounded-lg p-3 text-center">
               <p className="text-xs text-gray-400 mb-1">Price at {effectiveMult !== null ? fmtMult(effectiveMult) : '—'}</p>
               <p className="font-bold text-orange-400 text-sm truncate">
-                {targetPriceVal !== null ? `$${formatPrice(targetPriceVal)}` : <span className="text-gray-500">—</span>}
+                {targetPriceVal !== null ? <PriceDisplay price={targetPriceVal} /> : <span className="text-gray-500">—</span>}
               </p>
             </div>
           </div>

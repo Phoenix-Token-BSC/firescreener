@@ -4,8 +4,9 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
-import { FiGlobe, FiHome, FiTrendingUp, FiZap, FiBookmark, FiPlus, FiExternalLink, FiActivity } from 'react-icons/fi';
+import { FiGlobe, FiHome, FiTrendingUp, FiZap, FiBookmark, FiPlus, FiExternalLink, FiActivity, FiLogOut, FiUser } from 'react-icons/fi';
 import { TOKEN_REGISTRY, getTokensBySymbol, getTokenByAddress, isValidContractAddress } from '@/lib/tokenRegistry';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Suggestion {
   fullName: string;
@@ -19,6 +20,7 @@ const MAX_SUGGESTIONS = 15;
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { user, isAuthenticated, logout, isLoading: authLoading } = useAuth();
   const [search, setSearch] = useState('');
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -320,6 +322,79 @@ export default function Sidebar() {
           <span>List Token</span>
         </Link>
       </nav>
+
+      {/* User Account Section */}
+      {!authLoading && (
+        <div className="p-4 border-t border-orange-500/30 space-y-2">
+          <p className="text-xs text-gray-400 uppercase tracking-wider mb-3">Account</p>
+          {isAuthenticated && user ? (
+            <>
+              <div className="flex items-center gap-2 px-3 py-2 bg-orange-500/10 rounded-lg border border-orange-500/30">
+                <FiUser className="h-4 w-4 text-orange-400 flex-shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-gray-400">Logged in as</p>
+                  <p className="text-sm font-medium text-white truncate">{user.username}</p>
+                </div>
+              </div>
+              <Link
+                href="/dashboard"
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${
+                  isActive('/dashboard')
+                    ? 'bg-orange-500/20 text-orange-400 font-medium'
+                    : 'text-gray-300 hover:bg-orange-500/10'
+                }`}
+              >
+                <FiHome className="h-4 w-4" />
+                <span>Dashboard</span>
+              </Link>
+              <Link
+                href="/blaze-claim"
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${
+                  isActive('/blaze-claim')
+                    ? 'bg-orange-500/20 text-orange-400 font-medium'
+                    : 'text-gray-300 hover:bg-orange-500/10'
+                }`}
+              >
+                <FiZap className="h-4 w-4" />
+                <span>Blaze Claim</span>
+              </Link>
+              <Link
+                href="/rewards"
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${
+                  isActive('/rewards')
+                    ? 'bg-orange-500/20 text-orange-400 font-medium'
+                    : 'text-gray-300 hover:bg-orange-500/10'
+                }`}
+              >
+                <FiBookmark className="h-4 w-4" />
+                <span>Rewards</span>
+              </Link>
+              <button
+                onClick={logout}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm text-red-400 hover:bg-red-500/10"
+              >
+                <FiLogOut className="h-4 w-4" />
+                <span>Logout</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/auth/login"
+                className="w-full flex items-center justify-center px-3 py-2 rounded-lg transition-colors text-sm text-gray-300 hover:bg-orange-500/10 border border-orange-500/30"
+              >
+                Login
+              </Link>
+              <Link
+                href="/auth/signup"
+                className="w-full flex items-center justify-center px-3 py-2 rounded-lg transition-colors text-sm bg-orange-500 hover:bg-orange-600 text-white font-medium"
+              >
+                Sign Up
+              </Link>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Footer Links */}
       <div className="p-4 border-t border-orange-500/30 space-y-2">
