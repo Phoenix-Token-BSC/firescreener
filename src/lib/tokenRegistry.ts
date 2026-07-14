@@ -216,6 +216,7 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
   { address: "CbdMt7xCe91AiAwnqtiHpUB5QrR3Z3ZL3LqnKGSypump", symbol: "amen", name: "The IQ Bull", chain:"sol", isBurn:false}, 
   {address: "2vvw3cSwibzGD6SgW9QzRaBdmjkYrvs218DUy6VWpump", symbol: "sunusi", name: "The African Bull", chain: "sol", isBurn: false},
   {address: "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump", symbol: "ansem", name: "The Black Bull", chain: "sol", isBurn: false},
+  {address: "5Cd2u2mkWXPMXdXFAHSPXvbDaUPYTkc4KWVMyFw1hray", symbol: "dxa", name: "Dynexa", chain: "sol", isBurn: false},
 
 
 
