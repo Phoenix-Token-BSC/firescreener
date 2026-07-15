@@ -208,6 +208,7 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
 
   { address: "0x4200000623d0242cccd4e907008583dcb4af6472", symbol: "estee", name: "SHIBSTEE", chain: "eth", isBurn: false },
   {address: "0x45604b6C05ac7d0045741EdaF95739D514461FB5", symbol: "bofe", name: "Book Of Frog", chain: "eth", isBurn: false },
+  {address: "0x68A47Fe1CF42eBa4a030a10CD4D6a1031Ca3CA0a", symbol: "tet", name: "Tectum Emission Token", chain: "eth", isBurn: false },
 
   { address: "ERpXkEafaKuKEARBCFsVnLZA1GARWUjBBbQCukXpbonk", symbol: "REST", name: "REST", chain: "sol", isBurn: false },
   { address: "3roGjzv4TeaWFN8VN6hfUKAsmoVUrYmmB2Dz3NYF1GAA", symbol: "FINU", name: "Fox Inu", chain: "sol", isBurn: false },
