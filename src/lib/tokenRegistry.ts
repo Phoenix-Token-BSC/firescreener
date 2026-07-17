@@ -196,6 +196,9 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
   { address: "0xb41039E73C0b89B5c93c971D3B923704B11D24c6", symbol: "oggie", name: "Oggie the Frog", chain: "bsc", isBurn: false},
   { address: "0x85241765d5C9b9ADB0602209984c45921Bc8F273", symbol: "pitburn", name: "PitBurn", chain: "bsc", isBurn: false},
   {address:"0x90ac160a9597475e31c970ae71ff4863060f7777", symbol: "flnt", name: "FLNT", chain: "bsc", isBurn: false},
+  { address: "0x83f61E66f9A76Dd5d43F8C38215f39ECecfFD7e5", symbol: "dgc", name: "Doge Circle", chain: "eth", isBurn: false },
+
+
 
 
 
@@ -205,7 +208,7 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
   { address: "0xEc6943BB984AED25eC96986898721a7f8aB6212E", symbol: "", name: "WiCrypt Network", chain: "rwa", isBurn: false },
   { address: "0x7923C0f6FA3d1BA6EAFCAedAaD93e737Fd22FC4F", symbol: "cNGN", name: "cNGN", chain: "rwa", isBurn: false },
   { address: "0xbe231A8492487aAe6096278A97050FAe6B9d5BEc", symbol: "weth", name: "Wrapped Ether", chain: "rwa", isBurn: false },
-
+  
   { address: "0x4200000623d0242cccd4e907008583dcb4af6472", symbol: "estee", name: "SHIBSTEE", chain: "eth", isBurn: false },
   {address: "0x45604b6C05ac7d0045741EdaF95739D514461FB5", symbol: "bofe", name: "Book Of Frog", chain: "eth", isBurn: false },
   {address: "0x68A47Fe1CF42eBa4a030a10CD4D6a1031Ca3CA0a", symbol: "tet", name: "Tectum Emission Token", chain: "eth", isBurn: false },
