@@ -9,9 +9,15 @@ import LoadingWithLogo from '@/components/LoadingWithLogo';
 
 export default function BlazeClaimPage() {
   const { user, isAuthenticated } = useAuth();
-  const { loading, claiming, error, balance, streak, claim } = useBlazeClaim(user?.id);
+  const { loading, claiming, error, balance, streak, bonuses, claim, claimBonus } = useBlazeClaim(user?.id);
   const [claimSuccess, setClaimSuccess] = useState(false);
   const [claimAmount] = useState(10);
+
+  // Bonus claims unlocked when the matching daily streak day is claimed
+  const displayBonuses = bonuses.length > 0 ? bonuses : [
+    { dayNumber: 3, amount: 10, claimed: false, claimedAt: null, unlocked: false },
+    { dayNumber: 7, amount: 20, claimed: false, claimedAt: null, unlocked: false },
+  ];
 
   // Mock data for initial render
   const displayStreak = streak.data.length > 0 ? streak : {
@@ -59,13 +65,21 @@ export default function BlazeClaimPage() {
     }
   };
 
+  const handleBonusClaim = async (dayNumber: number) => {
+    const result = await claimBonus(dayNumber);
+    if (result?.success) {
+      setClaimSuccess(true);
+      setTimeout(() => setClaimSuccess(false), 5000);
+    }
+  };
+
   return (
     <div className="min-h-screen p-4 md:p-8">
       <div className=" mx-auto">
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h1 className="text-4xl font-bold text-white mb-2">Daily Rewards 🔥</h1>
+            <h1 className="text-4xl font-bold text-white mb-2">BLAZE Candies 🔥</h1>
             <p className="text-gray-400">Claim your daily BLAZE points</p>
           </div>
         </div>
@@ -82,7 +96,7 @@ export default function BlazeClaimPage() {
 
               {/* 7 Day Grid Calendar */}
               <div className="mb-8">
-                <h3 className="text-2xl font-bold text-white mb-4">This Week's Streak</h3>
+                <h3 className="text-2xl font-bold text-white mb-4">Daily Streak</h3>
                 <div className="grid grid-cols-4 md:grid-cols-7 gap-2">
                   {displayStreak.data.map((day) => {
                     const isActiveDay = day.dayNumber === displayStreak.currentStreakDay && displayStreak.canClaim && !day.claimed;
@@ -120,6 +134,53 @@ export default function BlazeClaimPage() {
                           <>
                             <p className="text-xl opacity-30">🔥</p>
                             <p className="text-xs text-gray-500">Locked</p>
+                          </>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              {/* Additional streak — bonus claims unlocked on day 3 and day 7 of the daily streak */}
+              <div className="mb-8">
+                <h3 className="text-2xl font-bold text-white mb-4">Additional Streak</h3>
+                <div className="grid grid-cols-2 gap-2 max-w-md">
+                  {displayBonuses.map((bonus) => {
+                    const isClaimed = bonus.claimed;
+                    const isAvailable = bonus.unlocked && !isClaimed;
+
+                    return (
+                      <button
+                        key={bonus.dayNumber}
+                        onClick={() => isAvailable && !claiming && handleBonusClaim(bonus.dayNumber)}
+                        disabled={!isAvailable || claiming}
+                        className={`h-28 rounded-xl border-2 flex flex-col items-center justify-center gap-1 transition-all transform ${
+                          isAvailable && !claiming ? 'cursor-pointer hover:scale-105 active:scale-95' : 'cursor-not-allowed'
+                        } ${
+                          isClaimed
+                            ? 'bg-gradient-to-br from-green-500 to-emerald-600 border-green-400/50 shadow-lg'
+                            : isAvailable
+                            ? 'bg-gradient-to-br from-orange-600 via-orange-500 to-red-600 border-orange-400/50 shadow-lg hover:shadow-xl'
+                            : 'bg-neutral-800 border-neutral-600/50'
+                        }`}
+                      >
+                        <p className={`text-xs font-medium ${isClaimed || isAvailable ? 'text-white/90' : 'text-gray-400'}`}>
+                          Day {bonus.dayNumber} Bonus
+                        </p>
+                        {isClaimed ? (
+                          <>
+                            <p className="text-2xl">✓</p>
+                            <p className="text-xs font-bold text-white">+{bonus.amount}</p>
+                          </>
+                        ) : isAvailable ? (
+                          <>
+                            <p className="text-2xl animate-bounce">🎁</p>
+                            <p className="text-xs text-white font-semibold">Claim +{bonus.amount}</p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-xl opacity-30">🎁</p>
+                            <p className="text-xs text-gray-500">Claim Day {bonus.dayNumber} to unlock</p>
                           </>
                         )}
                       </button>

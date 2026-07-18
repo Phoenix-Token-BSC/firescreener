@@ -8,6 +8,14 @@ export interface StreakDay {
   claimedAt: string | null;
 }
 
+export interface BonusDay {
+  dayNumber: number;
+  amount: number;
+  claimed: boolean;
+  claimedAt: string | null;
+  unlocked: boolean;
+}
+
 export interface BlazeBalance {
   totalBlaze: number;
   lastClaimAt: string | null;
@@ -46,6 +54,7 @@ export function useBlazeClaim(userId: string | undefined) {
     canClaim: true,
     timeUntilNextClaim: '',
   });
+  const [bonuses, setBonuses] = useState<BonusDay[]>([]);
 
   // Fetch claim history on mount
   useEffect(() => {
@@ -64,6 +73,7 @@ export function useBlazeClaim(userId: string | undefined) {
 
         setBalance(data.balance);
         setStreak(data.streak);
+        setBonuses(data.bonuses || []);
       } catch (err) {
         console.error('Fetch error:', err);
         setError('Failed to fetch claim data');
@@ -114,11 +124,49 @@ export function useBlazeClaim(userId: string | undefined) {
       const historyResponse = await fetch(`/api/blaze/history?userId=${userId}&days=7`);
       const historyData = await historyResponse.json();
       setStreak(historyData.streak);
+      setBonuses(historyData.bonuses || []);
 
       return data as BlazeClaimResponse;
     } catch (err) {
       console.error('Claim error:', err);
       setError('An error occurred while claiming');
+    } finally {
+      setClaiming(false);
+    }
+  };
+
+  const claimBonus = async (dayNumber: number) => {
+    if (!userId) return;
+
+    setClaiming(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/blaze/bonus-claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, dayNumber }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || 'Failed to claim bonus');
+        return;
+      }
+
+      setBalance((prev) => ({ ...prev, totalBlaze: data.balance }));
+
+      // Refetch history to update bonus states
+      const historyResponse = await fetch(`/api/blaze/history?userId=${userId}&days=7`);
+      const historyData = await historyResponse.json();
+      setStreak(historyData.streak);
+      setBonuses(historyData.bonuses || []);
+
+      return data as BlazeClaimResponse;
+    } catch (err) {
+      console.error('Bonus claim error:', err);
+      setError('An error occurred while claiming the bonus');
     } finally {
       setClaiming(false);
     }
@@ -130,6 +178,8 @@ export function useBlazeClaim(userId: string | undefined) {
     error,
     balance,
     streak,
+    bonuses,
     claim,
+    claimBonus,
   };
 }

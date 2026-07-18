@@ -1,3 +1,9 @@
+// Bonus rewards unlocked when the matching daily streak day is claimed.
+export const BONUS_REWARDS: Record<number, number> = {
+  3: 10,
+  7: 20,
+};
+
 // Daily claim cooldown: one claim per UTC calendar day, resetting at 00:00 UTC.
 
 export function isSameUtcDay(a: Date, b: Date): boolean {

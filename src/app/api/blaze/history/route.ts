@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
-import { hasClaimedToday, isStreakBroken, timeUntilNextUtcMidnight } from '@/lib/blaze';
+import { BONUS_REWARDS, hasClaimedToday, isStreakBroken, timeUntilNextUtcMidnight } from '@/lib/blaze';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
       { data: devUser },
       { data: statsData, error: statsError },
       { data: claimsData, error: claimsError },
+      { data: bonusData, error: bonusError },
     ] = await Promise.all([
       supabase
         .from('auth_users')
@@ -43,6 +44,11 @@ export async function GET(request: NextRequest) {
         .maybeSingle(),
       supabase
         .from('blaze_daily_claims')
+        .select('day_number, amount, is_claimed, claimed_at')
+        .eq('user_id', userId)
+        .order('day_number', { ascending: true }),
+      supabase
+        .from('blaze_bonus_claims')
         .select('day_number, amount, is_claimed, claimed_at')
         .eq('user_id', userId)
         .order('day_number', { ascending: true }),
@@ -140,7 +146,8 @@ export async function GET(request: NextRequest) {
     // (missed day) or a completed cycle rolling over shows a fresh board.
     // The actual DB reset happens on the next claim.
     const currentDayRow = effectiveClaims.find((c) => c.day_number === currentStreakDay);
-    if (streakBroken || (!claimedToday && currentStreakDay === 1 && currentDayRow?.is_claimed)) {
+    const boardWasReset = streakBroken || (!claimedToday && currentStreakDay === 1 && currentDayRow?.is_claimed);
+    if (boardWasReset) {
       currentStreakDay = 1;
       effectiveClaims = effectiveClaims.map((c) => ({
         ...c,
@@ -179,6 +186,28 @@ export async function GET(request: NextRequest) {
 
     const claimedCount = streakData.filter((d) => d.claimed).length;
 
+    // Bonus claims: locked until the matching daily day is claimed. Rows are
+    // created lazily by the bonus-claim route, so synthesize defaults when
+    // missing (or when the table isn't set up yet — non-fatal).
+    if (bonusError) {
+      console.error('Bonus claims fetch error (is the blaze_bonus_claims table created?):', bonusError);
+    }
+
+    const bonuses = Object.entries(BONUS_REWARDS).map(([day, defaultAmount]) => {
+      const dayNumber = Number(day);
+      const row = bonusData?.find((b) => b.day_number === dayNumber);
+      const claimed = !boardWasReset && !!row?.is_claimed;
+      const dailyRow = effectiveClaims.find((c) => c.day_number === dayNumber);
+
+      return {
+        dayNumber,
+        amount: row?.amount ?? defaultAmount,
+        claimed,
+        claimedAt: claimed ? row?.claimed_at ?? null : null,
+        unlocked: !!dailyRow?.is_claimed,
+      };
+    });
+
     return NextResponse.json(
       {
         success: true,
@@ -194,6 +223,7 @@ export async function GET(request: NextRequest) {
           canClaim,
           timeUntilNextClaim,
         },
+        bonuses,
       },
       { status: 200 }
     );

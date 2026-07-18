@@ -144,6 +144,15 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      const { error: bonusResetError } = await supabase
+        .from('blaze_bonus_claims')
+        .update({ is_claimed: false, claimed_at: null, updated_at: now.toISOString() })
+        .eq('user_id', userId);
+
+      if (bonusResetError) {
+        console.error('Bonus streak reset error:', bonusResetError);
+      }
+
       currentDay = 1;
     }
 
@@ -179,6 +188,15 @@ export async function POST(request: NextRequest) {
             { error: 'Failed to start new cycle' },
             { status: 500 }
           );
+        }
+
+        const { error: bonusCycleResetError } = await supabase
+          .from('blaze_bonus_claims')
+          .update({ is_claimed: false, claimed_at: null, updated_at: now.toISOString() })
+          .eq('user_id', userId);
+
+        if (bonusCycleResetError) {
+          console.error('Bonus cycle reset error:', bonusCycleResetError);
         }
       } else {
         return NextResponse.json(
