@@ -198,10 +198,6 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
   {address:"0x90ac160a9597475e31c970ae71ff4863060f7777", symbol: "flnt", name: "FLNT", chain: "bsc", isBurn: false},
   { address: "0x83f61E66f9A76Dd5d43F8C38215f39ECecfFD7e5", symbol: "dgc", name: "Doge Circle", chain: "bsc", isBurn: false },
 
-
-
-
-
   { address: "0xf20f989CAf263C513f9183B4Fed88F14Fc04c8dB", symbol: "shalom", name: "Shalom", chain: "rwa", isBurn: false },
   { address: "0x782ea82124B474f1f968262ec24FCdED39689dd5", symbol: "rvm", name: "Real World Meme", chain: "rwa", isBurn: false },
   { address: "0x02afe9989D86a0357fbb238579FE035dc17BcAB0", symbol: "xRWA", name: "Xend Finance RWA", chain: "rwa", isBurn: false },
@@ -222,8 +218,7 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
   {address: "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump", symbol: "ansem", name: "The Black Bull", chain: "sol", isBurn: false},
   {address: "5Cd2u2mkWXPMXdXFAHSPXvbDaUPYTkc4KWVMyFw1hray", symbol: "dxa", name: "Dynexa", chain: "sol", isBurn: false},
   {address: "q8gxXxDi4NK6W4NAJkNjwn52DBUgFkK9MazVDMHpump", symbol: "merry cat", name: "MERRY CAT", chain: "sol", isBurn: false},
-
-
+  {address: "4kdX3qeL1t8CoVLVM6XDygTBWz8XfWLRSuLJmojJpump", symbol: "king", name: "Mansa Musa", chain: "sol", isBurn: false},
 
 ];
 
