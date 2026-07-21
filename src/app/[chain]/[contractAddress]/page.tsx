@@ -341,11 +341,6 @@ export default function TokenPage() {
             }
             : prev,
         );
-        if (data.is_burn !== null && data.is_burn !== undefined) {
-          setTokenMetadata((prev) =>
-            prev ? { ...prev, isBurn: Boolean(data.is_burn) } : prev,
-          );
-        }
       });
   }, [chain, contractAddress]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -407,8 +402,8 @@ export default function TokenPage() {
     }
   }
 
-  // Check if token has burns enabled
-  const showBurns = tokenMetadata?.isBurn;
+  // Check if token has burns enabled (from tokenRegistry only)
+  const showBurns = tokenMetadata?.isBurn === true;
   const headerImage = tokenData?.profile && tokenData.profile !== "N/A" ? tokenData.profile : null;
   const showHeaderImage = !!headerImage && !headerImageBroken;
 
