@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { getBlazeUser } from '@/lib/blazeUser';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -39,52 +40,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify user exists
-    const { data: regularUser } = await supabase
-      .from('auth_users')
-      .select('id')
-      .eq('id', userId)
-      .maybeSingle();
-
-    const { data: devUser } = await supabase
-      .from('developer_accounts')
-      .select('id')
-      .eq('id', userId)
-      .maybeSingle();
-
-    if (!regularUser && !devUser) {
+    // Verify user exists and get their balance in one lookup
+    const found = await getBlazeUser(supabase, userId);
+    if (!found) {
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
       );
     }
 
-    // Get user's balance
-    const { data: stats, error: statsError } = await supabase
-      .from('user_blaze_stats')
-      .select('total_blaze_earned')
-      .eq('user_id', userId)
-      .single();
-
-    if (statsError) {
-      console.error('Stats fetch error:', statsError);
-      return NextResponse.json(
-        { error: 'Failed to fetch user balance' },
-        { status: 500 }
-      );
-    }
-
-    if (!stats) {
-      return NextResponse.json(
-        { error: 'User has no balance record' },
-        { status: 400 }
-      );
-    }
+    const { table, user } = found;
 
     // Check if user has enough balance
-    if (stats.total_blaze_earned < reward.cost) {
+    if (user.total_blazes_claimed < reward.cost) {
       return NextResponse.json(
-        { error: 'Insufficient balance', balance: stats.total_blaze_earned },
+        { error: 'Insufficient balance', balance: user.total_blazes_claimed },
         { status: 400 }
       );
     }
@@ -114,7 +84,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Record the claim
-    const { error: claimError } = await supabase
+    const { data: claimRow, error: claimError } = await supabase
       .from('reward_claims')
       .insert([
         {
@@ -123,7 +93,9 @@ export async function POST(request: NextRequest) {
           cost_paid: reward.cost,
           wallet_address: walletAddress.trim(),
         },
-      ]);
+      ])
+      .select('id')
+      .single();
 
     if (claimError) {
       console.error('Claim insert error:', claimError);
@@ -133,18 +105,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Deduct balance
-    const newBalance = stats.total_blaze_earned - reward.cost;
-    const { error: updateError } = await supabase
-      .from('user_blaze_stats')
-      .update({ total_blaze_earned: newBalance })
-      .eq('user_id', userId);
+    // Deduct balance. Guarded on the balance we read so concurrent redemptions
+    // can't both spend the same points.
+    const newBalance = user.total_blazes_claimed - reward.cost;
+    const { data: updated, error: updateError } = await supabase
+      .from(table)
+      .update({ total_blazes_claimed: newBalance })
+      .eq('id', userId)
+      .eq('total_blazes_claimed', user.total_blazes_claimed)
+      .select('total_blazes_claimed')
+      .maybeSingle();
 
     if (updateError) {
       console.error('Balance update error:', updateError);
       return NextResponse.json(
         { error: 'Failed to update balance' },
         { status: 500 }
+      );
+    }
+
+    if (!updated) {
+      // Roll back the claim so a lost race doesn't record a free reward
+      await supabase.from('reward_claims').delete().eq('id', claimRow.id);
+      return NextResponse.json(
+        { error: 'Balance changed, please try again' },
+        { status: 409 }
       );
     }
 

@@ -1,8 +1,47 @@
+export const DAILY_REWARD = 10;
+
 // Bonus rewards unlocked when the matching daily streak day is claimed.
 export const BONUS_REWARDS: Record<number, number> = {
   3: 10,
   7: 20,
 };
+
+// The 7-day board is stored as a bitmask on the user row: bit 0 = day 1 ... bit 6 = day 7.
+export function isDayClaimed(mask: number, dayNumber: number): boolean {
+  return (mask & (1 << (dayNumber - 1))) !== 0;
+}
+
+export function withDayClaimed(mask: number, dayNumber: number): number {
+  return mask | (1 << (dayNumber - 1));
+}
+
+export const BONUS_DAYS = Object.keys(BONUS_REWARDS).map(Number);
+
+export function isBonusDay(dayNumber: number): boolean {
+  return dayNumber in BONUS_REWARDS;
+}
+
+/**
+ * Bonus claims are only available on the same UTC day as the matching daily claim.
+ * After claiming daily day N, current_streak_day advances to N+1 (or 1 after day 7).
+ */
+export function isBonusClaimWindow(
+  bonusDay: number,
+  currentStreakDay: number,
+  claimedToday: boolean,
+  dailyDayClaimed: boolean,
+  boardWasReset: boolean
+): boolean {
+  if (boardWasReset || !dailyDayClaimed || !claimedToday || !isBonusDay(bonusDay)) {
+    return false;
+  }
+
+  if (bonusDay === 7) {
+    return currentStreakDay === 1;
+  }
+
+  return currentStreakDay === bonusDay + 1;
+}
 
 // Daily claim cooldown: one claim per UTC calendar day, resetting at 00:00 UTC.
 

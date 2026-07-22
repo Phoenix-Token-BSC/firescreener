@@ -157,7 +157,6 @@ export function useBlazeClaim(userId: string | undefined) {
 
       setBalance((prev) => ({ ...prev, totalBlaze: data.balance }));
 
-      // Refetch history to update bonus states
       const historyResponse = await fetch(`/api/blaze/history?userId=${userId}&days=7`);
       const historyData = await historyResponse.json();
       setStreak(historyData.streak);
