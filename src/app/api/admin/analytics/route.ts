@@ -72,15 +72,20 @@ export async function GET(request: NextRequest) {
       return sum + (r.cost_paid || 0);
     }, 0) || 0;
 
-    // Total points claimed (all-time). total_blaze_earned is the user's current
+    // Total points claimed (all-time). total_blazes_claimed is the user's current
     // balance — spending deducts from it — so claimed = balances + all-time spend.
-    const { data: blazeStats } = await supabase
-      .from('user_blaze_stats')
-      .select('total_blaze_earned');
+    const { data: userBalances } = await supabase
+      .from('auth_users')
+      .select('total_blazes_claimed');
 
-    const totalBalances = blazeStats?.reduce((sum, r) => {
-      return sum + (r.total_blaze_earned || 0);
-    }, 0) || 0;
+    const { data: devBalances } = await supabase
+      .from('developer_accounts')
+      .select('total_blazes_claimed');
+
+    const totalBalances = [...(userBalances || []), ...(devBalances || [])].reduce(
+      (sum, r) => sum + (r.total_blazes_claimed || 0),
+      0
+    );
 
     const { data: allClaims } = await supabase
       .from('reward_claims')

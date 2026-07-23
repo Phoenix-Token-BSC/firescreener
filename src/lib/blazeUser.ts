@@ -45,3 +45,28 @@ export async function getBlazeUser(
   if (dev.data) return { table: 'developer_accounts', user: dev.data };
   return null;
 }
+
+// Best-effort audit log — a failed insert must never fail the claim itself,
+// so callers await this after the balance update and move on.
+export async function logBlazeClaimEvent(
+  supabase: SupabaseClient,
+  event: {
+    userId: string;
+    kind: 'daily' | 'bonus';
+    dayNumber: number;
+    amount: number;
+    claimedAt: string;
+  }
+): Promise<void> {
+  const { error } = await supabase.from('blaze_claim_events').insert({
+    user_id: event.userId,
+    kind: event.kind,
+    day_number: event.dayNumber,
+    amount: event.amount,
+    claimed_at: event.claimedAt,
+  });
+
+  if (error) {
+    console.error('blaze_claim_events insert error (is the table migrated?):', error);
+  }
+}

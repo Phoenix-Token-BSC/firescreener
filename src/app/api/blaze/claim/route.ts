@@ -8,7 +8,7 @@ import {
   timeUntilNextUtcMidnight,
   withDayClaimed,
 } from '@/lib/blaze';
-import { getBlazeUser } from '@/lib/blazeUser';
+import { getBlazeUser, logBlazeClaimEvent } from '@/lib/blazeUser';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -83,7 +83,9 @@ export async function POST(request: NextRequest) {
     const newBalance = (user.total_blazes_claimed || 0) + DAILY_REWARD;
 
     // Single guarded write: the blaze_last_claim_at condition makes concurrent
-    // claims lose the race instead of double-crediting.
+    // claims lose the race instead of double-crediting, and the balance
+    // condition makes a write computed from a stale balance (e.g. a redeem
+    // landed in between) fail instead of overwriting the other route's update.
     let update = supabase
       .from(table)
       .update({
@@ -93,7 +95,8 @@ export async function POST(request: NextRequest) {
         blaze_last_claim_at: now.toISOString(),
         total_blazes_claimed: newBalance,
       })
-      .eq('id', userId);
+      .eq('id', userId)
+      .eq('total_blazes_claimed', user.total_blazes_claimed);
 
     update = user.blaze_last_claim_at === null
       ? update.is('blaze_last_claim_at', null)
@@ -117,6 +120,14 @@ export async function POST(request: NextRequest) {
         { status: 429 }
       );
     }
+
+    await logBlazeClaimEvent(supabase, {
+      userId,
+      kind: 'daily',
+      dayNumber: currentDay,
+      amount: DAILY_REWARD,
+      claimedAt: now.toISOString(),
+    });
 
     return NextResponse.json(
       {

@@ -9,7 +9,7 @@ import {
   isStreakBroken,
   withDayClaimed,
 } from '@/lib/blaze';
-import { getBlazeUser } from '@/lib/blazeUser';
+import { getBlazeUser, logBlazeClaimEvent } from '@/lib/blazeUser';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -88,7 +88,9 @@ export async function POST(request: NextRequest) {
     const newBalance = (user.total_blazes_claimed || 0) + amount;
 
     // Guarded write: the bonus-mask condition makes concurrent claims lose the
-    // race instead of double-crediting.
+    // race instead of double-crediting, and the balance condition makes a
+    // write computed from a stale balance (e.g. a daily claim or redeem landed
+    // in between) fail instead of overwriting the other route's update.
     const { data: updated, error: claimError } = await supabase
       .from(table)
       .update({
@@ -97,6 +99,7 @@ export async function POST(request: NextRequest) {
       })
       .eq('id', userId)
       .eq('blaze_bonus_claimed_days', user.blaze_bonus_claimed_days)
+      .eq('total_blazes_claimed', user.total_blazes_claimed)
       .select('total_blazes_claimed')
       .maybeSingle();
 
@@ -114,6 +117,14 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    await logBlazeClaimEvent(supabase, {
+      userId,
+      kind: 'bonus',
+      dayNumber,
+      amount,
+      claimedAt: now.toISOString(),
+    });
 
     return NextResponse.json(
       {
