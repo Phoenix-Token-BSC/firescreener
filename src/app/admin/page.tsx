@@ -9,9 +9,12 @@ import Link from 'next/link';
 
 interface AnalyticsData {
   summary: {
+    totalUsers: number;
+    newSignups: number;
     totalRewards: number;
     totalRedemptions: number;
     totalPointsSpent: number;
+    totalPointsClaimed: number;
     averagePointsPerRedemption: number;
   };
   topRewards: Array<{
@@ -142,6 +145,32 @@ export default function AdminDashboard() {
           ) : analytics ? (
             <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+              {/* Total Users */}
+              <div className="bg-neutral-800/50 border border-neutral-700/50 rounded-lg p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-gray-400 text-sm font-medium">Total Users</p>
+                  <Users size={20} className="text-purple-400" />
+                </div>
+                <p className="text-3xl font-bold text-white">
+                  {analytics.summary.totalUsers.toLocaleString()}
+                </p>
+                <p className="text-gray-500 text-xs mt-2">
+                  +{analytics.summary.newSignups} signups last 30 days
+                </p>
+              </div>
+
+              {/* Total Points Claimed */}
+              <div className="bg-neutral-800/50 border border-neutral-700/50 rounded-lg p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-gray-400 text-sm font-medium">Total Points Claimed</p>
+                  <Zap size={20} className="text-yellow-400" />
+                </div>
+                <p className="text-3xl font-bold text-white">
+                  {analytics.summary.totalPointsClaimed.toLocaleString()}
+                </p>
+                <p className="text-gray-500 text-xs mt-2">All time BLAZE earned</p>
+              </div>
+
               {/* Total Rewards */}
               <div className="bg-neutral-800/50 border border-neutral-700/50 rounded-lg p-6">
                 <div className="flex items-center justify-between mb-3">

@@ -39,40 +39,62 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const days = parseInt(searchParams.get('days') || '30');
+    const days = parseInt(searchParams.get('days') || '30') || 30;
 
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
+    const startIso = startDate.toISOString();
 
     // Total rewards
     const { count: totalRewards } = await supabase
       .from('rewards')
       .select('*', { count: 'exact', head: true });
 
-    // Total redemptions
-    const { count: totalRedemptions } = await supabase
-      .from('reward_redemptions')
+    // User signups
+    const { count: totalUsers } = await supabase
+      .from('auth_users')
+      .select('*', { count: 'exact', head: true });
+
+    const { count: newSignups } = await supabase
+      .from('auth_users')
       .select('*', { count: 'exact', head: true })
-      .gte('created_at', startDate.toISOString());
+      .gte('created_at', startIso);
 
-    // Total points spent
-    const { data: pointsSpent } = await supabase
-      .from('reward_redemptions')
-      .select('rewards(cost)')
-      .gte('created_at', startDate.toISOString());
+    // Redemptions in period (recorded in reward_claims by the redeem flow)
+    const { data: periodClaims } = await supabase
+      .from('reward_claims')
+      .select('reward_id, cost_paid, rewards(name, icon, type)')
+      .gte('claimed_at', startIso);
 
-    const totalPointsSpent = pointsSpent?.reduce((sum, r: any) => {
-      return sum + (r.rewards?.cost || 0);
+    const totalRedemptions = periodClaims?.length || 0;
+
+    const totalPointsSpent = periodClaims?.reduce((sum, r: any) => {
+      return sum + (r.cost_paid || 0);
     }, 0) || 0;
 
-    // Top rewards by redemptions
-    const { data: topRewards } = await supabase
-      .from('reward_redemptions')
-      .select('reward_id, rewards(name, icon)', { count: 'exact' })
-      .gte('created_at', startDate.toISOString());
+    // Total points claimed (all-time). total_blaze_earned is the user's current
+    // balance — spending deducts from it — so claimed = balances + all-time spend.
+    const { data: blazeStats } = await supabase
+      .from('user_blaze_stats')
+      .select('total_blaze_earned');
 
+    const totalBalances = blazeStats?.reduce((sum, r) => {
+      return sum + (r.total_blaze_earned || 0);
+    }, 0) || 0;
+
+    const { data: allClaims } = await supabase
+      .from('reward_claims')
+      .select('cost_paid');
+
+    const allTimeSpent = allClaims?.reduce((sum, r) => {
+      return sum + (r.cost_paid || 0);
+    }, 0) || 0;
+
+    const totalPointsClaimed = totalBalances + allTimeSpent;
+
+    // Top rewards by redemptions
     const rewardCounts = new Map<string, { name: string; icon: string; count: number }>();
-    topRewards?.forEach((r: any) => {
+    periodClaims?.forEach((r: any) => {
       const key = r.reward_id;
       if (rewardCounts.has(key)) {
         const existing = rewardCounts.get(key)!;
@@ -91,26 +113,22 @@ export async function GET(request: NextRequest) {
       .slice(0, 5);
 
     // Redemptions by type
-    const { data: redemptionsByType } = await supabase
-      .from('reward_redemptions')
-      .select('rewards(type)', { count: 'exact' })
-      .gte('created_at', startDate.toISOString());
-
     const typeCounts = { fcfs: 0, ticket: 0, instant: 0 };
-    redemptionsByType?.forEach((r: any) => {
+    periodClaims?.forEach((r: any) => {
       const type = r.rewards?.type || 'instant';
       typeCounts[type as keyof typeof typeCounts]++;
     });
 
-    const redemptionCount = totalRedemptions ?? 0;
-
     return NextResponse.json({
       summary: {
+        totalUsers: totalUsers ?? 0,
+        newSignups: newSignups ?? 0,
         totalRewards,
-        totalRedemptions: redemptionCount,
+        totalRedemptions,
         totalPointsSpent,
+        totalPointsClaimed,
         averagePointsPerRedemption:
-          redemptionCount > 0 ? Math.round(totalPointsSpent / redemptionCount) : 0,
+          totalRedemptions > 0 ? Math.round(totalPointsSpent / totalRedemptions) : 0,
       },
       topRewards: topRewardsList,
       redemptionsByType: typeCounts,
