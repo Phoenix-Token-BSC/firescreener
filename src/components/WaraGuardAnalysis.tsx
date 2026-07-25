@@ -1,81 +1,57 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { Lock, Flame, Users, Droplets, TrendingUp, ExternalLink, ShieldCheck, ShieldAlert, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
+import { Lock, Flame, Clock, ExternalLink, ShieldCheck, ShieldAlert, TrendingUp, TrendingDown, Droplets } from 'lucide-react';
 
-interface ScoreBreakdown {
-    technicalSafety: number;
-    liquidityHealth: number;
-    onChainMaturity: number;
-    holderDistribution: number;
-    marketPresence: number;
+interface ProofLink {
+    label: string;
+    url: string;
 }
 
 interface WaraGuardData {
-    token: {
-        address: string;
-        name: string;
-        symbol: string;
-        chain: string;
-        logo: string | null;
-        decimals: number;
+    meta?: {
+        chain?: string;
+        token?: string;
+        pairAddress?: string;
+        dexId?: string;
+        fetchedAt?: string;
     };
-    score: {
-        total: number;
-        label: string;
-        breakdown: ScoreBreakdown;
+    tokenAge?: {
+        createdAt?: string | null;
+        ageDays?: number | null;
+        confidence?: string;
+        label?: string;
+        notes?: string[];
     };
-    market: {
-        price: string;
-        marketCap: number;
-        volume24h: number;
-        liquidity: number;
-        priceChange24h: number;
-        source: string;
+    buySell?: {
+        buysCount?: number;
+        sellsCount?: number;
+        buyVolumeUsd?: number;
+        sellVolumeUsd?: number;
+        dominantSide?: string;
+        notes?: string[];
     };
-    holders: {
-        count: number;
-        source: string;
-        topHoldersUrl: string;
-    };
-    supply: {
-        circulating: number;
-        total: number;
-        max: number | null;
-        burned: number;
-        source: string;
-    };
-    safety: {
-        isHoneypot: boolean;
-        buyTax: number;
-        sellTax: number;
-        hasBlacklist: boolean;
-        hasMintFunction: boolean;
-        ownershipRenounced: boolean;
-        isContractVerified: boolean;
-        hasHiddenOwner: boolean;
-        source: string;
-    };
-    liquidity_lock: {
-        status: string;
-        platform: string | null;
-        lockedPercent: number;
-        unlockTime: string | null;
-        isExpired: boolean | null;
-        verifyUrl: string;
-        explorerUrl: string;
-    };
-    meta: {
-        scannedAt: string;
-        chain: string;
-        explorerUrl: string;
-        notes: string[];
+    liquidity?: {
+        status?: string;
+        lockerName?: string | null;
+        unlockDate?: string | null;
+        percentLocked?: number | null;
+        proofLinks?: ProofLink[];
+        signals?: string[];
+        notes?: string[];
     };
 }
 
 interface WaraGuardAnalysisProps {
     chain: string;
     contractAddress: string;
+}
+
+function formatUsd(value: number): string {
+    if (value >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
+    if (value >= 1e6) return `$${(value / 1e6).toFixed(2)}M`;
+    if (value >= 1e3) return `$${(value / 1e3).toFixed(1)}K`;
+    return `$${value.toFixed(2)}`;
 }
 
 const WaraGuardAnalysis: React.FC<WaraGuardAnalysisProps> = ({ chain, contractAddress }) => {
@@ -119,67 +95,39 @@ const WaraGuardAnalysis: React.FC<WaraGuardAnalysisProps> = ({ chain, contractAd
         );
     }
 
-    if (error || !data) return null;
+    const liquidity = data?.liquidity;
+    const tokenAge = data?.tokenAge;
+    const buySell = data?.buySell;
 
-    const { score, safety, liquidity_lock, market, holders } = data;
+    // Hide the card entirely if the payload has none of the sections we render
+    if (error || (!liquidity && !tokenAge && !buySell)) return null;
 
-    const scoreColor =
-        score.total >= 80 ? 'text-green-400' :
-        score.total >= 50 ? 'text-yellow-400' :
-        'text-red-400';
+    const lockStatus = (liquidity?.status || 'UNKNOWN').toUpperCase();
+    const percentLocked = typeof liquidity?.percentLocked === 'number' ? liquidity.percentLocked : null;
+    const lockSafe = lockStatus === 'BURNED' || lockStatus === 'LOCKED';
 
-    const scoreBg =
-        score.total >= 80 ? 'bg-green-500/10 border-green-500/20' :
-        score.total >= 50 ? 'bg-yellow-500/10 border-yellow-500/20' :
-        'bg-red-500/10 border-red-500/20';
-
-    const ScoreBar = ({ label, value, max }: { label: string; value: number; max: number }) => (
-        <div className="flex flex-col gap-1">
-            <div className="flex justify-between items-center">
-                <span className="text-[10px] text-neutral-400 uppercase tracking-tighter">{label}</span>
-                <span className="text-[10px] text-white font-semibold">{value}/{max}</span>
-            </div>
-            <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                <div
-                    className={`h-full rounded-full transition-all duration-500 ${value / max >= 0.8 ? 'bg-green-500' : value / max >= 0.5 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                    style={{ width: `${(value / max) * 100}%` }}
-                />
-            </div>
-        </div>
-    );
-
-    const SafetyTag = ({
-        label,
-        safe,
-        danger = false,
-        Icon,
-    }: {
-        label: string;
-        safe: boolean;
-        danger?: boolean;
-        Icon: React.ElementType;
-    }) => {
-        const style = safe
-            ? 'bg-green-500/10 border-green-500/20 text-green-400'
-            : danger
-            ? 'bg-red-500/10 border-red-500/20 text-red-400'
-            : 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400';
-
-        return (
-            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border ${style} text-[10px] md:text-xs font-medium`}>
-                <Icon size={12} className="md:w-3.5 md:h-3.5" />
-                <span>{label}</span>
-            </div>
-        );
-    };
-
-    const lockStatus = liquidity_lock.status === 'burned'
-        ? 'LP Burned'
-        : liquidity_lock.status === 'locked'
-        ? `LP Locked ${liquidity_lock.lockedPercent.toFixed(1)}%`
+    const lockLabel =
+        lockStatus === 'BURNED' ? 'LP Burned'
+        : lockStatus === 'LOCKED' ? 'LP Locked'
+        : lockStatus === 'UNKNOWN' ? 'LP Status Unknown'
         : 'LP Unlocked';
 
-    const lockSafe = liquidity_lock.status === 'burned' || liquidity_lock.status === 'locked';
+    const badgeStyle = lockSafe
+        ? 'bg-green-500/10 border-green-500/20 text-green-400'
+        : lockStatus === 'UNKNOWN'
+        ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400'
+        : 'bg-red-500/10 border-red-500/20 text-red-400';
+
+    const buys = buySell?.buysCount ?? 0;
+    const sells = buySell?.sellsCount ?? 0;
+    const buyVol = buySell?.buyVolumeUsd ?? 0;
+    const sellVol = buySell?.sellVolumeUsd ?? 0;
+    const totalVol = buyVol + sellVol;
+    const buyShare = totalVol > 0 ? (buyVol / totalVol) * 100 : 50;
+
+    const listedDate = tokenAge?.createdAt
+        ? new Date(tokenAge.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+        : null;
 
     return (
         <div className="bg-black/40 border border-white/10 rounded-xl overflow-hidden">
@@ -191,10 +139,12 @@ const WaraGuardAnalysis: React.FC<WaraGuardAnalysisProps> = ({ chain, contractAd
                     <h3 className="text-md font-semibold text-white tracking-wider">WaraGuard</h3>
                 </div>
                 <div className="flex items-center gap-3">
-                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-bold ${scoreBg} ${scoreColor}`}>
-                        {score.total >= 80 ? <ShieldCheck size={13} /> : <ShieldAlert size={13} />}
-                        <span>{score.total}/100</span>
-                        <span className="text-[10px] font-semibold opacity-80">{score.label}</span>
+                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-bold ${badgeStyle}`}>
+                        {lockSafe ? <ShieldCheck size={13} /> : <ShieldAlert size={13} />}
+                        <span>{lockLabel}</span>
+                        {percentLocked !== null && percentLocked > 0 && (
+                            <span className="text-[10px] font-semibold opacity-80">{percentLocked.toFixed(0)}%</span>
+                        )}
                     </div>
                     <div className={`transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -207,111 +157,84 @@ const WaraGuardAnalysis: React.FC<WaraGuardAnalysisProps> = ({ chain, contractAd
             <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isExpanded ? 'max-h-[1200px] opacity-100' : 'max-h-0 opacity-0'}`}>
                 <div className="p-4 pt-0 space-y-5">
 
-                    {/* Score breakdown */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-3 bg-white/5 rounded-xl border border-white/10">
-                        <ScoreBar label="Technical Safety" value={score.breakdown.technicalSafety} max={40} />
-                        <ScoreBar label="Liquidity Health" value={score.breakdown.liquidityHealth} max={20} />
-                        <ScoreBar label="On-chain Maturity" value={score.breakdown.onChainMaturity} max={15} />
-                        <ScoreBar label="Holder Distribution" value={score.breakdown.holderDistribution} max={15} />
-                        <ScoreBar label="Market Presence" value={score.breakdown.marketPresence} max={10} />
-                    </div>
-
-                    {/* Safety flags */}
-                    <div className="flex flex-wrap gap-2">
-                        <SafetyTag
-                            label={safety.isHoneypot ? 'Honeypot' : 'Not a Honeypot'}
-                            safe={!safety.isHoneypot}
-                            danger={safety.isHoneypot}
-                            Icon={safety.isHoneypot ? XCircle : CheckCircle2}
-                        />
-                        <SafetyTag
-                            label={safety.ownershipRenounced ? 'Ownership Renounced' : 'Ownership Active'}
-                            safe={safety.ownershipRenounced}
-                            danger={false}
-                            Icon={safety.ownershipRenounced ? CheckCircle2 : AlertTriangle}
-                        />
-                        <SafetyTag
-                            label={safety.hasMintFunction ? 'Mint Function' : 'No Mint Function'}
-                            safe={!safety.hasMintFunction}
-                            danger={safety.hasMintFunction}
-                            Icon={safety.hasMintFunction ? AlertTriangle : CheckCircle2}
-                        />
-                        <SafetyTag
-                            label={safety.hasHiddenOwner ? 'Hidden Owner' : 'No Hidden Owner'}
-                            safe={!safety.hasHiddenOwner}
-                            danger={safety.hasHiddenOwner}
-                            Icon={safety.hasHiddenOwner ? XCircle : CheckCircle2}
-                        />
-                        <SafetyTag
-                            label={safety.hasBlacklist ? 'Blacklist Enabled' : 'No Blacklist'}
-                            safe={!safety.hasBlacklist}
-                            danger={false}
-                            Icon={safety.hasBlacklist ? AlertTriangle : CheckCircle2}
-                        />
-                        <SafetyTag
-                            label={lockStatus}
-                            safe={lockSafe}
-                            danger={!lockSafe}
-                            Icon={liquidity_lock.status === 'burned' ? Flame : Lock}
-                        />
-                    </div>
-
-                    {/* Tax + stats row */}
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 pt-4 border-t border-white/5">
-                        <div className="flex flex-col gap-1">
-                            <span className="text-[10px] text-neutral-400 uppercase tracking-tighter">Buy Tax</span>
-                            <span className={`text-sm font-bold ${safety.buyTax > 10 ? 'text-red-400' : safety.buyTax > 5 ? 'text-yellow-400' : 'text-white'}`}>
-                                {safety.buyTax}%
-                            </span>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <span className="text-[10px] text-neutral-400 uppercase tracking-tighter">Sell Tax</span>
-                            <span className={`text-sm font-bold ${safety.sellTax > 10 ? 'text-red-400' : safety.sellTax > 5 ? 'text-yellow-400' : 'text-white'}`}>
-                                {safety.sellTax}%
-                            </span>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-1">
-                                <Users size={12} className="text-white" />
-                                <span className="text-[10px] text-neutral-400 uppercase tracking-tighter">Holders</span>
+                    {/* Liquidity security */}
+                    {liquidity && (
+                        <div className="space-y-2 p-3 bg-white/5 rounded-xl border border-white/10">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1.5 text-[10px] text-neutral-400 uppercase tracking-tighter">
+                                    <Droplets size={12} />
+                                    <span>Liquidity Security</span>
+                                </div>
+                                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-medium ${badgeStyle}`}>
+                                    {lockStatus === 'BURNED' ? <Flame size={11} /> : <Lock size={11} />}
+                                    <span>
+                                        {lockLabel}
+                                        {percentLocked !== null && percentLocked > 0 ? ` · ${percentLocked.toFixed(1)}%` : ''}
+                                    </span>
+                                </div>
                             </div>
-                            <a
-                                href={holders.topHoldersUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm font-bold text-white flex items-center gap-1 hover:text-blue-400 transition-colors"
-                            >
-                                {holders.count.toLocaleString()}
-                                <ExternalLink size={10} />
-                            </a>
+                            {liquidity.lockerName && (
+                                <p className="text-[11px] text-neutral-400">
+                                    Locker: <span className="text-white font-medium">{liquidity.lockerName}</span>
+                                    {liquidity.unlockDate && (
+                                        <> · Unlocks <span className="text-white font-medium">{new Date(liquidity.unlockDate).toLocaleDateString()}</span></>
+                                    )}
+                                </p>
+                            )}
+                            {(liquidity.notes ?? []).map((note, i) => (
+                                <p key={i} className="text-[11px] text-neutral-400">{note}</p>
+                            ))}
+                            {(liquidity.proofLinks ?? []).map((link, i) => (
+                                <a
+                                    key={i}
+                                    href={link.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-[11px] text-blue-400 hover:text-blue-300 transition-colors mr-3"
+                                >
+                                    {link.label} <ExternalLink size={10} />
+                                </a>
+                            ))}
                         </div>
-                        <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-1">
-                                <Droplets size={12} className="text-white" />
-                                <span className="text-[10px] text-neutral-400 uppercase tracking-tighter">Liquidity</span>
-                            </div>
-                            <span className="text-sm font-bold text-white">
-                                ${market.liquidity.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                            </span>
-                        </div>
-                    </div>
+                    )}
 
-                    {/* LP lock detail + verify link */}
-                    {liquidity_lock.lockedPercent > 0 && (
-                        <div className="flex items-center justify-between text-[11px] text-neutral-400 pt-2 border-t border-white/5">
-                            <div className="flex items-center gap-1.5">
-                                <TrendingUp size={12} />
-                                <span>LP {liquidity_lock.status === 'burned' ? 'burned' : 'locked'}: <span className="text-white font-semibold">{liquidity_lock.lockedPercent.toFixed(2)}%</span></span>
-                                {liquidity_lock.platform && <span>· {liquidity_lock.platform}</span>}
+                    {/* Buy/Sell pressure */}
+                    {buySell && (buys > 0 || sells > 0) && (
+                        <div className="space-y-2 p-3 bg-white/5 rounded-xl border border-white/10">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-neutral-400 uppercase tracking-tighter">Buy / Sell Pressure (24h)</span>
+                                {buySell.dominantSide && (
+                                    <span className={`flex items-center gap-1 text-[10px] font-bold ${buySell.dominantSide === 'BUY' ? 'text-green-400' : 'text-red-400'}`}>
+                                        {buySell.dominantSide === 'BUY' ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+                                        {buySell.dominantSide} DOMINANT
+                                    </span>
+                                )}
                             </div>
-                            <a
-                                href={liquidity_lock.verifyUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1 text-blue-400 hover:text-blue-300 transition-colors"
-                            >
-                                Verify <ExternalLink size={10} />
-                            </a>
+                            <div className="h-1.5 bg-red-500/40 rounded-full overflow-hidden">
+                                <div className="h-full bg-green-500 rounded-full transition-all duration-500" style={{ width: `${buyShare}%` }} />
+                            </div>
+                            <div className="flex justify-between text-[11px]">
+                                <span className="text-green-400 font-medium">{buys} buys · {formatUsd(buyVol)}</span>
+                                <span className="text-red-400 font-medium">{sells} sells · {formatUsd(sellVol)}</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Token age */}
+                    {tokenAge && (listedDate || typeof tokenAge.ageDays === 'number') && (
+                        <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/10">
+                            <div className="flex items-center gap-1.5 text-[10px] text-neutral-400 uppercase tracking-tighter">
+                                <Clock size={12} />
+                                <span>{tokenAge.label || 'Listed Since'}</span>
+                            </div>
+                            <div className="text-right">
+                                <span className="text-sm font-bold text-white">
+                                    {listedDate ?? 'Unknown'}
+                                </span>
+                                {typeof tokenAge.ageDays === 'number' && (
+                                    <span className="text-[11px] text-neutral-400 ml-2">({tokenAge.ageDays} days)</span>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>

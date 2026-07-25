@@ -14,25 +14,32 @@ interface TxnsData {
   txnsSells?: string;
 }
 
+interface WaraBuySell {
+  buysCount?: number;
+  sellsCount?: number;
+  buyVolumeUsd?: number;
+  sellVolumeUsd?: number;
+}
+
 interface VolumeTxnsInfoProps {
   chain: string | null;
   contractAddress: string | null;
 }
 
-function formatVolume(value: string | undefined): string {
+function formatVolume(value: string | number | undefined): string {
   if (value === undefined || value === null || value === "N/A") return "—";
-  const num = parseFloat(value);
-  if (isNaN(num)) return value;
+  const num = parseFloat(String(value));
+  if (isNaN(num)) return String(value);
   if (num >= 1_000_000_000) return `$${(num / 1_000_000_000).toFixed(2)}B`;
   if (num >= 1_000_000) return `$${(num / 1_000_000).toFixed(2)}M`;
   if (num >= 1_000) return `$${(num / 1_000).toFixed(2)}K`;
   return `$${num.toFixed(2)}`;
 }
 
-function formatTxns(value: string | undefined): string {
+function formatTxns(value: string | number | undefined): string {
   if (value === undefined || value === null || value === "N/A") return "—";
-  const num = parseFloat(value);
-  if (isNaN(num)) return value;
+  const num = parseFloat(String(value));
+  if (isNaN(num)) return String(value);
   if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
   if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;
   return num.toLocaleString();
@@ -43,7 +50,7 @@ const StatBox = ({
   label,
   format = "volume",
 }: {
-  value: string | undefined;
+  value: string | number | undefined;
   label: string;
   format?: "volume" | "txns";
 }) => (
@@ -58,6 +65,7 @@ const StatBox = ({
 export default function VolumeTxnsInfo({ chain, contractAddress }: VolumeTxnsInfoProps) {
   const [volumeData, setVolumeData] = useState<VolumeData | null>(null);
   const [txnsData, setTxnsData] = useState<TxnsData | null>(null);
+  const [waraBuySell, setWaraBuySell] = useState<WaraBuySell | null>(null);
   const [loading, setLoading] = useState(false);
 
   const supportedChains = ["bsc", "eth", "solana", /* etc */];
@@ -76,22 +84,23 @@ useEffect(() => {
   setLoading(true);
   setVolumeData(null);
   setTxnsData(null);
+  setWaraBuySell(null);
 
   Promise.all([
     fetch(`/api/${chain}/volume/${contractAddress}`).catch(err => ({ failed: true, error: err })),
     fetch(`/api/${chain}/token-price/${contractAddress}`).catch(err => ({ failed: true, error: err })),
+    fetch(`/api/${chain}/waraguard?address=${contractAddress}`).catch(err => ({ failed: true, error: err })),
   ])
-    .then(async ([volRes, priceRes]) => {
+    .then(async ([volRes, priceRes, waraRes]) => {
       const results = await Promise.all([
         volRes instanceof Response && volRes.ok ? volRes.json().catch(() => null) : null,
         priceRes instanceof Response && priceRes.ok ? priceRes.json().catch(() => null) : null,
+        waraRes instanceof Response && waraRes.ok ? waraRes.json().catch(() => null) : null,
       ]);
-
-     // console.log("Volume fetch result:", volRes, results[0]);
-    //  console.log("Txns/Price fetch result:", priceRes, results[1]);
 
       setVolumeData(results[0] ?? null);
       setTxnsData(results[1] ?? null);
+      setWaraBuySell(results[2]?.buySell ?? null);
     })
     .catch(err => {
       console.error("Fetch pipeline failed:", err);
@@ -128,19 +137,26 @@ useEffect(() => {
     );
   }
 
+  // Buys/sells come from WaraGuard when available; fall back to the legacy
+  // endpoints on chains WaraGuard doesn't cover (e.g. Solana).
+  const buyVolume = waraBuySell?.buyVolumeUsd ?? volumeData?.volumeBuys;
+  const sellVolume = waraBuySell?.sellVolumeUsd ?? volumeData?.volumeSells;
+  const buyTxns = waraBuySell?.buysCount ?? txnsData?.txnsBuys;
+  const sellTxns = waraBuySell?.sellsCount ?? txnsData?.txnsSells;
+
   return (
     <div className="flex flex-col gap-4">
       {/* Volume row */}
       <div className="grid grid-cols-3 items-center justify-evenly gap-4">
         <StatBox value={volumeData?.volumeTotal} label="VOLUME" format="volume" />
-        <StatBox value={volumeData?.volumeBuys} label="BUYS" format="volume" />
-        <StatBox value={volumeData?.volumeSells} label="SELLS" format="volume" />
+        <StatBox value={buyVolume} label="BUYS" format="volume" />
+        <StatBox value={sellVolume} label="SELLS" format="volume" />
       </div>
       {/* Txns row */}
       <div className="grid grid-cols-3 items-center justify-evenly gap-4">
         <StatBox value={txnsData?.txns} label="TXNS" format="txns" />
-        <StatBox value={txnsData?.txnsBuys} label="BUYS" format="txns" />
-        <StatBox value={txnsData?.txnsSells} label="SELLS" format="txns" />
+        <StatBox value={buyTxns} label="BUYS" format="txns" />
+        <StatBox value={sellTxns} label="SELLS" format="txns" />
       </div>
     </div>
   );
