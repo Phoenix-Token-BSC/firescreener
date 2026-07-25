@@ -66,8 +66,7 @@ export async function POST(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY || ''
     );
 
-    const emojiField = `emoji_${emoji}`;
-    const { error, data } = await supabase.rpc('increment_emoji_reaction', {
+    const { error } = await supabase.rpc('increment_emoji_reaction', {
       p_contract_address: normalizedAddress,
       p_chain: chain.toLowerCase(),
       p_emoji_number: emoji,
@@ -85,12 +84,11 @@ export async function POST(request: NextRequest) {
     await recordVote(clientIp, normalizedAddress);
 
     // Clear trending cache to reflect new votes
-    await redis.del('trending:all:v2').catch(() => {});
-    await redis.del(`votes:${normalizedAddress}`).catch(() => {});
+    await redis.del('trending:all:v3').catch(() => {});
 
     // Get updated reaction data
     const { data: reactionData } = await supabase
-      .from('token-reactions')
+      .from('token_reactions')
       .select('emoji_1,emoji_2,emoji_3,emoji_4,emoji_5')
       .eq('contract_address', normalizedAddress)
       .single();

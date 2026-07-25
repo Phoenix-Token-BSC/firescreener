@@ -14,7 +14,7 @@ interface TrendingToken extends Token {
   isFeatured?: boolean;
 }
 
-function TrendingRow({ token }: { token: TrendingToken }) {
+function TrendingRow({ token, rank }: { token: TrendingToken; rank: number | null }) {
   const priceFlash = useFlashOnChange(token.price);
   const changeFlash = useFlashOnChange(token.change24h ?? 'N/A');
   const mcFlash = useFlashOnChange(token.marketCap);
@@ -31,7 +31,14 @@ function TrendingRow({ token }: { token: TrendingToken }) {
 
   return (
     <tr className="border-b border-orange-800 hover:bg-orange-800 transition-colors">
-      <td className="px-5 py-2 text-sm sticky left-0 z-10 min-w-[150px] border-l border-orange-800 border-r border-orange-800">
+      <td className="px-3 py-2 text-sm text-center min-w-[50px] border-l border-orange-800 border-r border-orange-800">
+        {rank === null ? (
+          <span className="text-lg leading-none">🔥</span>
+        ) : (
+          <span className="text-gray-400">{rank}</span>
+        )}
+      </td>
+      <td className="px-5 py-2 text-sm sticky left-0 z-10 min-w-[150px] border-r border-orange-800">
         <Link href={`/${token.chain}/${token.address}`} className="flex items-center hover:opacity-80">
           <div className="relative flex-shrink-0 mr-3">
             <img
@@ -56,9 +63,6 @@ function TrendingRow({ token }: { token: TrendingToken }) {
               <span className="text-white font-medium text-sm">
                 {token.symbol.toUpperCase()}
               </span>
-              {(token as any).isFeatured && (
-                <span className="text-lg leading-none">🔥</span>
-              )}
             </div>
             <span className="text-gray-400 text-xs whitespace-nowrap">{token.name}</span>
           </div>
@@ -117,6 +121,12 @@ function TrendingRow({ token }: { token: TrendingToken }) {
           {token.volume === 'N/A' ? 'N/A' : `$${formatCompactNumber(token.volume)}`}
         </span>
       </td>
+
+      <td className="px-5 py-2 text-sm min-w-[90px] border-r border-orange-800">
+        <span className="inline-block bg-orange-900/60 text-orange-300 text-xs font-semibold rounded-full px-2 py-0.5">
+          {Math.round(token.trendScore ?? 0)}
+        </span>
+      </td>
     </tr>
   );
 }
@@ -124,9 +134,12 @@ function TrendingRow({ token }: { token: TrendingToken }) {
 export default function TrendingPage() {
   const [tokens, setTokens] = useSessionStorage<TrendingToken[]>('trendingTokens', []);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useScrollRestoration('trendingScroll');
+
+  const featuredCount = tokens.filter(t => t.isFeatured).length;
 
   const fetchTrending = useCallback(async (isBackground = false) => {
     try {
@@ -134,19 +147,12 @@ export default function TrendingPage() {
       if (!response.ok) throw new Error(`Failed to fetch trending: ${response.status}`);
 
       const data: TrendingToken[] = await response.json();
-
-      // Debug log
-      const featuredCount = data.filter((t: any) => t.isFeatured).length;
-      console.log(`[Trending Page] Received ${data.length} tokens, ${featuredCount} are featured`);
-      if (featuredCount > 0) {
-        console.log(`[Trending Page] Featured tokens:`, data.filter((t: any) => t.isFeatured).map(t => ({ symbol: t.symbol, isFeatured: (t as any).isFeatured })));
-      }
-
       setTokens(data);
+      setError(false);
     } catch (error) {
       if (!isBackground) {
         console.error('Error fetching trending:', error);
-        setLoading(false);
+        setError(true);
       }
     } finally {
       if (!isBackground) setLoading(false);
@@ -183,8 +189,17 @@ export default function TrendingPage() {
         ) : tokens.length === 0 ? (
           <div className="flex items-center justify-center py-20">
             <div className="text-center">
-              <p className="text-white text-lg mb-2">No trending tokens available</p>
-              <p className="text-gray-400">Check back soon for active tokens.</p>
+              {error ? (
+                <>
+                  <p className="text-white text-lg mb-2">Couldn&apos;t load trending tokens</p>
+                  <p className="text-gray-400">Please check your connection and try again shortly.</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-white text-lg mb-2">No trending tokens available</p>
+                  <p className="text-gray-400">Check back soon for active tokens.</p>
+                </>
+              )}
             </div>
           </div>
         ) : (
@@ -202,22 +217,24 @@ export default function TrendingPage() {
                 <table className="w-full min-w-[600px]">
                   <thead>
                     <tr className="bg-orange-500 border-b border-orange-800">
-                      <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left sticky left-0 bg-orange-500 z-20 min-w-[150px] border-l border-orange-800 border-r border-orange-800">Token</th>
+                      <th className="text-md font-semibold text-white uppercase tracking-wider px-3 py-3 text-center min-w-[50px] border-l border-orange-800 border-r border-orange-800">#</th>
+                      <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left sticky left-0 bg-orange-500 z-20 min-w-[150px] border-r border-orange-800">Token</th>
                       <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px] border-r border-orange-800">Price</th>
                       <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px] border-r border-orange-800">24H Change</th>
                       <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px] border-r border-orange-800">Market Cap</th>
                       <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px] border-r border-orange-800">Liquidity</th>
                       <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[120px] border-r border-orange-800">24H Volume</th>
+                      <th className="text-md font-semibold text-white uppercase tracking-wider px-5 py-3 text-left min-w-[90px] border-r border-orange-800">Score</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {tokens.map((token, idx) => {
-                      if (idx === 0) {
-                        console.log(`[Trending Table] First token:`, token);
-                        console.log(`[Trending Table] Tokens array:`, tokens.filter((t: any) => t.isFeatured));
-                      }
-                      return <TrendingRow key={token.address} token={token} />;
-                    })}
+                    {tokens.map((token, idx) => (
+                      <TrendingRow
+                        key={`${token.chain}-${token.address}`}
+                        token={token}
+                        rank={token.isFeatured ? null : idx - featuredCount + 1}
+                      />
+                    ))}
                   </tbody>
                 </table>
               </div>

@@ -119,6 +119,11 @@ export default function TokenPage() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  // A failed header image must not permanently hide a newer, valid URL
+  useEffect(() => {
+    setHeaderImageBroken(false);
+  }, [tokenData?.profile]);
+
   // Convert fetchTokenData to useCallback for proper dependency management and reusability
   const fetchTokenData = useCallback(
     async (isBackground = false) => {
@@ -180,7 +185,6 @@ export default function TokenPage() {
           `/api/${chainLower}/token-holders/${contractAddress}`,
           `/api/${chainLower}/token-price/${contractAddress}`,
           `/api/${chainLower}/burns-interval/${contractAddress}`,
-          `/api/${chainLower}/token-profile/${contractAddress}`,
           `/api/${chainLower}/socials/${contractAddress}`,
           `/api/${chainLower}/ca/${contractAddress}`,
           `/api/${chainLower}/description/${contractAddress}`,
@@ -201,7 +205,6 @@ export default function TokenPage() {
           holdersData,
           priceData,
           burnsData,
-          profileData,
           socialData,
           ,
           descriptionData,
@@ -243,7 +246,7 @@ export default function TokenPage() {
           priceChange3h: priceData?.change3h || "N/A",
           priceChange1h: priceData?.change1h || "N/A",
           liquidity: priceData?.liquidity || "N/A",
-          profile: profileData?.profileImage || "N/A",
+          profile: descriptionData?.header_image || "N/A",
           contract: contractAddress,
           description: descriptionData?.description || "N/A",
           holdersCount: holdersCount?.holder_count || "N/A",
@@ -634,7 +637,7 @@ export default function TokenPage() {
 
                     {chain && contractAddress && chain.toLowerCase() !== 'sol' && (
                       <>
-                        <div className="mt-8 flex flex-col border-2 border-orange-500 p-2 rounded-xl gap-2">
+                        <div className="mt-4 flex flex-col  rounded-xl gap-2">
                           <WaraGuardAnalysis
                             chain={chain}
                             contractAddress={contractAddress}

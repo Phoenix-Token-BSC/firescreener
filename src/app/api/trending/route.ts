@@ -1,5 +1,5 @@
 import { TOKEN_REGISTRY } from '@/lib/tokenRegistry';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
 import { createClient } from '@supabase/supabase-js';
 
@@ -15,6 +15,9 @@ interface FeaturedToken {
 
 const DEXSCREENER_API_URL = "https://api.dexscreener.com/latest/dex/tokens";
 const ASSETCHAIN_LIQUIDITY_API = "https://liquidity-pool-api.assetchain.org/tokens";
+const DEXSCREENER_BATCH_SIZE = 30; // DexScreener accepts up to 30 comma-separated addresses
+const CACHE_KEY = 'trending:all:v3'; // v3: batched fetch + acceleration-based scoring
+const CACHE_TTL = 30;
 
 interface TokenMetrics {
   symbol: string;
@@ -30,9 +33,19 @@ interface TokenMetrics {
   volumeScore: number;
   liquidityScore: number;
   momentumScore: number;
-  communityVotes?: number;
-  communityScore?: number;
+  accelerationScore: number;
+  communityScore: number;
+  communityVotes: number;
   isFeatured?: boolean;
+}
+
+interface RawMetrics {
+  price: string | number;
+  volume: number;
+  volumeH1: number;
+  liquidity: number;
+  marketCap: number;
+  change24h: number;
 }
 
 async function fetchWithTimeout(url: string, timeout = 5000): Promise<Response> {
@@ -54,17 +67,83 @@ function parseNumericValue(value: string | number | undefined): number {
   return parseFloat(str) || 0;
 }
 
-async function getCommunityVotes(tokenAddress: string): Promise<number> {
-  const cacheKey = `votes:${tokenAddress.toLowerCase()}`;
+// Fetch metrics for many tokens at once. For each token, the pair with the
+// highest liquidity wins (DexScreener's pair order is not guaranteed).
+async function fetchDexScreenerMetrics(addresses: string[]): Promise<Map<string, RawMetrics>> {
+  const metrics = new Map<string, RawMetrics>();
+  const bestLiquidity = new Map<string, number>();
+
+  const chunks: string[][] = [];
+  for (let i = 0; i < addresses.length; i += DEXSCREENER_BATCH_SIZE) {
+    chunks.push(addresses.slice(i, i + DEXSCREENER_BATCH_SIZE));
+  }
+
+  await Promise.all(chunks.map(async (chunk) => {
+    try {
+      const response = await fetchWithTimeout(`${DEXSCREENER_API_URL}/${chunk.join(',')}`, 8000);
+      if (!response.ok) return;
+
+      const data = await response.json();
+      for (const pair of data.pairs ?? []) {
+        const base = pair.baseToken?.address?.toLowerCase();
+        if (!base) continue;
+
+        const liquidity = parseNumericValue(pair.liquidity?.usd);
+        if (metrics.has(base) && liquidity <= (bestLiquidity.get(base) ?? 0)) continue;
+
+        bestLiquidity.set(base, liquidity);
+        metrics.set(base, {
+          price: pair.priceUsd || "N/A",
+          volume: parseNumericValue(pair.volume?.h24),
+          volumeH1: parseNumericValue(pair.volume?.h1),
+          liquidity,
+          marketCap: parseNumericValue(pair.marketCap ?? pair.fdv),
+          change24h: parseNumericValue(pair.priceChange?.h24),
+        });
+      }
+    } catch (error) {
+      console.error('DexScreener batch fetch failed:', error);
+    }
+  }));
+
+  return metrics;
+}
+
+// AssetChain (rwa) tokens are not on DexScreener; its API has no 1h volume or
+// 24h change, so those components simply score 0 for rwa tokens.
+async function fetchAssetChainMetrics(addresses: string[]): Promise<Map<string, RawMetrics>> {
+  const metrics = new Map<string, RawMetrics>();
+
+  await Promise.all(addresses.map(async (address) => {
+    try {
+      const response = await fetchWithTimeout(`${ASSETCHAIN_LIQUIDITY_API}?address=${address}`, 5000);
+      if (!response.ok) return;
+
+      const data = await response.json();
+      const item = data.items?.[0];
+      if (!item) return;
+
+      metrics.set(address.toLowerCase(), {
+        price: item.usdPrice || "N/A",
+        volume: parseNumericValue(item.pastDayVolume),
+        volumeH1: 0,
+        liquidity: parseNumericValue(item.currentTvl),
+        marketCap: parseNumericValue(item.marketCap),
+        change24h: 0,
+      });
+    } catch (error) {
+      console.error(`AssetChain fetch failed for ${address}:`, error);
+    }
+  }));
+
+  return metrics;
+}
+
+// Positive reactions (🔥 + 🚀 + ❤️‍🔥) for all tokens in one query.
+async function fetchCommunityVotes(addresses: string[]): Promise<Map<string, number>> {
+  const votes = new Map<string, number>();
 
   try {
-    // Check Redis cache first
-    const cached = await redis.get(cacheKey);
-    if (cached) return parseInt(cached as string);
-  } catch {}
-
-  try {
-    // Fetch from Supabase token-reactions table
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL || '',
       process.env.SUPABASE_SERVICE_ROLE_KEY || ''
@@ -72,103 +151,59 @@ async function getCommunityVotes(tokenAddress: string): Promise<number> {
 
     const { data, error } = await supabase
       .from('token_reactions')
-      .select('emoji_1,emoji_2,emoji_3,emoji_4,emoji_5')
-      .eq('contract_address', tokenAddress.toLowerCase())
-      .single();
+      .select('contract_address,emoji_1,emoji_2,emoji_3')
+      .in('contract_address', addresses);
 
-    if (error || !data) {
-      // Token reactions don't exist yet, return 0
-      return 0;
+    if (error || !data) return votes;
+
+    for (const row of data) {
+      votes.set(
+        String(row.contract_address).toLowerCase(),
+        (row.emoji_1 || 0) + (row.emoji_2 || 0) + (row.emoji_3 || 0)
+      );
     }
-
-    // Calculate positive score (emoji_1: 🔥 + emoji_2: 🚀 + emoji_3: ❤️‍🔥)
-    const positiveVotes = (data.emoji_1 || 0) + (data.emoji_2 || 0) + (data.emoji_3 || 0);
-
-    // Cache the result for 5 minutes
-    await redis.setex(cacheKey, 300, positiveVotes).catch(() => {});
-
-    return positiveVotes;
   } catch (error) {
-    console.error(`Failed to get community votes for ${tokenAddress}:`, error);
-    return 0;
+    console.error('Failed to fetch community votes:', error);
   }
+
+  return votes;
 }
 
-async function getTokenMetrics(address: string): Promise<Partial<TokenMetrics> | null> {
-  const cacheKey = `trending:${address.toLowerCase()}`;
+// Score components (max 100 total):
+//   volume       0..30  — 24h volume / market cap, log-scaled
+//   liquidity    0..15  — liquidity / market cap, log-scaled
+//   momentum   -15..15  — signed 24h price change
+//   acceleration 0..20  — last-hour trading pace vs. the 24h average
+//   community    0..20  — positive reactions, log-scaled
+function calculateScores(raw: RawMetrics, communityVotes: number) {
+  const { volume, volumeH1, liquidity, marketCap, change24h } = raw;
 
-  try {
-    const cached = await redis.get(cacheKey);
-    if (cached) return cached as Partial<TokenMetrics>;
-  } catch {}
+  // Thin-volume damp: below $5k/24h, ratio-based components scale down so a
+  // handful of tiny trades on a micro-cap can't dominate the ranking
+  const confidence = Math.min(1, volume / 5000);
 
-  try {
-    const isSolana = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
+  // Tracked tokens typically turn over 0.01%–5% of market cap daily; the ×1000
+  // shift centers the log curve on that range (caps out near 3% turnover)
+  const volumeScore = (marketCap > 0 ? Math.min(30, Math.log1p((volume / marketCap) * 1000) * 8.7) : 0) * confidence;
+  const liquidityScore = marketCap > 0 ? Math.min(15, Math.log1p(liquidity / marketCap) * 25) : 0;
+  const momentumScore = Math.min(15, Math.max(-15, change24h * 0.5));
 
-    // Try DexScreener for all tokens
-    const dexUrl = `${DEXSCREENER_API_URL}/${address}`;
-    const dexResponse = await fetchWithTimeout(dexUrl, 5000);
+  // pace of 1 = trading at its 24h average rate; 2 = last hour ran at double pace
+  const pace = volume > 0 ? (volumeH1 * 24) / volume : 0;
+  const accelerationScore = Math.min(20, Math.max(0, (pace - 1) * 10)) * confidence;
 
-    if (!dexResponse.ok) return null;
+  const communityScore = Math.min(20, Math.log1p(communityVotes) * 4);
 
-    const dexData = await dexResponse.json();
-    if (!dexData.pairs || dexData.pairs.length === 0) return null;
-
-    const pair = dexData.pairs[0];
-
-    const metrics: Partial<TokenMetrics> = {
-      address,
-      price: pair.priceUsd || "N/A",
-      volume: parseNumericValue(pair.volume?.h24),
-      liquidity: parseNumericValue(pair.liquidity?.usd),
-      marketCap: parseNumericValue(pair.marketCap),
-      change24h: parseNumericValue(pair.priceChange?.h24),
-    };
-
-    await redis.setex(cacheKey, 60, metrics).catch(() => {});
-    return metrics;
-  } catch (error) {
-    console.error(`Failed to fetch metrics for ${address}:`, error);
-    return null;
-  }
-}
-
-function calculateTrendScore(metrics: Partial<TokenMetrics>): TokenMetrics | null {
-  const volume = metrics.volume || 0;
-  const liquidity = metrics.liquidity || 0;
-  const marketCap = metrics.marketCap || 1; // Default to 1 to avoid division by zero
-  const change24h = metrics.change24h || 0;
-  const communityVotes = metrics.communityVotes || 0;
-
-  if (marketCap === 0) return null;
-
-  // Volume Score (0-35): High volume normalized by market cap
-  // Tokens with high volume relative to market cap are more active
-  const volumeToMcRatio = volume / marketCap;
-  const volumeScore = Math.min(35, volumeToMcRatio * 100); // Normalized scale
-
-  // Liquidity Score (0-20): High liquidity ratio is good for trading
-  const liquidityToMcRatio = liquidity / marketCap;
-  const liquidityScore = Math.min(20, liquidityToMcRatio * 100); // Higher liquidity = better trading
-
-  // Momentum Score (0-20): Price change indicates market sentiment
-  const momentumScore = Math.min(20, Math.max(-20, change24h * 1)); // Positive or negative momentum
-
-  // Community Score (0-25): Community engagement and interest
-  // Votes are log-scaled to prevent one token from dominating
-  const communityScore = Math.min(25, Math.log(communityVotes + 1) * 5); // Log scale for community votes
-
-  // Base score from volume + liquidity + momentum + community
-  const trendScore = Math.max(1, volumeScore + liquidityScore + Math.abs(momentumScore) + communityScore);
+  const trendScore = Math.max(0, volumeScore + liquidityScore + momentumScore + accelerationScore + communityScore);
 
   return {
-    ...metrics,
     trendScore: parseFloat(trendScore.toFixed(2)),
     volumeScore: parseFloat(volumeScore.toFixed(2)),
     liquidityScore: parseFloat(liquidityScore.toFixed(2)),
     momentumScore: parseFloat(momentumScore.toFixed(2)),
+    accelerationScore: parseFloat(accelerationScore.toFixed(2)),
     communityScore: parseFloat(communityScore.toFixed(2)),
-  } as TokenMetrics;
+  };
 }
 
 async function getFeaturedTokens(): Promise<FeaturedToken[]> {
@@ -179,7 +214,6 @@ async function getFeaturedTokens(): Promise<FeaturedToken[]> {
     const now = new Date();
     const validChains = ['sol', 'eth', 'bsc', 'rwa'];
 
-    // Filter: only active tokens with valid data
     return tokens.filter(token => {
       const isActive = new Date(token.expiresAt) > now;
       const hasValidChain = validChains.includes(String(token.chain).toLowerCase());
@@ -198,104 +232,86 @@ async function getFeaturedTokens(): Promise<FeaturedToken[]> {
 }
 
 async function fetchTrendingTokens(): Promise<TokenMetrics[]> {
-  const metricsPromises = TOKEN_REGISTRY.map(async (token) => {
-    try {
-      const metrics = await getTokenMetrics(token.address);
-      if (!metrics) return null;
-
-      // Fetch community votes from Supabase
-      const communityVotes = await getCommunityVotes(token.address);
-
-      return calculateTrendScore({
-        symbol: token.symbol,
-        name: token.name,
-        address: token.address,
-        chain: token.chain,
-        communityVotes,
-        ...metrics,
-      });
-    } catch {
-      return null;
-    }
-  });
-
-  const allMetrics = await Promise.all(metricsPromises);
-
-  const trendingTokens = allMetrics
-    .filter((m): m is TokenMetrics => m !== null)
-    .sort((a, b) => b.trendScore - a.trendScore)
-    .slice(0, 25); // Top 25 trending
-
-  // Get featured tokens
   const featured = await getFeaturedTokens();
+  const featuredAddresses = new Set(featured.map(f => String(f.address).toLowerCase()));
 
-  console.log(`[Trending API] Found ${featured.length} featured tokens`);
-  if (featured.length > 0) {
-    console.log(`[Trending API] Featured tokens:`, featured.map(f => ({ symbol: f.symbol, address: f.address, chain: f.chain })));
+  // Registry tokens + featured tokens, deduped, routed by chain
+  interface Candidate { address: string; symbol: string; name: string; chain: string; isFeatured: boolean }
+  const candidates = new Map<string, Candidate>();
+
+  for (const token of TOKEN_REGISTRY) {
+    candidates.set(token.address.toLowerCase(), {
+      address: token.address,
+      symbol: token.symbol,
+      name: token.name,
+      chain: token.chain,
+      isFeatured: featuredAddresses.has(token.address.toLowerCase()),
+    });
   }
-
-  // Create featured token metrics
-  const featuredMetrics: TokenMetrics[] = [];
-  for (const featuredToken of featured) {
-    try {
-      const normalizedChain = String(featuredToken.chain).toLowerCase();
-
-      // Try to fetch real market data for featured token
-      let marketData: any = null;
-      try {
-        const metrics = await getTokenMetrics(featuredToken.address);
-        if (metrics) {
-          marketData = metrics;
-        }
-      } catch (error) {
-        console.warn(`Could not fetch metrics for featured token ${featuredToken.address}:`, error);
-      }
-
-      // Fetch community votes from Supabase for featured token
-      const communityVotes = await getCommunityVotes(featuredToken.address);
-
-      const token: TokenMetrics = {
-        symbol: String(featuredToken.symbol).toUpperCase(),
-        name: String(featuredToken.name),
-        address: String(featuredToken.address).toLowerCase(),
-        chain: normalizedChain,
-        price: marketData?.price || 'N/A',
-        volume: marketData?.volume || 0,
-        liquidity: marketData?.liquidity || 0,
-        marketCap: marketData?.marketCap || 0,
-        change24h: marketData?.change24h || 0,
-        trendScore: 100, // Featured tokens get a boost
-        volumeScore: 0,
-        liquidityScore: 0,
-        momentumScore: 0,
-        communityVotes,
-        communityScore: 0,
+  for (const token of featured) {
+    const key = String(token.address).toLowerCase();
+    if (!candidates.has(key)) {
+      candidates.set(key, {
+        address: String(token.address),
+        symbol: String(token.symbol),
+        name: String(token.name),
+        chain: String(token.chain).toLowerCase(),
         isFeatured: true,
-      };
-      featuredMetrics.push(token);
-    } catch (error) {
-      console.error(`Error processing featured token ${featuredToken.address}:`, error);
+      });
     }
   }
 
-  // Remove any trending tokens that are also featured (to avoid duplicates)
-  const featuredAddresses = new Set(featuredMetrics.map(f => f.address.toLowerCase()));
-  const filteredTrending = trendingTokens.filter(t => !featuredAddresses.has(t.address.toLowerCase()));
+  const all = [...candidates.values()];
+  const rwaAddresses = all.filter(c => c.chain === 'rwa').map(c => c.address);
+  const dexAddresses = all.filter(c => c.chain !== 'rwa').map(c => c.address);
+  const lowercased = all.map(c => c.address.toLowerCase());
 
-  // Combine: featured tokens first, then trending tokens
-  const result = [...featuredMetrics, ...filteredTrending];
+  const [dexMetrics, rwaMetrics, votes] = await Promise.all([
+    fetchDexScreenerMetrics(dexAddresses),
+    fetchAssetChainMetrics(rwaAddresses),
+    fetchCommunityVotes(lowercased),
+  ]);
 
-  console.log(`[Trending API] Returning ${result.length} tokens (${featuredMetrics.length} featured, ${filteredTrending.length} trending)`);
-  return result;
+  const scored: TokenMetrics[] = [];
+  for (const candidate of all) {
+    const key = candidate.address.toLowerCase();
+    const raw = dexMetrics.get(key) ?? rwaMetrics.get(key);
+    if (!raw) continue;
+
+    const communityVotes = votes.get(key) ?? 0;
+    scored.push({
+      symbol: candidate.symbol.toUpperCase(),
+      name: candidate.name,
+      address: candidate.address,
+      chain: candidate.chain,
+      price: raw.price,
+      volume: raw.volume,
+      liquidity: raw.liquidity,
+      marketCap: raw.marketCap,
+      change24h: raw.change24h,
+      communityVotes,
+      isFeatured: candidate.isFeatured,
+      ...calculateScores(raw, communityVotes),
+    });
+  }
+
+  // Featured tokens are pinned on top (ranked among themselves by score),
+  // followed by the top 25 organic tokens.
+  const featuredTokens = scored
+    .filter(t => t.isFeatured)
+    .sort((a, b) => b.trendScore - a.trendScore);
+  const organicTokens = scored
+    .filter(t => !t.isFeatured)
+    .sort((a, b) => b.trendScore - a.trendScore)
+    .slice(0, 25);
+
+  return [...featuredTokens, ...organicTokens];
 }
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const cacheKey = 'trending:all:v2'; // v2 includes isFeatured flag
-
-    // Try cache first
     try {
-      const cached = await redis.get(cacheKey);
+      const cached = await redis.get(CACHE_KEY);
       if (cached) {
         return NextResponse.json(cached, {
           status: 200,
@@ -304,11 +320,9 @@ export async function GET(request: NextRequest) {
       }
     } catch {}
 
-    // Fetch fresh data
     const trending = await fetchTrendingTokens();
 
-    // Cache the result
-    await redis.setex(cacheKey, 30, trending).catch(() => {});
+    await redis.setex(CACHE_KEY, CACHE_TTL, trending).catch(() => {});
 
     return NextResponse.json(trending, {
       status: 200,
