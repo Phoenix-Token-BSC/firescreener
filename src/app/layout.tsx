@@ -4,6 +4,7 @@ import "./globals.css";
 import { Analytics } from "@vercel/analytics/next";
 import Header from "@/components/Header";
 import Sidebar from "@/components/Sidebar";
+import BlazeWelcomeModal from "@/components/BlazeWelcomeModal";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AdminProvider } from "@/contexts/AdminContext";
 // import Script from "next/script";
@@ -47,6 +48,7 @@ export default function RootLayout({
               <Header />
               <main className="flex-1">{children}</main>
             </div>
+            <BlazeWelcomeModal />
           </AdminProvider>
         </AuthProvider>
         {/* <script defer src="https://cloud.umami.is/script.js" data-website-id="23de30be-d6d1-4152-b10c-7442a99240ce"></script> */}
