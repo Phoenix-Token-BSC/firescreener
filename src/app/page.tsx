@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import Header from '@/components/Header';
 import TokenLoadingSkeleton from '@/components/TokenLoadingSkeleton';
 import TokenCard from '@/components/TokenCard';
 import { useFlashOnChange, formatCompactNumber, formatPrice, Token } from '@/lib/tokenFormatting';
@@ -213,7 +212,7 @@ export default function Home() {
     return (
       <div className="container mx-auto">
 
-        <div className="p-2">
+        <div className="px-2 pb-2">
           {loading ? (
             <TokenLoadingSkeleton count={15} />
           ) : tokens.length === 0 ? (
@@ -233,7 +232,7 @@ export default function Home() {
               </div>
 
               {/* Desktop */}
-              <div className="hidden md:block shadow rounded-lg overflow-hidden">
+              <div className="hidden md:block shadow rounded-lg overflow-hidden px-2 py-4">
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[600px]">
                     <thead>

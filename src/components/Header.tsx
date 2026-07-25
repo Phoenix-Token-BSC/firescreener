@@ -274,7 +274,7 @@ export default function Header() {
     const [isMobileChainDropdownOpen, setIsMobileChainDropdownOpen] = useState(false);
 
     return (
-        <header className="sticky top-0 z-50 px-4 md:px-8 py-2 bg-white text-neutral-900 md:bg-neutral-50">
+        <header className="sticky top-0 z-50 px-4 py-2 bg-white text-neutral-900 md:hidden">
             <nav className="flex flex-row justify-between items-center">
                 <Link href="/" className="font-bold flex flex-row items-center md:hidden">
                     <Image
@@ -439,7 +439,7 @@ export default function Header() {
                         className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
                         onClick={toggleMenu}
                     >
-                        All Tokens
+                        Screener
                     </Link>
                     <Link
                         href="/trending"

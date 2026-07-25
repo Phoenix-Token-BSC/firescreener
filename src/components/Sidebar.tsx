@@ -149,7 +149,7 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="hidden md:flex md:w-64 md:flex-col md:bg-neutral-900 md:border-r md:border-orange-500/30 md:overflow-y-auto md:h-screen">
+    <aside className="hidden md:flex md:w-64 md:flex-shrink-0 md:flex-col md:bg-neutral-900 md:border-r md:border-orange-500/30 md:overflow-y-auto md:h-screen md:sticky md:top-0 no-scrollbar">
       {/* Logo Section */}
       <div className="p-4 border-b border-orange-500/30">
         <Link href="/" className="flex items-center gap-2 font-bold text-white hover:opacity-80">
@@ -258,8 +258,8 @@ export default function Sidebar() {
               : 'text-gray-300 hover:bg-orange-500/10'
           }`}
         >
-          <FiHome className="h-4 w-4" />
-          <span>Home</span>
+          <Image src="/firescreener-icon-light.png" alt="firescreener icon" width={200} height={200} className='w-6 h-6 grayscale' />
+          <span>Screener</span>
         </Link>
 
         <Link

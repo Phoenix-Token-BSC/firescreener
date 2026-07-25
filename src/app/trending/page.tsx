@@ -178,9 +178,9 @@ export default function TrendingPage() {
 
   return (
     <div className="container mx-auto">
-      <div className="p-2">
+      <div className="p-4">
         <div className="mb-4">
-          <h1 className="text-orange-500 text-2xl font-bold">Trending Tokens</h1>
+          <h1 className="text-orange-500 text-3xl font-bold">TRENDING</h1>
           {/* <p className="text-gray-400 text-sm">Most active tokens by volume, liquidity, and momentum</p> */}
         </div>
 
