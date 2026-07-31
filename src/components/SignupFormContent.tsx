@@ -159,9 +159,13 @@ const SignupFormContent: React.FC = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // The panel fills the viewport when the form is short (the verification step)
+  // and scrolls when it isn't. Below md the sticky Header already takes ~3.25rem,
+  // so subtracting it stops short states from forcing a dead scroll; from lg the
+  // column becomes its own scroll container inside the full-height row.
   return (
-    <div className="w-full lg:w-1/2 bg-gradient-to-br from-[#2d0a0a] to-[#4a0e0e] flex items-center justify-center p-8">
-      <div className="w-full max-w-md">
+    <div className="w-full lg:w-1/2 bg-gradient-to-br from-[#2d0a0a] to-[#4a0e0e] flex flex-col p-8 min-h-[calc(100dvh-3.25rem)] md:min-h-dvh lg:min-h-0 lg:h-full lg:overflow-y-auto">
+      <div className="w-full max-w-md mx-auto my-auto">
         {step === 'signup' ? (
           <>
             <h1 className="text-orange-500 text-4xl font-bold mb-2">Get Started</h1>

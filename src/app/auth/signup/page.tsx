@@ -1,54 +1,35 @@
 import { Suspense } from 'react';
 import SignupFormContent from '@/components/SignupFormContent';
+import Image from 'next/image';
 
 export default function SignupPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
-      <div className="min-h-screen flex">
+    <Suspense fallback={<div className="min-h-[calc(100dvh-3.25rem)] md:min-h-dvh flex items-center justify-center">Loading...</div>}>
+      {/* On lg the row is exactly one viewport tall and each column scrolls on its
+          own, so the tall preview panel can't drag the form below the fold.
+          Below lg it collapses to normal document flow. */}
+      <div className="flex flex-col lg:h-dvh lg:flex-row lg:overflow-hidden">
         <SignupFormContent />
 
         {/* Right Side - Preview (Hidden on Mobile) */}
-        <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-orange-400 to-orange-500 p-12 items-center justify-center">
-          <div className="max-w-xl w-full space-y-6">
+        <div className="hidden lg:flex lg:flex-col w-1/2 lg:h-full lg:overflow-y-auto no-scrollbar bg-gradient-to-br from-orange-400 to-orange-500 p-12">
+          {/* my-auto centres while there is room and collapses to 0 when there
+              isn't — unlike items-center, which makes overflow unreachable. */}
+          <div className="max-w-xl w-full mx-auto my-auto space-y-6">
             {/* Logo and Heading */}
             <div className="mb-8">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-                  <span className="text-2xl">🔥</span>
+                <div className="bg-black rounded-lg flex items-center justify-center">
+                  <Image src="/logo-fixed.png" alt='FireScreener logo' width={500} height={500} className='w-8 h-auto p-2' />
                 </div>
-                <span className="text-white text-2xl font-bold">FireScreener</span>
+                <span className="text-black text-2xl font-bold">FireScreener</span>
               </div>
-              <h2 className="text-white text-4xl font-bold leading-tight">
+              <h2 className="text-black text-4xl font-bold leading-tight">
                 Find new coins, Track every chart.
               </h2>
             </div>
 
-            {/* Token Card */}
-            <div className="bg-white rounded-2xl p-5 shadow-xl">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-gray-900 rounded-full flex items-center justify-center">
-                  <span className="text-orange-500 text-xl font-bold">P</span>
-                </div>
-                <div>
-                  <div className="font-semibold text-gray-900">Phoenix Token</div>
-                  <div className="text-xs text-gray-500">PHT</div>
-                </div>
-              </div>
-              <div className="flex items-end justify-between">
-                <div>
-                  <div className="text-2xl font-bold text-gray-900">$0.025900</div>
-                  <div className="text-green-500 text-sm font-medium">+0.25%</div>
-                </div>
-                <svg className="w-24 h-12" viewBox="0 0 100 50" preserveAspectRatio="none">
-                  <polyline
-                    points="0,40 20,35 40,25 60,30 80,20 100,25"
-                    fill="none"
-                    stroke="#22c55e"
-                    strokeWidth="2"
-                  />
-                </svg>
-              </div>
-            </div>
+            <Image src="/images/markets-dashboard.png" alt="Tokens list page" width={500} height={500} className='rounded-2xl' />
 
             {/* Chart Card */}
             <div className="bg-gradient-to-br from-[#2d0a0a] to-[#4a0e0e] rounded-2xl p-5 shadow-xl">
@@ -66,43 +47,11 @@ export default function SignupPage() {
             </div>
 
             {/* Portfolio Card */}
-            <div className="bg-white rounded-2xl p-5 shadow-xl">
-              <div className="font-bold text-gray-900 text-xl mb-4">My Portfolio</div>
+         <Image src="/images/portfolio-dashboard.png" alt="Tokens list page" width={500} height={500} className='rounded-2xl' />
 
-              <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-100">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gray-900 rounded-full flex items-center justify-center">
-                    <span className="text-orange-500 text-xl font-bold">P</span>
-                  </div>
-                  <div>
-                    <div className="font-semibold text-gray-900">Phoenix Token</div>
-                    <div className="text-sm text-gray-600">$2,590.45</div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-green-500 text-sm font-medium">+5.76%</div>
-                  <div className="text-sm text-gray-600">100,000 PHT</div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                    <span className="text-xl">🐱</span>
-                  </div>
-                  <div>
-                    <div className="font-semibold text-gray-900">WikiCat Coin</div>
-                    <div className="text-sm text-gray-600">$1,870.00</div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-green-500 text-sm font-medium">+2.56%</div>
-                  <div className="text-xs text-gray-600">20,000,000,000 WKC</div>
-                </div>
-              </div>
             </div>
           </div>
-        </div>
+      
       </div>
     </Suspense>
   );
