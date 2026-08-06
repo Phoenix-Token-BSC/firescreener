@@ -38,7 +38,9 @@ const LoginFormContent: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          login,
+          // Usernames and emails are both case-insensitive; normalize here too so
+          // autofill or a paste that bypasses the input handler still matches.
+          login: login.trim().toLowerCase(),
           password,
         }),
       });
@@ -107,9 +109,12 @@ const LoginFormContent: React.FC = () => {
               type="text"
               id="login"
               value={login}
-              onChange={(e) => setLogin(e.target.value)}
+              onChange={(e) => setLogin(e.target.value.toLowerCase())}
               placeholder="Enter your email or username"
               className="w-full px-4 py-3 rounded-lg bg-white text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               required
               disabled={loading}
             />

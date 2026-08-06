@@ -50,7 +50,9 @@ const SignupFormContent: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username,
+          // Usernames are case-insensitive; normalize here too so autofill or a
+          // paste that bypasses the input handler still registers in lowercase.
+          username: username.trim().toLowerCase(),
           email,
           password,
           confirmPassword,
@@ -196,13 +198,16 @@ const SignupFormContent: React.FC = () => {
                   type="text"
                   id="username"
                   value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase())}
                   placeholder="Choose a username"
                   className="w-full px-4 py-3 rounded-lg bg-white text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   required
                   disabled={loading}
                 />
-                <p className="text-gray-400 text-xs mt-1">3-50 characters, letters, numbers, hyphens, underscores</p>
+                <p className="text-gray-400 text-xs mt-1">3-50 characters, letters, numbers, hyphens, underscores — saved in lowercase</p>
               </div>
 
               <div>
