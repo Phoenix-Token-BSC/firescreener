@@ -73,17 +73,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update user as email verified
-    const { error: userError } = await supabase
-      .from('auth_users')
-      .update({
-        is_email_verified: true,
-        email_verified_at: now_str,
-      })
-      .eq('id', userId);
+    // Supabase Auth is the record of whether an address is confirmed, so mark it there
+    // rather than on a column of our own. Until this runs, the account exists but is
+    // unconfirmed.
+    const { error: confirmError } = await supabase.auth.admin.updateUserById(userId, {
+      email_confirm: true,
+    });
 
-    if (userError) {
-      console.error('Update user error:', userError);
+    if (confirmError) {
+      console.error('Email confirm error:', confirmError.message);
       return NextResponse.json(
         { error: 'Failed to update user verification status' },
         { status: 500 }

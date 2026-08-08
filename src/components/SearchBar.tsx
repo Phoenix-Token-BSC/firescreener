@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, FormEvent } from "react";
+import { useState, useEffect, useMemo, FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { getTokenBySymbol, TOKEN_REGISTRY } from "@/lib/tokenRegistry";
+import { useRegistry, findBySymbol } from "@/hooks/useRegistry";
 
 // Define interfaces for data structures
 interface Token {
@@ -16,17 +16,6 @@ interface Suggestion {
   fullName: string;
   symbol: string;
 }
-
-// Create mappings from the centralized registry
-const TOKEN_LIST: { [key: string]: string } = TOKEN_REGISTRY.reduce((acc, token) => {
-  acc[token.symbol] = token.chain;
-  return acc;
-}, {} as { [key: string]: string });
-
-const FULL_NAME_MAP: { [key: string]: string } = TOKEN_REGISTRY.reduce((acc, token) => {
-  acc[token.name] = token.symbol;
-  return acc;
-}, {} as { [key: string]: string });
 
 // Define props interface
 interface SearchBarPopupProps {
@@ -48,6 +37,27 @@ export default function SearchBarPopup({
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const registry = useRegistry();
+
+  // Derived from the live registry rather than module scope, so newly listed tokens are
+  // searchable without a redeploy.
+  const TOKEN_LIST = useMemo(
+    () =>
+      registry.reduce((acc, token) => {
+        acc[token.symbol] = token.chain;
+        return acc;
+      }, {} as { [key: string]: string }),
+    [registry]
+  );
+
+  const FULL_NAME_MAP = useMemo(
+    () =>
+      registry.reduce((acc, token) => {
+        acc[token.name] = token.symbol;
+        return acc;
+      }, {} as { [key: string]: string }),
+    [registry]
+  );
 
   useEffect(() => {
     async function fetchTrendingTokens() {
@@ -143,7 +153,7 @@ export default function SearchBarPopup({
       } else {
         console.error("handleSearch is not a function");
         // Get token metadata to navigate with contract address
-        const tokenMetadata = getTokenBySymbol(symbol);
+        const tokenMetadata = findBySymbol(registry, symbol);
         if (tokenMetadata) {
          // console.log("Fallback navigation to:", `/${tokenMetadata.chain}/${tokenMetadata.address}`);
           router.push(`/${tokenMetadata.chain}/${tokenMetadata.address}`);
@@ -167,7 +177,7 @@ export default function SearchBarPopup({
       } else {
         console.error("handleSearch is not a function");
         // Get token metadata to navigate with contract address
-        const tokenMetadata = getTokenBySymbol(token);
+        const tokenMetadata = findBySymbol(registry, token);
         if (tokenMetadata) {
         //  console.log("Fallback navigation to:", `/${tokenMetadata.chain}/${tokenMetadata.address}`);
           router.push(`/${tokenMetadata.chain}/${tokenMetadata.address}`);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTokenByAddress, isValidContractAddress } from '@/lib/tokenRegistry';
+import { isValidContractAddress } from "@/lib/tokenRegistry";
+import { getToken as getTokenByAddress } from "@/lib/tokenRegistry.server";
 
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 const DEXSCREENER_API_URL = 'https://api.dexscreener.com/latest/dex/tokens';
@@ -40,7 +41,7 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid Solana address format' }, { status: 400 });
     }
 
-    const tokenMetadata = getTokenByAddress(contractAddress);
+    const tokenMetadata = await getTokenByAddress(contractAddress);
     if (!tokenMetadata) {
       return NextResponse.json({ error: 'Token not found in registry' }, { status: 404 });
     }

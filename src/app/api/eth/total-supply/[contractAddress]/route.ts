@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 import { NextRequest, NextResponse } from 'next/server';
-import { getTokenByAddress, isValidContractAddress } from '@/lib/tokenRegistry';
+import { isValidContractAddress } from "@/lib/tokenRegistry";
+import { getToken as getTokenByAddress } from "@/lib/tokenRegistry.server";
 
 // Configure for BNB Chain
 const RPC_URL: string = "https://etherscan.io";
@@ -37,7 +38,7 @@ export async function GET(
     }
 
     // Verify token exists in registry
-    const tokenMetadata = getTokenByAddress(addressLower);
+    const tokenMetadata = await getTokenByAddress(addressLower);
     if (!tokenMetadata) {
       return NextResponse.json({ error: 'Token not found in registry' }, { status: 404 });
     }

@@ -56,6 +56,38 @@ export async function clearAssetChainCache(): Promise<number> {
 }
 
 /**
+ * The only sort keys /api/tokens will cache under.
+ *
+ * sortBy comes straight off the query string, so without this allowlist any arbitrary
+ * value would mint a new `tokens:all:<sortBy>` key. Since Upstash's REST API has no
+ * SCAN, unbounded keys would be permanently un-invalidatable — a new listing could stay
+ * hidden indefinitely behind a stale sort variant.
+ */
+export const TOKEN_LIST_SORT_KEYS = ['marketCap', 'volume'] as const;
+export type TokenListSortKey = (typeof TOKEN_LIST_SORT_KEYS)[number];
+
+export function normalizeSortKey(sortBy: string | null): TokenListSortKey {
+  return (TOKEN_LIST_SORT_KEYS as readonly string[]).includes(sortBy ?? '')
+    ? (sortBy as TokenListSortKey)
+    : 'marketCap';
+}
+
+/**
+ * Drop every assembled home-page list. Call alongside invalidateRegistryCache() after a
+ * token is added, removed, or edited — otherwise the new row is live in the registry but
+ * the home page keeps serving the previously assembled list.
+ */
+export async function invalidateTokenListCaches(): Promise<void> {
+  await Promise.all(
+    TOKEN_LIST_SORT_KEYS.map((sortBy) =>
+      redis.del(`tokens:all:${sortBy}`).catch((error) => {
+        console.error(`Error deleting tokens:all:${sortBy}:`, error);
+      })
+    )
+  );
+}
+
+/**
  * Clear cache for a specific token
  */
 export async function clearTokenCache(tokenAddress: string): Promise<void> {

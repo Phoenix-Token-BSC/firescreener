@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { TOKEN_REGISTRY, TokenMetadata } from '@/lib/tokenRegistry';
+import { getAllTokens, type TokenMetadata } from '@/lib/tokenRegistry.server';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -175,7 +175,7 @@ function sortTokens(tokens: PriceChangeToken[], sortBy: SortField): PriceChangeT
 async function fetchAllTokenPriceChanges(): Promise<PriceChangeResponse> {
   // Use DexScreener for BSC, ETH tokens (they all have EVM addresses)
   // RWA tokens also go through DexScreener if they have an address
-  const allTokens = TOKEN_REGISTRY.filter(
+  const allTokens = (await getAllTokens()).filter(
     (t) => ['bsc', 'eth', 'rwa'].includes(t.chain)
   );
 

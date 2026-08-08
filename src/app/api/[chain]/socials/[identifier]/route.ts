@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getTokenByAddress, getTokenBySymbol, isValidContractAddress } from "@/lib/tokenRegistry";
+import { isValidContractAddress } from "@/lib/tokenRegistry";
+import { getToken as getTokenByAddress, getTokenBySymbol } from "@/lib/tokenRegistry.server";
 import { supabase } from "@/lib/supabase";
 
 interface RouteParams {
@@ -63,10 +64,10 @@ export async function GET(
 
     if (isValidContractAddress(identifierLower, chainLower)) {
       // It's a contract address
-      tokenMetadata = getTokenByAddress(identifierLower);
+      tokenMetadata = await getTokenByAddress(identifierLower);
     } else {
       // It's a symbol - specify chain to avoid conflicts with duplicate symbols
-      tokenMetadata = getTokenBySymbol(identifierLower, chainLower);
+      tokenMetadata = await getTokenBySymbol(identifierLower, chainLower);
     }
 
     if (!tokenMetadata) {

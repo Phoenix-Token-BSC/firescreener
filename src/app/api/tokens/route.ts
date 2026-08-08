@@ -1,4 +1,5 @@
-import { TOKEN_MAP, TOKEN_REGISTRY } from '@/lib/tokenRegistry';
+import { getAllTokens, getTokenMap } from '@/lib/tokenRegistry.server';
+import { normalizeSortKey } from '@/lib/cache-manager';
 import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
 
@@ -251,7 +252,7 @@ async function getTokenData(tokenIdentifier: string): Promise<TokenData | null> 
       tokenAddress = tokenIdentifier;
     } else {
       // It's a symbol, look up the address
-      const tokenData = TOKEN_MAP[tokenIdentifier.toLowerCase()];
+      const tokenData = (await getTokenMap())[tokenIdentifier.toLowerCase()];
       if (!tokenData) {
         return null;
       }
@@ -300,7 +301,7 @@ async function getTokenDataFromSource(
     if (isEvmAddress || isSolanaAddress) {
       tokenAddress = tokenIdentifier;
     } else {
-      const tokenData = TOKEN_MAP[tokenIdentifier.toLowerCase()];
+      const tokenData = (await getTokenMap())[tokenIdentifier.toLowerCase()];
       if (!tokenData) {
         return null;
       }
@@ -319,7 +320,10 @@ async function getTokenDataFromSource(
 }
 
 async function buildAllTokensList(sortBy: string): Promise<object[]> {
-  const allTokens = TOKEN_REGISTRY.map(token => ({
+  // skipMemo: this list is written into the shared tokens:all:* cache, so it must be
+  // built from shared state — a stale per-instance memo would republish an outdated
+  // list over a cache entry that was just invalidated for a new listing.
+  const allTokens = (await getAllTokens({ skipMemo: true })).map(token => ({
     symbol: token.symbol,
     address: token.address,
     name: token.name,
@@ -372,7 +376,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const identifier = searchParams.get('identifier');
     const source = searchParams.get('source') as 'dexscreener' | 'assetchain' | null;
-    const sortBy = searchParams.get('sortBy') || 'marketCap';
+    // Normalized to a bounded set — arbitrary values would create Redis keys we can
+    // never invalidate (no SCAN on Upstash), hiding new listings behind stale variants.
+    const sortBy = normalizeSortKey(searchParams.get('sortBy'));
 
     // Single token — unchanged
     if (identifier) {

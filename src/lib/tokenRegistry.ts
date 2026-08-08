@@ -206,7 +206,7 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
   { address: "0xf20f989CAf263C513f9183B4Fed88F14Fc04c8dB", symbol: "shalom", name: "Shalom", chain: "rwa", isBurn: false },
   { address: "0x782ea82124B474f1f968262ec24FCdED39689dd5", symbol: "rvm", name: "Real World Meme", chain: "rwa", isBurn: false },
   { address: "0x02afe9989D86a0357fbb238579FE035dc17BcAB0", symbol: "xRWA", name: "Xend Finance RWA", chain: "rwa", isBurn: false },
-  { address: "0xEc6943BB984AED25eC96986898721a7f8aB6212E", symbol: "", name: "WiCrypt Network", chain: "rwa", isBurn: false },
+  { address: "0xEc6943BB984AED25eC96986898721a7f8aB6212E", symbol: "wnt", name: "WiCrypt Network", chain: "rwa", isBurn: false },
   { address: "0x7923C0f6FA3d1BA6EAFCAedAaD93e737Fd22FC4F", symbol: "cNGN", name: "cNGN", chain: "rwa", isBurn: false },
   { address: "0xbe231A8492487aAe6096278A97050FAe6B9d5BEc", symbol: "weth", name: "Wrapped Ether", chain: "rwa", isBurn: false },
   

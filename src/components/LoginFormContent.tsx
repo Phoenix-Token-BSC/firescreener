@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import LoadingWithLogo from './LoadingWithLogo';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 
 const LoginFormContent: React.FC = () => {
   const router = useRouter();
@@ -53,12 +54,23 @@ const LoginFormContent: React.FC = () => {
       }
 
       setSuccess(true);
-      localStorage.setItem('auth_token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+
+      // Adopt the Supabase session the server established. This is the only session
+      // there is now — the same one the developer flows use — so nothing else needs
+      // storing and there is no second session to conflict with.
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      });
+
+      if (sessionError) {
+        setError('Signed in, but the session could not be started. Please try again.');
+        return;
+      }
 
       // Update the auth context so the dashboard sees the session immediately
       setAuthUser(data.user);
-      router.push('/dashboard');
+      router.push(data.user.isDeveloper ? '/dev/dashboard' : '/dashboard');
     } catch (err) {
       setError('An error occurred. Please try again.');
       console.error(err);

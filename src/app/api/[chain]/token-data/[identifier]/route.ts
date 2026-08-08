@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTokenByAddress, getTokenBySymbol, isValidContractAddress } from '@/lib/tokenRegistry';
+import { isValidContractAddress } from "@/lib/tokenRegistry";
+import { getToken as getTokenByAddress, getTokenBySymbol } from "@/lib/tokenRegistry.server";
 
 interface RouteParams {
   chain: string;
@@ -25,10 +26,10 @@ export async function GET(
     
     if (isValidContractAddress(identifier, chainLower)) {
       // It's a contract address
-      tokenMetadata = getTokenByAddress(identifier);
+      tokenMetadata = await getTokenByAddress(identifier);
     } else {
       // It's a symbol
-      tokenMetadata = getTokenBySymbol(identifier);
+      tokenMetadata = await getTokenBySymbol(identifier);
     }
 
     if (!tokenMetadata) {

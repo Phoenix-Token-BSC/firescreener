@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useMemo } from "react";
-import { getTokenByAddress } from "@/lib/tokenRegistry";
+import { useRegistry, findByAddress } from "@/hooks/useRegistry";
 
 const INTERVALS = [
   { key: "burn5min", label: "5 Minutes" },
@@ -60,15 +60,13 @@ export default function BurnIntervals({ contractAddress, tokenSymbol }: BurnInte
   const [error, setError] = useState<string | null>(null);
   const [selectedInterval, setSelectedInterval] = useState<IntervalKey>("burn24h");
 
+  // From the live registry, so a token listed through /new-listing still gets its burn
+  // section. A miss simply hides it, and this re-runs once the registry arrives.
+  const registry = useRegistry();
   const tokenRegistry = useMemo(() => {
     if (!contractAddress) return undefined;
-    try {
-      return getTokenByAddress(contractAddress);
-    } catch (e) {
-      console.error("Failed to lookup token:", e);
-      return undefined;
-    }
-  }, [contractAddress]);
+    return findByAddress(registry, contractAddress);
+  }, [contractAddress, registry]);
 
   const shouldShowBurns = tokenRegistry?.isBurn === true;
 

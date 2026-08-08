@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { TOKEN_REGISTRY, TokenMetadata } from '@/lib/tokenRegistry';
+import { useRegistry } from '@/hooks/useRegistry';
 
 const STANDARD_STEPS = [1, 2, 5, 10];
 const ODD_STEPS = [3, 7, 11, 21, 33, 51];
@@ -77,9 +78,12 @@ function getMultiplierStyle(mult: number) {
   return           { gradient: 'from-orange-600/20 to-orange-600/5',       border: 'border-orange-600/30',    accent: 'text-orange-600',     badge: 'bg-orange-600/20 text-orange-400',     glow: 'bg-orange-600' };
 }
 
+// Seeded from the static registry: this is only the initial selection, and PHT is a
+// permanent fixture. The dropdown itself lists the live registry.
 const DEFAULT_TOKEN = TOKEN_REGISTRY.find(t => t.symbol.toLowerCase() === 'pht' && t.chain === 'bsc') ?? TOKEN_REGISTRY[0];
 
 export default function MultiplierPage() {
+  const registry = useRegistry();
   const [search, setSearch] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const [selected, setSelected] = useState<TokenMetadata>(DEFAULT_TOKEN);
@@ -139,7 +143,7 @@ export default function MultiplierPage() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const filtered = TOKEN_REGISTRY.filter(t => {
+  const filtered = registry.filter(t => {
     if (!t.symbol?.trim()) return false;
     const q = search.toLowerCase();
     return t.symbol.toLowerCase().includes(q) || t.name.toLowerCase().includes(q);

@@ -14,11 +14,14 @@ import type { Session } from "@supabase/supabase-js";
 
 type Chain = "bsc" | "eth" | "rwa" | "sol";
 
+type TokenStatus = "pending" | "live" | "rejected";
+
 interface TokenReadOnly {
   name: string;
   address: string;
   symbol: string;
   chain: Chain;
+  status: TokenStatus;
 }
 
 interface TokenEditable {
@@ -35,6 +38,22 @@ interface TokenEditable {
 interface TokenEntry {
   readOnly: TokenReadOnly;
   form: TokenEditable;
+}
+
+/** Shape returned by GET /api/dev/token-info. */
+interface TokenApiRow {
+  address: string;
+  symbol: string;
+  name: string;
+  chain: string;
+  description: string | null;
+  header_image: string | null;
+  is_burn: boolean | null;
+  website: string | null;
+  twitter: string | null;
+  telegram: string | null;
+  scan: string | null;
+  status: TokenStatus;
 }
 
 // ─── Cache ────────────────────────────────────────────────────────────────────
@@ -93,6 +112,20 @@ const CHAIN_COLOURS: Record<Chain, string> = {
 };
 
 const CHAIN_OPTIONS: Chain[] = ["bsc", "eth", "rwa", "sol"];
+
+// Only 'live' tokens are public. Without this a developer cannot tell that a submission
+// is still queued, or was rejected, from a token that is actually on the site.
+const STATUS_BADGE: Record<TokenStatus, string> = {
+  live:     "bg-green-500/15 text-green-400 border-green-500/25",
+  pending:  "bg-yellow-500/15 text-yellow-400 border-yellow-500/25",
+  rejected: "bg-red-500/15 text-red-400 border-red-500/25",
+};
+
+const STATUS_NOTE: Record<TokenStatus, string | null> = {
+  live: null,
+  pending: "This token is awaiting review and is not visible on FireScreener yet. You can keep editing it — your changes will be live as soon as it is approved.",
+  rejected: "This token was not approved, so it is not visible on FireScreener. Contact the team if you think that is a mistake.",
+};
 
 // ─── Reusable field components ────────────────────────────────────────────────
 
@@ -217,26 +250,31 @@ function ClaimTokenPanel({
     setError(null);
     setLoading(true);
 
-    const normalizedAddress = address.trim().toLowerCase();
+    // Not lowercased — Solana addresses are case-sensitive base58. The server matches
+    // case-insensitively and returns the token's canonical address.
+    const trimmedAddress = address.trim();
 
-    const { data: existing, error: fetchErr } = await supabase
-      .from("tokens")
-      .select("developer_id")
-      .eq("address", normalizedAddress)
-      .eq("chain", chain)
-      .single();
+    // The whole claim happens server-side. Checking "is it already claimed?" in the
+    // browser and then writing was both bypassable and racy — two developers could pass
+    // the check and the second write would silently take the token.
+    const res = await fetch("/api/dev/token-info", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ address: trimmedAddress, chain }),
+    });
 
-    if (fetchErr || !existing) { setError("Token not found in registry"); setLoading(false); return; }
-    if (existing.developer_id) { setError("Token is already claimed"); setLoading(false); return; }
+    const json = await res.json().catch(() => ({}));
 
-    const { error: claimErr } = await supabase
-      .from("tokens")
-      .update({ developer_id: session.user.id })
-      .eq("address", normalizedAddress)
-      .eq("chain", chain);
+    if (!res.ok) {
+      setError(json.error ?? `Claim failed (${res.status})`);
+      setLoading(false);
+      return;
+    }
 
-    if (claimErr) { setError(claimErr.message); setLoading(false); return; }
-    onClaimed(normalizedAddress);
+    onClaimed(json.token?.address ?? trimmedAddress);
   }
 
   return (
@@ -313,14 +351,28 @@ export default function DevDashboard() {
   // ── Auth ──────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) { router.replace("/dev/auth"); return; }
+
+      // Now that regular users and developers share one account system, having a
+      // session no longer implies being a developer — it only used to. Check the
+      // capability explicitly, or any signed-in user lands on this page.
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("is_developer")
+        .eq("id", session.user.id)
+        .maybeSingle();
+
+      if (!profile?.is_developer) { router.replace("/dashboard"); return; }
+
       setSession(session);
 
       const cache = loadCache();
       if (cache && cache.userId === session.user.id && cache.tokens.length > 0) {
         const entries: TokenEntry[] = cache.tokens.map(ct => ({
-          readOnly: ct.readOnly,
+          // Caches written before status existed have none; assume live until the
+          // background refetch below replaces them with the real value.
+          readOnly: { ...ct.readOnly, status: ct.readOnly.status ?? "live" },
           form: { ...ct.formData, headerImageFile: null, logoFile: null },
         }));
         setTokens(entries);
@@ -348,16 +400,22 @@ export default function DevDashboard() {
     if (!background) { setPageState("loading"); setFetchError(null); }
 
     try {
-      const { data, error } = await supabase
-        .from("tokens")
-        .select("address, symbol, name, chain, description, header_image, is_burn, website, twitter, telegram, scan")
-        .eq("developer_id", s.user.id)
-        .order("name", { ascending: true });
+      // Goes through the API rather than querying Supabase from the browser: the server
+      // owns the ownership rules, so they cannot be edited away in the client.
+      const res = await fetch("/api/dev/token-info", {
+        headers: { Authorization: `Bearer ${s.access_token}` },
+      });
 
-      if (error) {
-        if (!background) { setFetchError(error.message); setPageState("error"); }
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        if (!background) {
+          setFetchError(json.error ?? `Failed to load tokens (${res.status})`);
+          setPageState("error");
+        }
         return;
       }
+
+      const { tokens: data } = (await res.json()) as { tokens: TokenApiRow[] };
 
       if (!data || data.length === 0) {
         setTokens([]);
@@ -367,7 +425,13 @@ export default function DevDashboard() {
       }
 
       const entries: TokenEntry[] = data.map(row => ({
-        readOnly: { name: row.name, address: row.address, symbol: row.symbol, chain: row.chain as Chain },
+        readOnly: {
+          name: row.name,
+          address: row.address,
+          symbol: row.symbol,
+          chain: row.chain as Chain,
+          status: row.status ?? "live",
+        },
         form: {
           description: row.description || "",
           headerImage: row.header_image || null,
@@ -475,22 +539,30 @@ export default function DevDashboard() {
       headerImageUrl = json.url;
     }
 
-    const { error: saveErr } = await supabase
-      .from("tokens")
-      .update({
+    // address + chain scope the update to this one token. Without them the server
+    // would have to guess, and the old client-side update fanned out across every
+    // token the developer owned.
+    const saveRes = await fetch("/api/dev/token-info", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        address: readOnly.address,
+        chain: readOnly.chain,
         description: form.description,
         header_image: headerImageUrl,
         is_burn: form.isBurn,
         website: form.website,
         twitter: form.twitter,
         telegram: form.telegram,
-      })
-      .eq("developer_id", session.user.id)
-      .eq("address", readOnly.address)
-      .eq("chain", readOnly.chain);
+      }),
+    });
 
-    if (saveErr) {
-      setSaveError(saveErr.message);
+    if (!saveRes.ok) {
+      const json = await saveRes.json().catch(() => ({}));
+      setSaveError(json.error ?? `Save failed (${saveRes.status})`);
     } else {
       patch({ headerImageFile: null, headerImage: headerImageUrl });
       setSaved(true);
@@ -592,6 +664,11 @@ export default function DevDashboard() {
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase ${CHAIN_COLOURS[activeToken.readOnly.chain]}`}>
                 {activeToken.readOnly.chain}
               </span>
+              {activeToken.readOnly.status !== "live" && (
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase ${STATUS_BADGE[activeToken.readOnly.status]}`}>
+                  {activeToken.readOnly.status}
+                </span>
+              )}
             </div>
           )}
         </header>
@@ -673,6 +750,13 @@ export default function DevDashboard() {
               transition={{ duration: 0.2 }} onSubmit={handleSubmit}
               className="flex-1 overflow-y-auto">
               <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col gap-6 sm:gap-8">
+
+                {/* Why this token is not on the site yet */}
+                {STATUS_NOTE[activeToken.readOnly.status] && (
+                  <div className={`rounded-xl border px-4 py-3 text-sm ${STATUS_BADGE[activeToken.readOnly.status]}`}>
+                    {STATUS_NOTE[activeToken.readOnly.status]}
+                  </div>
+                )}
 
                 {/* Identity (read-only) */}
                 <section className="flex flex-col gap-4">

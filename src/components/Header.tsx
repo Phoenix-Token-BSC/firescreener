@@ -5,13 +5,10 @@ import Image from "next/image";
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { FiGlobe, FiLogOut, FiUser } from "react-icons/fi";
-import {
-    TOKEN_REGISTRY,
-    getTokenByAddress,
-    getTokensBySymbol,
-    isValidContractAddress,
-} from "@/lib/tokenRegistry";
+import { isValidContractAddress } from "@/lib/tokenRegistry";
+import { useRegistry, findByAddress } from "@/hooks/useRegistry";
 import { useAuth } from "@/contexts/AuthContext";
+import { isActivePath, NAV_LINKS } from "@/lib/nav";
 
 // Format price with subscript zeros for very small numbers (matches page.tsx)
 function formatPrice(price: number | string): { display: string; isExponential: boolean; zeros?: number; rest?: string } {
@@ -75,7 +72,8 @@ const MAX_SUGGESTIONS = 25;
 export default function Header() {
     const router = useRouter();
     const pathname = usePathname();
-    const { user, isAuthenticated, logout, isLoading: authLoading } = useAuth();
+    const { user, isAuthenticated, isDeveloper, logout, isLoading: authLoading } = useAuth();
+    const registry = useRegistry();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [isDesktopSearchFocused, setIsDesktopSearchFocused] = useState(false);
@@ -128,7 +126,7 @@ export default function Header() {
         const looksLikeRwa = isValidContractAddress(raw, "rwa");
         const looksLikeSol = isValidContractAddress(raw, "sol");
         if (looksLikeBscOrEth || looksLikeRwa || looksLikeSol) {
-            const match = getTokenByAddress(raw) || getTokenByAddress(q);
+            const match = findByAddress(registry, raw) || findByAddress(registry, q);
             if (match) {
                 router.push(`/${match.chain}/${match.address}`);
                 return;
@@ -148,11 +146,11 @@ export default function Header() {
 
         // Otherwise treat input as a symbol/name query using registry
         const active = (activeChain ?? undefined) as "bsc" | "sol" | "rwa" | "eth" | undefined;
-        let candidates = getTokensBySymbol(q);
+        let candidates = registry.filter(t => t.symbol.toLowerCase() === q);
 
         // Fallback: match by name contains query (within active chain if set)
         if (candidates.length === 0) {
-            const byName = TOKEN_REGISTRY.filter(t => t.name.toLowerCase().includes(q));
+            const byName = registry.filter(t => t.name.toLowerCase().includes(q));
             candidates = byName;
         }
 
@@ -198,7 +196,7 @@ export default function Header() {
         const q = value.trim().toLowerCase();
         const active = (activeChain ?? undefined) as "bsc" | "sol" | "rwa" | "eth" | undefined;
 
-        const filtered = TOKEN_REGISTRY
+        const filtered = registry
             .filter(t =>
                 t.symbol.toLowerCase().includes(q) ||
                 t.name.toLowerCase().includes(q) ||
@@ -434,56 +432,26 @@ export default function Header() {
             {/* Mobile Menu */}
             <div className={`fixed md:hidden top-13 left-0 right-0 z-40 ${isMenuOpen ? 'block border-b-2 border-orange-340' : 'hidden'} bg-white border-t border-orange-200 max-h-[calc(100vh-64px)] overflow-y-auto`}>
                 <div className="">
-                    <Link
-                        href="/"
-                        className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
-                        onClick={toggleMenu}
-                    >
-                        Screener
-                    </Link>
-                    <Link
-                        href="/trending"
-                        className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
-                        onClick={toggleMenu}
-                    >
-                        Trending
-                    </Link>
-                    {/* <Link
-                        href="#"
-                        className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
-                        onClick={toggleMenu}
-                    >
-                        Burns
-                    </Link> */}
-                    <Link
-                        href="/price-predict"
-                        className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
-                        onClick={toggleMenu}
-                    >
-                        Price Predict
-                    </Link>
-
-                    <Link
-                        href="/gains"
-                        className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
-                        onClick={toggleMenu}
-                    >
-                        Gains
-                    </Link>
-                    <Link
-                        href="/watchlist"
-                        className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
-                        onClick={toggleMenu}
-                    >
-                        Watchlist
-                    </Link>
-                    <Link
-                        href="/new-listing"
-                        className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
-                        onClick={toggleMenu}
-                    >
-                        List Token
-                    </Link>
+                    {/* Driven from NAV_LINKS so a renamed route is changed in one place
+                        and the active state cannot drift from the href. */}
+                    {NAV_LINKS.map(({ href, label }) => {
+                        const active = isActivePath(pathname, href);
+                        return (
+                            <Link
+                                key={href}
+                                href={href}
+                                aria-current={active ? 'page' : undefined}
+                                className={`block px-3 py-2 rounded-md text-base ${
+                                    active
+                                        ? 'bg-orange-50 text-orange-600 font-semibold'
+                                        : 'text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100'
+                                }`}
+                                onClick={toggleMenu}
+                            >
+                                {label}
+                            </Link>
+                        );
+                    })}
 
                     {/* Mobile Auth Section */}
                     <div className="border-t border-orange-400 mt-4 pt-4">
@@ -493,8 +461,19 @@ export default function Header() {
                                     <>
                                         <div className="flex items-center gap-2 px-3 py-2 mb-2 bg-orange-50 rounded-md">
                                             <FiUser size={18} className="text-orange-500" />
-                                            <span className="text-sm font-medium text-neutral-900">{user.username}</span>
+                                            <div className="min-w-0 flex-1">
+                                                <span className="block text-sm font-medium text-neutral-900 truncate">{user.username}</span>
+                                            </div>
+                                            {isDeveloper && (
+                                                <span className="shrink-0 text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-700 border border-orange-500/30">
+                                                    Dev
+                                                </span>
+                                            )}
                                         </div>
+
+                                        {/* Every account gets the user features. is_developer is an additional
+                                            capability, not a different kind of account, so a developer sees their
+                                            token tools AND their blaze/rewards rather than one or the other. */}
                                         <Link
                                             href="/dashboard"
                                             className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
@@ -516,6 +495,27 @@ export default function Header() {
                                         >
                                             Rewards
                                         </Link>
+
+                                        {isDeveloper && (
+                                            <>
+                                                <div className="border-t border-neutral-200 my-2" />
+                                                <p className="px-3 pb-1 text-[11px] uppercase tracking-wider text-neutral-500">Developer</p>
+                                                <Link
+                                                    href="/dev/dashboard"
+                                                    className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
+                                                    onClick={toggleMenu}
+                                                >
+                                                    My tokens
+                                                </Link>
+                                                {/* <Link
+                                                    href="/list-your-token"
+                                                    className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
+                                                    onClick={toggleMenu}
+                                                >
+                                                    List a token
+                                                </Link> */}
+                                            </>
+                                        )}
                                         <button
                                             onClick={() => {
                                                 logout();

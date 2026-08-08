@@ -1,21 +1,24 @@
 import { createClient } from '@supabase/supabase-js';
-import { verifyPassword } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
+import { emailForLogin, getProfile, adminClient } from '@/lib/profile';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-
-function generateSessionToken(): string {
-  return crypto.randomBytes(32).toString('hex');
-}
-
+/**
+ * Single login for everyone.
+ *
+ * Both regular users and developers now authenticate against Supabase Auth — there is
+ * one account per person, with `is_developer` as a capability on their profile. The old
+ * split (bcrypt hashes in auth_users vs a separate Supabase login for developers) is
+ * gone, along with the possibility of being signed in as two different people at once.
+ *
+ * Supabase only authenticates by email, so a username is resolved to one first. The
+ * session is returned for the client to adopt via supabase.auth.setSession().
+ */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { login, password } = body;
+    const { login, password } = await request.json();
 
     if (!login || !password) {
       return NextResponse.json(
@@ -24,90 +27,56 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: user, error: userError } = await supabase
-      .from('auth_users')
-      .select('*')
-      .or(`email.eq.${login},username.eq.${login}`)
-      .single();
+    const email = await emailForLogin(String(login));
 
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: 'Invalid username/email or password' },
-        { status: 401 }
-      );
-    }
-
-    if (!user.is_active) {
-      return NextResponse.json(
-        { error: 'Account is inactive' },
-        { status: 403 }
-      );
-    }
-
-    const isPasswordValid = await verifyPassword(password, user.password_hash);
-
-    if (!isPasswordValid) {
-      return NextResponse.json(
-        { error: 'Invalid username/email or password' },
-        { status: 401 }
-      );
-    }
-
-    const sessionToken = generateSessionToken();
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
-
-    const { error: sessionError } = await supabase
-      .from('sessions')
-      .insert([
-        {
-          user_id: user.id,
-          token: sessionToken,
-          expires_at: expiresAt.toISOString(),
-          ip_address: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
-          user_agent: request.headers.get('user-agent'),
-        },
-      ]);
-
-    if (sessionError) {
-      console.error('Session creation error:', sessionError);
-      return NextResponse.json(
-        { error: 'Failed to create session' },
-        { status: 500 }
-      );
-    }
-
-    await supabase
-      .from('auth_users')
-      .update({ last_login: new Date().toISOString() })
-      .eq('id', user.id);
-
-    const { password_hash, ...userWithoutPassword } = user;
-
-    const response = NextResponse.json(
-      {
-        message: 'Login successful',
-        user: userWithoutPassword,
-        token: sessionToken,
-      },
-      { status: 200 }
+    // Same generic message whether the account is missing or the password is wrong, so
+    // this cannot be used to discover which usernames and emails exist.
+    const invalid = NextResponse.json(
+      { error: 'Invalid username/email or password' },
+      { status: 401 }
     );
+    if (!email) return invalid;
 
-    response.cookies.set({
-      name: 'auth_token',
-      value: sessionToken,
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60,
+    const supabase = createClient(SUPABASE_URL, ANON_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    return response;
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error || !data.session || !data.user) return invalid;
+
+    const profile = await getProfile(data.user.id);
+    if (!profile) {
+      console.error('[auth/login] authenticated user has no profile:', data.user.id);
+      return NextResponse.json({ error: 'Account is not fully set up' }, { status: 500 });
+    }
+    if (!profile.is_active) {
+      return NextResponse.json({ error: 'Account is inactive' }, { status: 403 });
+    }
+
+    // Best effort — a failed timestamp write must not fail the login.
+    await adminClient()
+      .from('profiles')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', profile.id);
+
+    return NextResponse.json({
+      success: true,
+      user: {
+        id: profile.id,
+        username: profile.username,
+        email: profile.email,
+        userType: profile.is_developer ? 'dev' : 'user',
+        isDeveloper: profile.is_developer,
+      },
+      // The client installs this with supabase.auth.setSession(), giving one session
+      // that every API route can verify.
+      session: {
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      },
+    });
   } catch (error) {
     console.error('Login error:', error);
-    return NextResponse.json(
-      { error: 'An error occurred during login' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'An error occurred during login' }, { status: 500 });
   }
 }

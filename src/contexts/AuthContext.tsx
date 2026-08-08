@@ -1,15 +1,16 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/lib/supabase';
 
 interface AuthUser {
   id: string;
   username: string;
   email: string;
-  userType: 'dev' | 'user'; // 'dev' = developer_accounts, 'user' = auth_users
+  /** Kept for existing call sites; derived from isDeveloper. */
+  userType: 'dev' | 'user';
+  isDeveloper: boolean;
   created_at?: string;
-  last_login?: string;
   is_active?: boolean;
 }
 
@@ -17,132 +18,107 @@ interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (user: Omit<AuthUser, 'userType'> & { userType?: AuthUser['userType'] }) => void;
+  isDeveloper: boolean;
+  login: (user: Omit<AuthUser, 'userType' | 'isDeveloper'> & Partial<Pick<AuthUser, 'userType' | 'isDeveloper'>>) => void;
   logout: () => Promise<void>;
   refetchUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/**
+ * One account per person.
+ *
+ * Regular users and developers are the same kind of account now — a Supabase Auth user
+ * plus a `profiles` row, where `is_developer` is a capability rather than a separate
+ * login. That removes the old dual-session problem entirely: there is only one session
+ * to hold, so it is no longer possible to be signed in as two different people, and no
+ * exclusivity logic is needed to prevent it.
+ */
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    // Verify the stored session in the background — the UI renders optimistically
-    // and is only logged out if the server says the session is invalid.
-    const verifySessionInBackground = async (storedUser: AuthUser) => {
-      try {
-        const response = await fetch('/api/auth/verify-session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: storedUser.id }),
-        });
+  const loadProfile = useCallback(async (userId: string): Promise<AuthUser | null> => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, username, email, is_developer, is_active, created_at')
+      .eq('id', userId)
+      .maybeSingle();
 
-        if (response.ok) {
-          const data = await response.json();
-          setUser({
-            ...storedUser,
-            userType: data.userType || 'user',
-          });
-        } else {
-          console.log('User session invalid, clearing auth');
-          localStorage.removeItem('user');
-          localStorage.removeItem('auth_token');
-          setUser(null);
-        }
-      } catch (fetchError) {
-        // On network error, keep the optimistic user (might be offline)
-        console.error('Failed to verify session:', fetchError);
-      }
+    if (error || !data) return null;
+    // A deactivated account is treated as signed out.
+    if (data.is_active === false) return null;
+
+    return {
+      id: data.id,
+      username: data.username,
+      email: data.email,
+      isDeveloper: !!data.is_developer,
+      userType: data.is_developer ? 'dev' : 'user',
+      created_at: data.created_at,
+      is_active: data.is_active,
     };
-
-    const initializeAuth = async () => {
-      try {
-        // Regular user session: hydrate from localStorage immediately so the
-        // dashboard can render without waiting on any network round trip.
-        const storedUser = localStorage.getItem('user');
-        if (storedUser) {
-          const user = JSON.parse(storedUser);
-          const optimisticUser = { ...user, userType: user.userType || 'user' };
-          setUser(optimisticUser);
-          setIsLoading(false);
-          verifySessionInBackground(optimisticUser);
-          return;
-        }
-
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-        if (supabaseUrl && supabaseAnonKey) {
-          const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-          // Check for Supabase Auth session (developer)
-          const { data: { session } } = await supabase.auth.getSession();
-
-          if (session?.user) {
-            // Developer is logged in via Supabase Auth
-            console.log('✅ Dev session found:', session.user.email);
-            const username = session.user.user_metadata?.username || session.user.email?.split('@')[0] || 'dev';
-            setUser({
-              id: session.user.id,
-              username: username,
-              email: session.user.email || '',
-              userType: 'dev',
-            });
-          }
-        }
-      } catch (error) {
-        console.error('Failed to initialize auth:', error);
-        localStorage.removeItem('user');
-        localStorage.removeItem('auth_token');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    initializeAuth();
   }, []);
 
-  // Called right after a successful login so the context reflects the new
-  // session immediately — the provider's init effect only runs on first mount.
-  const login = (newUser: Omit<AuthUser, 'userType'> & { userType?: AuthUser['userType'] }) => {
-    setUser({ ...newUser, userType: newUser.userType || 'user' });
+  useEffect(() => {
+    let active = true;
+
+    const sync = async (userId: string | undefined) => {
+      if (!userId) {
+        if (active) setUser(null);
+        return;
+      }
+      const profile = await loadProfile(userId);
+      if (active) setUser(profile);
+    };
+
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      await sync(session?.user?.id);
+      if (active) setIsLoading(false);
+    });
+
+    // Keeps every tab in step: signing out in one signs out the rest.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      sync(session?.user?.id);
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, [loadProfile]);
+
+  // Called right after login so the UI updates without waiting for the auth listener.
+  const login: AuthContextType['login'] = (newUser) => {
+    const isDeveloper = newUser.isDeveloper ?? newUser.userType === 'dev';
+    setUser({ ...newUser, isDeveloper, userType: isDeveloper ? 'dev' : 'user' });
     setIsLoading(false);
   };
 
   const logout = async () => {
+    const destination = user?.isDeveloper ? '/dev/auth' : '/auth/login';
     try {
-      // Logout from regular user session
-      await fetch('/api/auth/logout', { method: 'POST' });
-
-      // Also logout from Supabase if dev is logged in
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-      if (supabaseUrl && supabaseAnonKey && user?.userType === 'dev') {
-        const supabase = createClient(supabaseUrl, supabaseAnonKey);
-        await supabase.auth.signOut();
-      }
+      await supabase.auth.signOut();
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      setUser(null);
+      // Legacy keys from the pre-merge dual-session system; harmless to clear.
       localStorage.removeItem('user');
       localStorage.removeItem('auth_token');
-      window.location.href = '/auth/login';
+      localStorage.removeItem('activeSession');
+      setUser(null);
+      window.location.href = destination;
     }
   };
 
   const refetchUser = async () => {
-    try {
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
-      }
-    } catch (error) {
-      console.error('Failed to refetch user:', error);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) {
+      setUser(null);
+      return;
     }
+    setUser(await loadProfile(session.user.id));
   };
 
   return (
@@ -151,6 +127,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         isLoading,
         isAuthenticated: user !== null,
+        isDeveloper: !!user?.isDeveloper,
         login,
         logout,
         refetchUser,

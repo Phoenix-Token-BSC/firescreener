@@ -12,7 +12,7 @@ interface Redemption {
   reward_id: string;
   status: string;
   created_at: string;
-  auth_users: {
+  profiles: {
     username: string;
     email: string;
   };
@@ -124,8 +124,8 @@ export default function AdminRedemptionsPage() {
                     ) : (
                       redemptions.map((redemption) => (
                         <tr key={redemption.id} className="hover:bg-neutral-700/30 transition-colors">
-                          <td className="px-6 py-4 text-white font-medium">{redemption.auth_users?.username}</td>
-                          <td className="px-6 py-4 text-gray-400">{redemption.auth_users?.email}</td>
+                          <td className="px-6 py-4 text-white font-medium">{redemption.profiles?.username}</td>
+                          <td className="px-6 py-4 text-gray-400">{redemption.profiles?.email}</td>
                           <td className="px-6 py-4 text-white">{redemption.rewards?.name}</td>
                           <td className="px-6 py-4">
                             <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-neutral-700/50 text-gray-300">

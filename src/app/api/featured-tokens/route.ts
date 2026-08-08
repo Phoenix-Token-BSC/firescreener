@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
-import { TOKEN_REGISTRY } from '@/lib/tokenRegistry';
+import { getAllTokens } from '@/lib/tokenRegistry.server';
 
 interface FeaturedToken {
   address: string;
@@ -15,9 +15,9 @@ interface FeaturedToken {
 const FEATURED_KEY = 'featured:tokens';
 
 // Lookup token in registry by address
-function lookupTokenByAddress(address: string): { symbol: string; name: string; chain: string } | null {
+async function lookupTokenByAddress(address: string): Promise<{ symbol: string; name: string; chain: string } | null> {
   const normalized = address.toLowerCase();
-  const token = TOKEN_REGISTRY.find(t => t.address.toLowerCase() === normalized);
+  const token = (await getAllTokens()).find(t => t.address.toLowerCase() === normalized);
 
   if (!token) {
     return null;
@@ -39,7 +39,7 @@ async function addFeaturedToken(
   const expiresAt = new Date(now.getTime() + daysActive * 24 * 60 * 60 * 1000);
 
   // Lookup token in registry
-  const tokenData = lookupTokenByAddress(address);
+  const tokenData = await lookupTokenByAddress(address);
   if (!tokenData) {
     throw new Error('Token not found in registry');
   }
@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Lookup token in registry
-    const tokenData = lookupTokenByAddress(address);
+    const tokenData = await lookupTokenByAddress(address);
     if (!tokenData) {
       return NextResponse.json(
         { error: 'Token not found in registry. Please ensure the address is correct.' },

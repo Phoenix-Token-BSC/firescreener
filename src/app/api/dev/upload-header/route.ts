@@ -51,7 +51,9 @@ export async function POST(req: NextRequest) {
   }
 
   const addressField = form.get("address");
-  const targetAddress = typeof addressField === "string" ? addressField.trim().toLowerCase() : null;
+  // Not lowercased: Solana addresses are case-sensitive base58 and are stored in
+  // canonical casing, so a folded copy would not match. Matching uses ilike below.
+  const targetAddress = typeof addressField === "string" ? addressField.trim() : null;
   if (!targetAddress) {
     return NextResponse.json({ error: "No token address provided" }, { status: 400 });
   }
@@ -63,7 +65,7 @@ export async function POST(req: NextRequest) {
     .from("tokens")
     .select("address, chain")
     .eq("developer_id", user.id)
-    .eq("address", targetAddress)
+    .ilike("address", targetAddress)
     .single();
 
   if (tokenErr || !tokenRow) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getTokenByAddress, isValidContractAddress } from "@/lib/tokenRegistry";
+import { isValidContractAddress } from "@/lib/tokenRegistry";
+import { getToken as getTokenByAddress } from "@/lib/tokenRegistry.server";
 
 interface RouteParams {
   contractAddress: string;
@@ -38,7 +39,7 @@ export async function GET(
       return NextResponse.json({ error: "Invalid contract address format" }, { status: 400 });
     }
 
-    const tokenMetadata = getTokenByAddress(addressLower);
+    const tokenMetadata = await getTokenByAddress(addressLower);
     if (!tokenMetadata) {
       return NextResponse.json({ error: "Token not found in registry" }, { status: 404 });
     }
