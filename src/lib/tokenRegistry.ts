@@ -201,6 +201,7 @@ export const TOKEN_REGISTRY: TokenMetadata[] = [
   { address: "0xe9340e5Ac5C991DA83d955f2757954ec6158C8f3", symbol: "wbt", name: "Warren Buffet Token", chain: "bsc", isBurn: false},
   { address: "0xa1620A861D7FAe458f63d30FAd858ACB89F0D53C", symbol: "WOLF", name: "Wolf Of Wallet Street", chain: "bsc", isBurn: false},
   { address: "0xfB540861C4b26d39A3d56E6431036500759D91e7", symbol: "Kitten", name: "Mini kitty", chain: "bsc", isBurn: false},
+  { address: "0xc52e3b77821406a04d8b2294e77e29270b940637", symbol: "bless", name: "Bless America", chain: "bsc", isBurn: false},
 
   { address: "0xf20f989CAf263C513f9183B4Fed88F14Fc04c8dB", symbol: "shalom", name: "Shalom", chain: "rwa", isBurn: false },
   { address: "0x782ea82124B474f1f968262ec24FCdED39689dd5", symbol: "rvm", name: "Real World Meme", chain: "rwa", isBurn: false },
