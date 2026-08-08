@@ -87,6 +87,7 @@ export default function NewListing() {
 
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [isDev, setIsDev] = useState(false);
+  const [isSignedIn, setIsSignedIn] = useState(false);
 
   const [chain, setChain] = useState<Chain>("bsc");
   const [address, setAddress] = useState("");
@@ -129,10 +130,23 @@ export default function NewListing() {
   }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setIsDev(!!session);
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      setIsSignedIn(!!session);
+      if (!session) { setIsDev(false); setCheckingAuth(false); return; }
+
+      // A session alone is no longer proof of the developer capability — every account
+      // has one now. Ask for the capability, so a signed-in non-developer is shown the
+      // "become a developer" panel rather than a form the API will reject.
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("is_developer")
+        .eq("id", session.user.id)
+        .maybeSingle();
+
+      const isDeveloper = !!profile?.is_developer;
+      setIsDev(isDeveloper);
       setCheckingAuth(false);
-      if (session) loadMine();
+      if (isDeveloper) loadMine();
     });
   }, [loadMine]);
 
@@ -321,23 +335,34 @@ export default function NewListing() {
 
         {!isDev ? (
           <div className="border border-orange-500/30 bg-orange-500/5 rounded-xl p-8 text-center">
-            <h2 className="text-xl font-semibold mb-2">A developer account is required</h2>
+            {/* Signed in already? Then they have an account and only lack the developer
+                capability — telling them to "sign up" would be wrong and confusing. */}
+            <h2 className="text-xl font-semibold mb-2">
+              {isSignedIn ? "Developer access required" : "You'll need an account first"}
+            </h2>
             <p className="text-neutral-400 mb-6">
-              Listing is open to project teams. Create a free developer account — it takes a
-              minute — and you&apos;ll also be able to manage your token&apos;s profile afterwards.
+              {isSignedIn
+                ? "Listing is open to project teams. Verify your project with us and we'll enable listing on your existing account — you keep the same login, blaze streak and rewards."
+                : "Listing is open to project teams. Create a free account — it takes a minute — and you'll be able to manage your token's profile afterwards."}
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Link
-                href="/dev/auth"
-                className="bg-orange-500 px-8 py-2.5 rounded-xl font-semibold hover:bg-orange-600 transition-colors"
-              >
-                Sign up or log in
-              </Link>
+              {!isSignedIn && (
+                <Link
+                  href="dev/auth"
+                  className="bg-orange-500 px-8 py-2.5 rounded-xl font-semibold hover:bg-orange-600 transition-colors"
+                >
+                  Sign up or log in
+                </Link>
+              )}
               <Link
                 href="https://wa.me/2348161670217"
-                className="border border-orange-500 px-8 py-2.5 rounded-xl font-semibold hover:bg-orange-500/10 transition-colors"
+                className={`px-8 py-2.5 rounded-xl font-semibold transition-colors ${
+                  isSignedIn
+                    ? "bg-orange-500 hover:bg-orange-600"
+                    : "border border-orange-500 hover:bg-orange-500/10"
+                }`}
               >
-                Talk to us instead
+                {isSignedIn ? "Request developer access" : "Talk to us instead"}
               </Link>
             </div>
           </div>

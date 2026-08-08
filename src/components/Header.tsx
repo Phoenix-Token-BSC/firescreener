@@ -8,6 +8,7 @@ import { FiGlobe, FiLogOut, FiUser } from "react-icons/fi";
 import { isValidContractAddress } from "@/lib/tokenRegistry";
 import { useRegistry, findByAddress } from "@/hooks/useRegistry";
 import { useAuth } from "@/contexts/AuthContext";
+import { isActivePath, NAV_LINKS } from "@/lib/nav";
 
 // Format price with subscript zeros for very small numbers (matches page.tsx)
 function formatPrice(price: number | string): { display: string; isExponential: boolean; zeros?: number; rest?: string } {
@@ -71,7 +72,7 @@ const MAX_SUGGESTIONS = 25;
 export default function Header() {
     const router = useRouter();
     const pathname = usePathname();
-    const { user, isAuthenticated, logout, isLoading: authLoading } = useAuth();
+    const { user, isAuthenticated, isDeveloper, logout, isLoading: authLoading } = useAuth();
     const registry = useRegistry();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -431,56 +432,26 @@ export default function Header() {
             {/* Mobile Menu */}
             <div className={`fixed md:hidden top-13 left-0 right-0 z-40 ${isMenuOpen ? 'block border-b-2 border-orange-340' : 'hidden'} bg-white border-t border-orange-200 max-h-[calc(100vh-64px)] overflow-y-auto`}>
                 <div className="">
-                    <Link
-                        href="/"
-                        className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
-                        onClick={toggleMenu}
-                    >
-                        Screener
-                    </Link>
-                    <Link
-                        href="/trending"
-                        className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
-                        onClick={toggleMenu}
-                    >
-                        Trending
-                    </Link>
-                    {/* <Link
-                        href="#"
-                        className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
-                        onClick={toggleMenu}
-                    >
-                        Burns
-                    </Link> */}
-                    <Link
-                        href="/price-predict"
-                        className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
-                        onClick={toggleMenu}
-                    >
-                        Price Predict
-                    </Link>
-
-                    <Link
-                        href="/gains"
-                        className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
-                        onClick={toggleMenu}
-                    >
-                        Gains
-                    </Link>
-                    <Link
-                        href="/watchlist"
-                        className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
-                        onClick={toggleMenu}
-                    >
-                        Watchlist
-                    </Link>
-                    <Link
-                        href="/new-listing"
-                        className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
-                        onClick={toggleMenu}
-                    >
-                        List Token
-                    </Link>
+                    {/* Driven from NAV_LINKS so a renamed route is changed in one place
+                        and the active state cannot drift from the href. */}
+                    {NAV_LINKS.map(({ href, label }) => {
+                        const active = isActivePath(pathname, href);
+                        return (
+                            <Link
+                                key={href}
+                                href={href}
+                                aria-current={active ? 'page' : undefined}
+                                className={`block px-3 py-2 rounded-md text-base ${
+                                    active
+                                        ? 'bg-orange-50 text-orange-600 font-semibold'
+                                        : 'text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100'
+                                }`}
+                                onClick={toggleMenu}
+                            >
+                                {label}
+                            </Link>
+                        );
+                    })}
 
                     {/* Mobile Auth Section */}
                     <div className="border-t border-orange-400 mt-4 pt-4">
@@ -490,46 +461,59 @@ export default function Header() {
                                     <>
                                         <div className="flex items-center gap-2 px-3 py-2 mb-2 bg-orange-50 rounded-md">
                                             <FiUser size={18} className="text-orange-500" />
-                                            <div className="min-w-0">
+                                            <div className="min-w-0 flex-1">
                                                 <span className="block text-sm font-medium text-neutral-900 truncate">{user.username}</span>
-                                                {user.userType === 'dev' && (
-                                                    <span className="block text-[11px] text-orange-600">Developer account</span>
-                                                )}
                                             </div>
+                                            {isDeveloper && (
+                                                <span className="shrink-0 text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-700 border border-orange-500/30">
+                                                    Dev
+                                                </span>
+                                            )}
                                         </div>
-                                        {/* Developers have their own dashboard; blaze and rewards belong to the
-                                            regular-user account system (auth_users). */}
-                                        {user.userType === 'dev' ? (
-                                            <Link
-                                                href="/dev/dashboard"
-                                                className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
-                                                onClick={toggleMenu}
-                                            >
-                                                Developer dashboard
-                                            </Link>
-                                        ) : (
+
+                                        {/* Every account gets the user features. is_developer is an additional
+                                            capability, not a different kind of account, so a developer sees their
+                                            token tools AND their blaze/rewards rather than one or the other. */}
+                                        <Link
+                                            href="/dashboard"
+                                            className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
+                                            onClick={toggleMenu}
+                                        >
+                                            Dashboard
+                                        </Link>
+                                        <Link
+                                            href="/blaze-claim"
+                                            className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
+                                            onClick={toggleMenu}
+                                        >
+                                            Blaze claim
+                                        </Link>
+                                        <Link
+                                            href="/rewards"
+                                            className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
+                                            onClick={toggleMenu}
+                                        >
+                                            Rewards
+                                        </Link>
+
+                                        {isDeveloper && (
                                             <>
+                                                <div className="border-t border-neutral-200 my-2" />
+                                                <p className="px-3 pb-1 text-[11px] uppercase tracking-wider text-neutral-500">Developer</p>
                                                 <Link
-                                                    href="/dashboard"
+                                                    href="/dev/dashboard"
                                                     className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
                                                     onClick={toggleMenu}
                                                 >
-                                                    Dashboard
+                                                    My tokens
                                                 </Link>
-                                                <Link
-                                                    href="/blaze-claim"
+                                                {/* <Link
+                                                    href="/list-your-token"
                                                     className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
                                                     onClick={toggleMenu}
                                                 >
-                                                    Blaze claim
-                                                </Link>
-                                                <Link
-                                                    href="/rewards"
-                                                    className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
-                                                    onClick={toggleMenu}
-                                                >
-                                                    Rewards
-                                                </Link>
+                                                    List a token
+                                                </Link> */}
                                             </>
                                         )}
                                         <button

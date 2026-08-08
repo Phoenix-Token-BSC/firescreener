@@ -7,7 +7,6 @@ import {
   LogOut, LayoutDashboard, X, Loader2, Link2, Plus, ChevronLeft,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { endAllSessions } from "@/lib/session";
 import { useRouter } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
 
@@ -352,8 +351,20 @@ export default function DevDashboard() {
   // ── Auth ──────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) { router.replace("/dev/auth"); return; }
+
+      // Now that regular users and developers share one account system, having a
+      // session no longer implies being a developer — it only used to. Check the
+      // capability explicitly, or any signed-in user lands on this page.
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("is_developer")
+        .eq("id", session.user.id)
+        .maybeSingle();
+
+      if (!profile?.is_developer) { router.replace("/dashboard"); return; }
+
       setSession(session);
 
       const cache = loadCache();
@@ -571,9 +582,7 @@ export default function DevDashboard() {
 
   async function handleSignOut() {
     clearCache();
-    // Clears both session types, so a leftover regular-user session cannot be picked up
-    // on the next load and silently sign you in as someone else.
-    await endAllSessions();
+    await supabase.auth.signOut();
     router.replace("/dev/auth");
   }
 

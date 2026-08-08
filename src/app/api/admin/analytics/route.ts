@@ -32,11 +32,11 @@ export async function GET(request: NextRequest) {
 
     // User signups
     const { count: totalUsers } = await supabase
-      .from('auth_users')
+      .from('profiles')
       .select('*', { count: 'exact', head: true });
 
     const { count: newSignups } = await supabase
-      .from('auth_users')
+      .from('profiles')
       .select('*', { count: 'exact', head: true })
       .gte('created_at', startIso);
 
@@ -54,15 +54,13 @@ export async function GET(request: NextRequest) {
 
     // Total points claimed (all-time). total_blazes_claimed is the user's current
     // balance — spending deducts from it — so claimed = balances + all-time spend.
+    // One row per person now, so no need to sum two tables and risk double counting
+    // anyone who held both a user and a developer account.
     const { data: userBalances } = await supabase
-      .from('auth_users')
+      .from('profiles')
       .select('total_blazes_claimed');
 
-    const { data: devBalances } = await supabase
-      .from('developer_accounts')
-      .select('total_blazes_claimed');
-
-    const totalBalances = [...(userBalances || []), ...(devBalances || [])].reduce(
+    const totalBalances = (userBalances || []).reduce(
       (sum, r) => sum + (r.total_blazes_claimed || 0),
       0
     );

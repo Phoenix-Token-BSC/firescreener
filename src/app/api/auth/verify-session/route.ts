@@ -1,71 +1,46 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { adminClient } from '@/lib/profile';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-
+/**
+ * Confirms a stored session still corresponds to a live account.
+ *
+ * One account per person means one table to check. Deactivated accounts are rejected so
+ * the client clears the session rather than rendering a signed-in shell.
+ */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { userId } = body;
+    const { userId } = await request.json();
 
     if (!userId) {
-      return NextResponse.json(
-        { error: 'User ID required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'User ID required' }, { status: 400 });
     }
 
-    // Check developer_accounts and auth_users in parallel
-    const [{ data: devUser }, { data: regularUser, error }] = await Promise.all([
-      supabase
-        .from('developer_accounts')
-        .select('id')
-        .eq('id', userId)
-        .maybeSingle(),
-      supabase
-        .from('auth_users')
-        .select('id, is_active')
-        .eq('id', userId)
-        .maybeSingle(),
-    ]);
-
-    if (devUser) {
-      return NextResponse.json({ success: true, userType: 'dev' }, { status: 200 });
-    }
+    const { data, error } = await adminClient()
+      .from('profiles')
+      .select('id, is_active, is_developer')
+      .eq('id', userId)
+      .maybeSingle();
 
     if (error) {
       console.error('Session verification error:', error);
-      return NextResponse.json(
-        { error: 'Failed to verify session' },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: 'Failed to verify session' }, { status: 500 });
     }
 
-    if (!regularUser) {
-      // User doesn't exist
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+    if (!data) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    if (regularUser.is_active === false) {
-      // User is deactivated
-      return NextResponse.json(
-        { error: 'User account is inactive' },
-        { status: 403 }
-      );
+    if (data.is_active === false) {
+      return NextResponse.json({ error: 'User account is inactive' }, { status: 403 });
     }
 
-    return NextResponse.json({ success: true, userType: 'user' }, { status: 200 });
+    return NextResponse.json({
+      success: true,
+      userType: data.is_developer ? 'dev' : 'user',
+      isDeveloper: !!data.is_developer,
+    });
   } catch (error) {
     console.error('Verify session error:', error);
-    return NextResponse.json(
-      { error: 'An error occurred' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'An error occurred' }, { status: 500 });
   }
 }

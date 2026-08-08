@@ -4,10 +4,22 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
-import { FiGlobe, FiHome, FiTrendingUp, FiZap, FiBookmark, FiPlus, FiExternalLink, FiActivity, FiLogOut, FiUser } from 'react-icons/fi';
+import { FiGlobe, FiHome, FiTrendingUp, FiZap, FiBookmark, FiPlus, FiExternalLink, FiActivity, FiLogOut, FiUser, FiClock } from 'react-icons/fi';
 import { isValidContractAddress } from '@/lib/tokenRegistry';
 import { useRegistry, findByAddress } from '@/hooks/useRegistry';
 import { useAuth } from '@/contexts/AuthContext';
+import { isActivePath, NAV_LINKS, type NavIcon } from '@/lib/nav';
+
+/** Icons stay here rather than in lib/nav so the shared module holds no JSX deps. */
+const NAV_ICONS: Record<NavIcon, React.ComponentType<{ className?: string }>> = {
+  home: FiHome,
+  trending: FiActivity,
+  clock: FiClock,
+  predict: FiTrendingUp,
+  gains: FiZap,
+  watchlist: FiBookmark,
+  // plus: FiPlus,
+};
 
 interface Suggestion {
   fullName: string;
@@ -21,7 +33,7 @@ const MAX_SUGGESTIONS = 15;
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, isAuthenticated, logout, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isDeveloper, logout, isLoading: authLoading } = useAuth();
   const registry = useRegistry();
   const [search, setSearch] = useState('');
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -51,11 +63,8 @@ export default function Sidebar() {
 
   const currentChainInfo = getChainInfo(activeChain);
 
-  const isActive = (href: string) => {
-    if (href === '/' && pathname === '/') return true;
-    if (href !== '/' && pathname.startsWith(href)) return true;
-    return false;
-  };
+  // Segment-aware, and shared with Header so both stay in step across renames.
+  const isActive = (href: string) => isActivePath(pathname, href);
 
   const handleSearch = (tokenFromSearchBar: string = search): void => {
     const raw = tokenFromSearchBar.trim();
@@ -252,77 +261,28 @@ export default function Sidebar() {
       {/* Navigation Links */}
       <nav className="flex-1 p-4 space-y-2">
         <p className="text-xs text-gray-400 uppercase tracking-wider mb-3">Navigation</p>
-        <Link
-          href="/"
-          className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${
-            isActive('/')
-              ? 'bg-orange-500/20 text-orange-400 font-medium'
-              : 'text-gray-300 hover:bg-orange-500/10'
-          }`}
-        >
-          <Image src="/firescreener-icon-light.png" alt="firescreener icon" width={200} height={200} className='w-6 h-6 grayscale' />
-          <span>Screener</span>
-        </Link>
-
-        <Link
-          href="/trending"
-          className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${
-            isActive('/trending')
-              ? 'bg-orange-500/20 text-orange-400 font-medium'
-              : 'text-gray-300 hover:bg-orange-500/10'
-          }`}
-        >
-          <FiActivity className="h-4 w-4" />
-          <span>Trending</span>
-        </Link>
-
-        <Link
-          href="/price-predict"
-          className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${
-            isActive('/price-predict')
-              ? 'bg-orange-500/20 text-orange-400 font-medium'
-              : 'text-gray-300 hover:bg-orange-500/10'
-          }`}
-        >
-          <FiTrendingUp className="h-4 w-4" />
-          <span>Price Predict</span>
-        </Link>
-
-        <Link
-          href="/gains"
-          className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${
-            isActive('/gains')
-              ? 'bg-orange-500/20 text-orange-400 font-medium'
-              : 'text-gray-300 hover:bg-orange-500/10'
-          }`}
-        >
-          <FiZap className="h-4 w-4" />
-          <span>Gains</span>
-        </Link>
-
-        <Link
-          href="/watchlist"
-          className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${
-            isActive('/watchlist')
-              ? 'bg-orange-500/20 text-orange-400 font-medium'
-              : 'text-gray-300 hover:bg-orange-500/10'
-          }`}
-        >
-          <FiBookmark className="h-4 w-4" />
-          <span>Watchlist</span>
-        </Link>
-
-        <Link
-          href="/new-listing"
-          className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${
-            isActive('/new-listing')
-              ? 'bg-orange-500/20 text-orange-400 font-medium'
-              : 'text-gray-300 hover:bg-orange-500/10'
-          }`}
-        >
-          <FiPlus className="h-4 w-4" />
-          <span>List Token</span>
-        </Link>
+        {/* Rendered from the shared NAV_LINKS so the href and the active check are the
+            same value — they used to be two separate strings and drifted apart on a
+            rename, leaving links that never highlighted. */}
+        {NAV_LINKS.map(({ href, label, icon }) => {
+          const Icon = NAV_ICONS[icon];
+          const active = isActive(href);
+          return (
+            <Link
+              key={href}
+              href={href}
+              aria-current={active ? 'page' : undefined}
+              className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${
+                active
+                  ? 'bg-orange-500/20 text-orange-400 font-medium'
+                  : 'text-gray-300 hover:bg-orange-500/10'
+              }`}
+            >
+              <Icon className="h-4 w-4" />
+              <span>{label}</span>
+            </Link>
+          );
+        })}
       </nav>
 
       {/* User Account Section */}
@@ -334,60 +294,77 @@ export default function Sidebar() {
               <div className="flex items-center gap-2 px-3 py-2 bg-orange-500/10 rounded-lg border border-orange-500/30">
                 <FiUser className="h-4 w-4 text-orange-400 flex-shrink-0" />
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs text-gray-400">
-                    Logged in as{user.userType === 'dev' ? ' developer' : ''}
-                  </p>
+                  <p className="text-xs text-gray-400">Logged in as</p>
                   <p className="text-sm font-medium text-white truncate">{user.username}</p>
                 </div>
+                {isDeveloper && (
+                  <span className="shrink-0 text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300 border border-orange-500/30">
+                    Dev
+                  </span>
+                )}
               </div>
-              {/* Developers have their own dashboard; blaze and rewards belong to the
-                  regular-user account system (auth_users) and do not apply to them. */}
-              {user.userType === 'dev' ? (
-                <Link
-                  href="/dev/dashboard"
-                  className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${
-                    isActive('/dev/dashboard')
-                      ? 'bg-orange-500/20 text-orange-400 font-medium'
-                      : 'text-gray-300 hover:bg-orange-500/10'
-                  }`}
-                >
-                  <FiHome className="h-4 w-4" />
-                  <span>Developer Dashboard</span>
-                </Link>
-              ) : (
+
+              {/* Every account gets the user features. is_developer is an additional
+                  capability, not a different kind of account, so a developer sees their
+                  token tools AND their blaze/rewards rather than one or the other. */}
+              <Link
+                href="/dashboard"
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${
+                  isActive('/dashboard')
+                    ? 'bg-orange-500/20 text-orange-400 font-medium'
+                    : 'text-gray-300 hover:bg-orange-500/10'
+                }`}
+              >
+                <FiHome className="h-4 w-4" />
+                <span>Dashboard</span>
+              </Link>
+              <Link
+                href="/blaze-claim"
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${
+                  isActive('/blaze-claim')
+                    ? 'bg-orange-500/20 text-orange-400 font-medium'
+                    : 'text-gray-300 hover:bg-orange-500/10'
+                }`}
+              >
+                <FiZap className="h-4 w-4" />
+                <span>Blaze Claim</span>
+              </Link>
+              <Link
+                href="/rewards"
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${
+                  isActive('/rewards')
+                    ? 'bg-orange-500/20 text-orange-400 font-medium'
+                    : 'text-gray-300 hover:bg-orange-500/10'
+                }`}
+              >
+                <FiBookmark className="h-4 w-4" />
+                <span>Rewards</span>
+              </Link>
+
+              {isDeveloper && (
                 <>
+                  <p className="text-xs text-gray-400 uppercase tracking-wider pt-3 pb-1">Developer</p>
                   <Link
-                    href="/dashboard"
+                    href="/dev/dashboard"
                     className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${
-                      isActive('/dashboard')
+                      isActive('/dev/dashboard')
                         ? 'bg-orange-500/20 text-orange-400 font-medium'
                         : 'text-gray-300 hover:bg-orange-500/10'
                     }`}
                   >
-                    <FiHome className="h-4 w-4" />
-                    <span>Dashboard</span>
+                    <FiActivity className="h-4 w-4" />
+                    <span>My Tokens</span>
                   </Link>
                   <Link
-                    href="/blaze-claim"
+                    href="/list-your-token"
                     className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${
-                      isActive('/blaze-claim')
+                      isActive('/list-your-token')
                         ? 'bg-orange-500/20 text-orange-400 font-medium'
                         : 'text-gray-300 hover:bg-orange-500/10'
                     }`}
                   >
-                    <FiZap className="h-4 w-4" />
-                    <span>Blaze Claim</span>
-                  </Link>
-                  <Link
-                    href="/rewards"
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${
-                      isActive('/rewards')
-                        ? 'bg-orange-500/20 text-orange-400 font-medium'
-                        : 'text-gray-300 hover:bg-orange-500/10'
-                    }`}
-                  >
-                    <FiBookmark className="h-4 w-4" />
-                    <span>Rewards</span>
+                    {/* <FiPlus className="h-4 w-4" />
+                    <span>List a Token</span> */}
                   </Link>
                 </>
               )}

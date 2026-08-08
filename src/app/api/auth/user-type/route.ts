@@ -1,113 +1,47 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { adminClient } from '@/lib/profile';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-
+/**
+ * Resolve an account by id or email.
+ *
+ * There is one account per person now, so this no longer searches two tables and picks
+ * a winner — it reads the single profile row. `userType` is retained for existing call
+ * sites and is simply a projection of `is_developer`.
+ */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { userId, email } = body;
+    const { userId, email } = await request.json();
 
     if (!userId && !email) {
-      return NextResponse.json(
-        { error: 'User ID or email required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'User ID or email required' }, { status: 400 });
     }
 
-    // Check if user is a developer (in developer_accounts)
-    if (userId) {
-      const { data: devAccount, error: devError } = await supabase
-        .from('developer_accounts')
-        .select('id, username, email')
-        .eq('id', userId)
-        .maybeSingle();
+    let query = adminClient()
+      .from('profiles')
+      .select('id, username, email, is_developer, is_active');
 
-      if (devAccount) {
-        return NextResponse.json(
-          {
-            userType: 'dev',
-            id: devAccount.id,
-            username: devAccount.username,
-            email: devAccount.email,
-          },
-          { status: 200 }
-        );
-      }
+    query = userId ? query.eq('id', userId) : query.ilike('email', email);
+
+    const { data, error } = await query.maybeSingle();
+
+    if (error) {
+      console.error('[auth/user-type]', error.message);
+      return NextResponse.json({ error: 'Lookup failed' }, { status: 500 });
+    }
+    if (!data) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Check if user is a regular user (in auth_users)
-    if (userId) {
-      const { data: userAccount, error: userError } = await supabase
-        .from('auth_users')
-        .select('id, username, email')
-        .eq('id', userId)
-        .maybeSingle();
-
-      if (userAccount) {
-        return NextResponse.json(
-          {
-            userType: 'user',
-            id: userAccount.id,
-            username: userAccount.username,
-            email: userAccount.email,
-          },
-          { status: 200 }
-        );
-      }
-    }
-
-    // By email
-    if (email) {
-      const { data: devAccount } = await supabase
-        .from('developer_accounts')
-        .select('id, username, email')
-        .eq('email', email)
-        .maybeSingle();
-
-      if (devAccount) {
-        return NextResponse.json(
-          {
-            userType: 'dev',
-            id: devAccount.id,
-            username: devAccount.username,
-            email: devAccount.email,
-          },
-          { status: 200 }
-        );
-      }
-
-      const { data: userAccount } = await supabase
-        .from('auth_users')
-        .select('id, username, email')
-        .eq('email', email)
-        .maybeSingle();
-
-      if (userAccount) {
-        return NextResponse.json(
-          {
-            userType: 'user',
-            id: userAccount.id,
-            username: userAccount.username,
-            email: userAccount.email,
-          },
-          { status: 200 }
-        );
-      }
-    }
-
-    return NextResponse.json(
-      { error: 'User not found' },
-      { status: 404 }
-    );
+    return NextResponse.json({
+      userType: data.is_developer ? 'dev' : 'user',
+      isDeveloper: !!data.is_developer,
+      id: data.id,
+      username: data.username,
+      email: data.email,
+      isActive: data.is_active,
+    });
   } catch (error) {
-    console.error('User type check error:', error);
-    return NextResponse.json(
-      { error: 'Failed to determine user type' },
-      { status: 500 }
-    );
+    console.error('User type error:', error);
+    return NextResponse.json({ error: 'An error occurred' }, { status: 500 });
   }
 }

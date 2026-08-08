@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('reward_redemptions')
-      .select('*, auth_users(username, email), rewards(name, type)', { count: 'exact' });
+      .select('*, profiles(username, email), rewards(name, type)', { count: 'exact' });
 
     if (rewardId) {
       query = query.eq('reward_id', rewardId);

@@ -320,7 +320,10 @@ async function getTokenDataFromSource(
 }
 
 async function buildAllTokensList(sortBy: string): Promise<object[]> {
-  const allTokens = (await getAllTokens()).map(token => ({
+  // skipMemo: this list is written into the shared tokens:all:* cache, so it must be
+  // built from shared state — a stale per-instance memo would republish an outdated
+  // list over a cache entry that was just invalidated for a new listing.
+  const allTokens = (await getAllTokens({ skipMemo: true })).map(token => ({
     symbol: token.symbol,
     address: token.address,
     name: token.name,

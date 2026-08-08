@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { isValidContractAddress } from '@/lib/tokenRegistry';
 import { discoverToken } from '@/lib/listingChecks';
+import { requireDeveloper } from '@/lib/profile';
 import type { Chain } from '@/lib/tokenRegistry.server';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -21,23 +22,7 @@ function adminClient() {
  * proxy to DexScreener that anyone could hammer.
  */
 async function resolveDeveloper(req: NextRequest) {
-  const auth = req.headers.get('authorization');
-  if (!auth?.startsWith('Bearer ')) return null;
-
-  const userClient = createClient(SUPABASE_URL, ANON_KEY, {
-    global: { headers: { Authorization: `Bearer ${auth.slice(7)}` } },
-  });
-
-  const { data: { user }, error } = await userClient.auth.getUser();
-  if (error || !user) return null;
-
-  const { data: dev } = await adminClient()
-    .from('developer_accounts')
-    .select('id')
-    .eq('id', user.id)
-    .maybeSingle();
-
-  return dev ? user : null;
+  return requireDeveloper(req);
 }
 
 /**

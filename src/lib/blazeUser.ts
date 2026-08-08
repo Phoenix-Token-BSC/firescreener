@@ -1,9 +1,13 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 
-// All blaze state lives directly on the user row (auth_users or developer_accounts),
-// so one lookup covers both the existence check and the claim state.
+// All blaze state lives directly on the profile row, so one lookup covers both the
+// existence check and the claim state.
+//
+// This used to search auth_users and developer_accounts in parallel, because the same
+// person could hold two accounts with two separate balances. There is one account per
+// person now, so there is one balance and one place to look.
 
-export type BlazeUserTable = 'auth_users' | 'developer_accounts';
+export type BlazeUserTable = 'profiles';
 
 export interface BlazeUserRow {
   id: string;
@@ -21,29 +25,17 @@ export async function getBlazeUser(
   supabase: SupabaseClient,
   userId: string
 ): Promise<{ table: BlazeUserTable; user: BlazeUserRow } | null> {
-  const [regular, dev] = await Promise.all([
-    supabase
-      .from('auth_users')
-      .select(BLAZE_USER_COLUMNS)
-      .eq('id', userId)
-      .maybeSingle<BlazeUserRow>(),
-    supabase
-      .from('developer_accounts')
-      .select(BLAZE_USER_COLUMNS)
-      .eq('id', userId)
-      .maybeSingle<BlazeUserRow>(),
-  ]);
+  const { data, error } = await supabase
+    .from('profiles')
+    .select(BLAZE_USER_COLUMNS)
+    .eq('id', userId)
+    .maybeSingle<BlazeUserRow>();
 
-  if (regular.error) {
-    console.error('auth_users blaze lookup error (are the blaze columns migrated?):', regular.error);
-  }
-  if (dev.error) {
-    console.error('developer_accounts blaze lookup error (are the blaze columns migrated?):', dev.error);
+  if (error) {
+    console.error('profiles blaze lookup error (has the identity merge been applied?):', error);
   }
 
-  if (regular.data) return { table: 'auth_users', user: regular.data };
-  if (dev.data) return { table: 'developer_accounts', user: dev.data };
-  return null;
+  return data ? { table: 'profiles', user: data } : null;
 }
 
 // Best-effort audit log — a failed insert must never fail the claim itself,

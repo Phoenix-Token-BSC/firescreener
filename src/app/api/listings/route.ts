@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { redis } from '@/lib/redis';
 import { isValidContractAddress } from '@/lib/tokenRegistry';
 import { invalidateRegistryCache, type Chain } from '@/lib/tokenRegistry.server';
+import { requireDeveloper } from '@/lib/profile';
 import { invalidateTokenListCaches } from '@/lib/cache-manager';
 import { assessListing } from '@/lib/listingChecks';
 
@@ -24,32 +25,11 @@ function adminClient() {
 }
 
 /**
- * Submissions are restricted to developer accounts. A valid Supabase JWT is not enough —
- * the user must also have a row in developer_accounts.
+ * Submissions are restricted to accounts holding the developer capability. A valid
+ * Supabase JWT is not enough — the profile must have is_developer set.
  */
 async function resolveDeveloper(req: NextRequest) {
-  const auth = req.headers.get('authorization');
-  if (!auth?.startsWith('Bearer ')) return null;
-
-  const token = auth.slice(7);
-  const userClient = createClient(SUPABASE_URL, ANON_KEY, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  });
-
-  const {
-    data: { user },
-    error,
-  } = await userClient.auth.getUser();
-  if (error || !user) return null;
-
-  const { data: dev } = await adminClient()
-    .from('developer_accounts')
-    .select('id')
-    .eq('id', user.id)
-    .maybeSingle();
-
-  if (!dev) return null;
-  return user;
+  return requireDeveloper(req);
 }
 
 async function underRateLimit(userId: string): Promise<boolean> {

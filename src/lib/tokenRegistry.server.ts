@@ -27,7 +27,11 @@ const REGISTRY_TTL = 60; // seconds — new listings appear within a minute with
 
 // Per-invocation memo so a single request that hits getToken() a dozen times pays for
 // at most one Redis round-trip. Lambdas are reused, so we also bound it by wall clock.
-const MEMO_TTL_MS = 30_000;
+// Deliberately short. Its job is to collapse the many getToken() calls a single request
+// makes into one load, not to be a second-level cache — that is what the Redis blob is
+// for, and unlike this it can actually be invalidated across instances. A long memo just
+// widens the window where an instance serves a registry it has been told is stale.
+const MEMO_TTL_MS = 5_000;
 let memo: { tokens: TokenMetadata[]; at: number } | null = null;
 let inflight: Promise<TokenMetadata[]> | null = null;
 
@@ -149,8 +153,17 @@ async function loadRegistry(): Promise<TokenMetadata[]> {
  * All tokens, from cache where possible. Never rejects — worst case it returns the
  * static bootstrap list.
  */
-export async function getAllTokens(): Promise<TokenMetadata[]> {
-  if (memo && Date.now() - memo.at < MEMO_TTL_MS) return memo.tokens;
+export async function getAllTokens(
+  options?: { skipMemo?: boolean }
+): Promise<TokenMetadata[]> {
+  // skipMemo exists for callers that write their result into a SHARED cache.
+  //
+  // invalidateRegistryCache() can only clear the memo of the instance it runs in. On a
+  // serverless deployment every other warm instance keeps its own copy, so a stale one
+  // could rebuild the shared tokens:all:* list from that stale memo and overwrite the
+  // freshly invalidated entry — republishing a list without the new token, with a fresh
+  // TTL. Anything feeding a shared cache must read from shared state instead.
+  if (!options?.skipMemo && memo && Date.now() - memo.at < MEMO_TTL_MS) return memo.tokens;
 
   // Collapse concurrent callers onto one load.
   if (!inflight) {

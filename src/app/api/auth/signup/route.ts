@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { hashPassword, validateEmail, validateUsername, validatePassword } from '@/lib/auth';
+import { validateEmail, validateUsername, validatePassword } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 
@@ -57,10 +57,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // One account per person: uniqueness is checked against `profiles`, which now
+    // covers regular users and developers alike. Both comparisons are
+    // case-insensitive, matching the unique indexes on the table.
     const { data: existingEmail, error: emailCheckError } = await supabase
-      .from('auth_users')
+      .from('profiles')
       .select('id')
-      .eq('email', email)
+      .ilike('email', email)
       .maybeSingle();
 
     if (emailCheckError) {
@@ -79,9 +82,9 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: existingUsername, error: usernameCheckError } = await supabase
-      .from('auth_users')
+      .from('profiles')
       .select('id')
-      .eq('username', username)
+      .ilike('username', username)
       .maybeSingle();
 
     if (usernameCheckError) {
@@ -99,63 +102,51 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const passwordHash = await hashPassword(password);
+    // Supabase Auth owns the credential now — it hashes the password itself, so nothing
+    // here stores one. email_confirm stays false until the emailed code is entered.
+    const { data: created, error: createErr } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: false,
+      user_metadata: { username },
+    });
 
-    // Create user account
-    console.log('Creating user account...');
-    const { data, error } = await supabase
-      .from('auth_users')
-      .insert([
-        {
-          username,
-          email,
-          password_hash: passwordHash,
-          is_email_verified: false,
-        },
-      ])
-      .select()
-      .single();
+    if (createErr || !created?.user) {
+      console.error('Supabase auth user creation error:', createErr?.message);
+      // Supabase reports an existing address rather than a constraint code.
+      if (/already registered|already been registered/i.test(createErr?.message ?? '')) {
+        return NextResponse.json({ error: 'Email already registered' }, { status: 409 });
+      }
+      return NextResponse.json(
+        { error: 'Failed to create account', details: createErr?.message },
+        { status: 500 }
+      );
+    }
 
-    if (error) {
-      console.error('Supabase user creation error:', {
-        code: error.code,
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-      });
+    const data = { id: created.user.id };
 
-      // Handle specific constraint errors
-      if (error.code === '23505') {
-        // Duplicate key error
-        if (error.message?.includes('email')) {
-          return NextResponse.json(
-            { error: 'Email already registered' },
-            { status: 409 }
-          );
-        }
-        if (error.message?.includes('username')) {
-          return NextResponse.json(
-            { error: 'Username already taken' },
-            { status: 409 }
-          );
-        }
-        // Blaze stats duplicate
-        console.log('Blaze stats conflict:', error.message);
+    const { error: profileErr } = await supabase.from('profiles').insert({
+      id: created.user.id,
+      username,
+      email: email.toLowerCase(),
+      is_developer: false,
+      is_active: true,
+    });
+
+    if (profileErr) {
+      // Roll the auth user back rather than leaving a credential with no profile —
+      // that account could authenticate but would fail every requireUser() check.
+      await supabase.auth.admin.deleteUser(created.user.id).catch(() => {});
+
+      console.error('Profile creation error:', profileErr.message);
+      if (profileErr.code === '23505') {
         return NextResponse.json(
-          {
-            error: 'Failed to create account',
-            details: `${error.message} - This may be due to stale data. Please contact support if this persists.`,
-          },
-          { status: 500 }
+          { error: /username/i.test(profileErr.message) ? 'Username already taken' : 'Email already registered' },
+          { status: 409 }
         );
       }
-
       return NextResponse.json(
-        {
-          error: 'Failed to create account',
-          details: error.message,
-          code: error.code,
-        },
+        { error: 'Failed to create account', details: profileErr.message },
         { status: 500 }
       );
     }
@@ -208,12 +199,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const { password_hash, ...userWithoutPassword } = data;
-
+    // No password to strip any more — Supabase Auth holds the credential.
     return NextResponse.json(
       {
         message: 'Account created. Please verify your email.',
-        user: userWithoutPassword,
+        user: { id: data.id, username, email },
         requiresVerification: true,
       },
       { status: 201 }
