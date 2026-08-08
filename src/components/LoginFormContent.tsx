@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import LoadingWithLogo from './LoadingWithLogo';
 import { useAuth } from '@/contexts/AuthContext';
+import { startUserSession } from '@/lib/session';
 
 const LoginFormContent: React.FC = () => {
   const router = useRouter();
@@ -53,6 +54,10 @@ const LoginFormContent: React.FC = () => {
       }
 
       setSuccess(true);
+
+      // Ends any developer session first — one account at a time.
+      await startUserSession();
+
       localStorage.setItem('auth_token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
 

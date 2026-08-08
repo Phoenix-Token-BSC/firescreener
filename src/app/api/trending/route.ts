@@ -1,4 +1,4 @@
-import { TOKEN_REGISTRY } from '@/lib/tokenRegistry';
+import { getAllTokens } from '@/lib/tokenRegistry.server';
 import { NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
 import { createClient } from '@supabase/supabase-js';
@@ -239,7 +239,7 @@ async function fetchTrendingTokens(): Promise<TokenMetrics[]> {
   interface Candidate { address: string; symbol: string; name: string; chain: string; isFeatured: boolean }
   const candidates = new Map<string, Candidate>();
 
-  for (const token of TOKEN_REGISTRY) {
+  for (const token of await getAllTokens()) {
     candidates.set(token.address.toLowerCase(), {
       address: token.address,
       symbol: token.symbol,

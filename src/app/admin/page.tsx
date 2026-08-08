@@ -3,7 +3,7 @@
 import { useAdmin } from '@/contexts/AdminContext';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { BarChart3, Gift, TrendingUp, Users, AlertCircle, Zap } from 'lucide-react';
+import { BarChart3, Gift, TrendingUp, Users, AlertCircle, Zap, ListChecks } from 'lucide-react';
 import { adminFetch } from '@/lib/adminApi';
 import Link from 'next/link';
 
@@ -89,7 +89,16 @@ export default function AdminDashboard() {
         </div>
 
         {/* Navigation */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+          <Link
+            href="/admin/listings"
+            className="p-4 bg-gradient-to-br from-yellow-600/20 to-yellow-500/10 border border-yellow-500/30 rounded-lg hover:border-yellow-500/60 transition-colors"
+          >
+            <ListChecks size={24} className="text-yellow-400 mb-2" />
+            <h3 className="font-semibold text-white mb-1">Token Listings</h3>
+            <p className="text-sm text-gray-400">Review submitted tokens</p>
+          </Link>
+
           <Link
             href="/admin/rewards"
             className="p-4 bg-gradient-to-br from-orange-600/20 to-orange-500/10 border border-orange-500/30 rounded-lg hover:border-orange-500/60 transition-colors"

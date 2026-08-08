@@ -1,39 +1,26 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/adminSession';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { email } = body;
-
-    if (!email) {
-      return NextResponse.json(
-        { isAdmin: false, error: 'Email required' },
-        { status: 400 }
-      );
-    }
-
-    // Verify admin exists and is active
-    const { data: adminUser, error } = await supabase
-      .from('admin_users')
-      .select('id, is_active')
-      .eq('email', email)
-      .eq('is_active', true)
-      .maybeSingle();
-
-    if (error) {
-      console.error('Error verifying admin:', error);
-      return NextResponse.json({ isAdmin: false });
-    }
-
-    return NextResponse.json({ isAdmin: !!adminUser });
-  } catch (error) {
-    console.error('Verify error:', error);
-    return NextResponse.json({ isAdmin: false });
+/**
+ * Reports whether the caller holds a valid admin session.
+ *
+ * This used to accept an email in the request body and answer "is this an admin?", which
+ * told any caller whether an address was an admin and was the basis of the header-trust
+ * scheme. Identity now comes from the signed session cookie only — the body is ignored.
+ */
+async function handle(request: NextRequest) {
+  const email = await requireAdmin(request);
+  if (!email) {
+    return NextResponse.json({ isAdmin: false }, { status: 401 });
   }
+  return NextResponse.json({ isAdmin: true, email });
+}
+
+export async function GET(request: NextRequest) {
+  return handle(request);
+}
+
+// Kept so the existing client call site continues to work.
+export async function POST(request: NextRequest) {
+  return handle(request);
 }

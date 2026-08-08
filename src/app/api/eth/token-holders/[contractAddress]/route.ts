@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTokenByAddress, isValidContractAddress } from '@/lib/tokenRegistry';
+import { isValidContractAddress } from "@/lib/tokenRegistry";
+import { getToken as getTokenByAddress } from "@/lib/tokenRegistry.server";
 
 const MORALIS_API_URL = 'https://deep-index.moralis.io/api/v2.2/erc20';
 const MORALIS_API_KEY = process.env.MORALIS_API_KEY;
@@ -37,7 +38,7 @@ export async function GET(
     }
 
     // Verify token exists in registry
-    const tokenMetadata = getTokenByAddress(addressLower);
+    const tokenMetadata = await getTokenByAddress(addressLower);
     if (!tokenMetadata) {
       return NextResponse.json({ error: 'Token not found in registry' }, { status: 404 });
     }

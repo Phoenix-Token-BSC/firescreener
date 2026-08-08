@@ -20,34 +20,28 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setIsLoading(true);
       setError(null);
 
-      // Get admin email from localStorage
-      const adminEmail = localStorage.getItem('adminEmail');
-      console.log('AdminContext checking status, email:', adminEmail);
+      // Identity comes from the HttpOnly admin_session cookie, which the browser sends
+      // automatically. Nothing is read from localStorage — a value there proved nothing,
+      // since the client could set it to any address.
+      const response = await fetch('/api/admin/verify', {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
 
-      if (!adminEmail) {
-        console.log('No admin email in localStorage');
+      // 401 simply means "not signed in", which is a normal state, not an error.
+      if (response.status === 401) {
         setIsAdmin(false);
-        setIsLoading(false);
         return;
       }
 
-      // Verify with API (uses service role to bypass RLS)
-      const response = await fetch('/api/admin/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: adminEmail }),
-      });
-
-      const data = await response.json();
-      console.log('Admin verify response:', data);
-
-      if (response.ok) {
-        console.log('Setting isAdmin to:', data.isAdmin);
-        setIsAdmin(data.isAdmin || false);
-      } else {
+      if (!response.ok) {
         setError('Failed to verify admin status');
         setIsAdmin(false);
+        return;
       }
+
+      const data = await response.json();
+      setIsAdmin(data.isAdmin || false);
     } catch (err) {
       console.error('Admin check error:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');

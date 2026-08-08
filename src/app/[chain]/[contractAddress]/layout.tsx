@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getTokenByAddress, getTokenBySymbol } from "@/lib/tokenRegistry";
+import { getToken, getTokenBySymbol } from "@/lib/tokenRegistry.server";
 
 type Props = {
   params: Promise<{
@@ -12,11 +12,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { chain, contractAddress } = await params;
 
   // Try to get token by address first, then by symbol
-  let token = getTokenByAddress(contractAddress);
+  let token = await getToken(contractAddress);
 
   // If not found by address, try by symbol with chain filter
   if (!token) {
-    token = getTokenBySymbol(contractAddress, chain as 'bsc' | 'sol' | 'rwa' | 'eth');
+    token = await getTokenBySymbol(contractAddress, chain as 'bsc' | 'sol' | 'rwa' | 'eth');
   }
 
   // Default metadata if token not found

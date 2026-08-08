@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Mail, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { startDevSession } from "@/lib/session";
 import { useRouter } from "next/navigation";
 
 export default function Login({ onSwitch }: { onSwitch: () => void }) {
@@ -58,6 +59,9 @@ export default function Login({ onSwitch }: { onSwitch: () => void }) {
         setLoading(false);
         return;
       }
+
+      // Ends any regular-user session first — one account at a time.
+      await startDevSession();
 
       console.log("✅ Session created, waiting for cookies to persist...");
       // Wait a moment for session to be saved to cookies

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTokenByAddress, isValidContractAddress } from '@/lib/tokenRegistry';
+import { isValidContractAddress } from "@/lib/tokenRegistry";
+import { getToken as getTokenByAddress } from "@/lib/tokenRegistry.server";
 
 interface RouteParams {
   contractAddress: string;
@@ -112,7 +113,7 @@ export async function GET(
     // Verify token exists in registry
     let tokenMetadata;
     try {
-      tokenMetadata = getTokenByAddress(addressLower);
+      tokenMetadata = await getTokenByAddress(addressLower);
       console.log('Token metadata:', tokenMetadata);
     } catch (registryError) {
       console.error('Error fetching token from registry:', registryError);

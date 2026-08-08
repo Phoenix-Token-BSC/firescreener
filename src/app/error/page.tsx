@@ -1,11 +1,12 @@
 "use client";
 import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getTokenBySymbol, getTokensBySymbol } from "@/lib/tokenRegistry";
+import { useRegistry, findBySymbol } from "@/hooks/useRegistry";
 
 function ErrorPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const registry = useRegistry();
   const errorType = searchParams.get('type');
   const identifier = searchParams.get('identifier');
   const chain = searchParams.get('chain');
@@ -26,7 +27,7 @@ function ErrorPageContent() {
   };
 
   const getDefaultTokenUrl = () => {
-    const phtToken = getTokenBySymbol('pht');
+    const phtToken = findBySymbol(registry, 'pht');
     return phtToken ? `/${phtToken.chain}/${phtToken.address}` : '/';
   };
 
@@ -45,7 +46,8 @@ function ErrorPageContent() {
         <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg max-w-md">
           <h3 className="font-semibold text-yellow-800 mb-2">Available tokens with symbol &quot{identifier}&quot:</h3>
           <div className="space-y-2">
-            {getTokensBySymbol(identifier)
+            {registry
+              .filter(token => token.symbol.toLowerCase() === identifier.toLowerCase())
               .filter(token => token.chain === chain)
               .map(token => (
                 <div key={token.address} className="flex flex-col">

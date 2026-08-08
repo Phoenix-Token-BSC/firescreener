@@ -14,10 +14,10 @@ import Footer from "@/components/Footer";
 import CurrencyConverter from "@/components/Converter";
 import GainsCalculator from "@/components/GainsCalculator";
 import {
-  getTokenByAddress,
   isValidContractAddress,
   TokenMetadata,
 } from "@/lib/tokenRegistry";
+import { useRegistryState, findByAddress } from "@/hooks/useRegistry";
 import { useTrackActiveToken } from "@/hooks/useTrackActiveToken";
 import { useEmojiReactions } from "@/hooks/useEmojiReactions";
 import WatchlistButton from "@/components/WatchlistButton";
@@ -71,6 +71,10 @@ export default function TokenPage() {
   const routeParams = useParams<{ chain: string; contractAddress: string }>();
   const chain = routeParams?.chain ?? null;
   const contractAddress = routeParams?.contractAddress ?? null;
+
+  // `registryReady` gates the "token not found" redirect below — see the guard in
+  // fetchTokenData. The seed list has no database-added tokens in it.
+  const { tokens: registry, ready: registryReady } = useRegistryState();
 
   const cacheKey = contractAddress ?? 'init';
 
@@ -131,6 +135,12 @@ export default function TokenPage() {
         return; // params not yet resolved from the Promise, wait for re-run
       }
 
+      // Wait for the live registry before treating a miss as "does not exist".
+      // Acting on the seed list would bounce every newly listed token to /error.
+      if (!registryReady) {
+        return;
+      }
+
       const chainLower = chain.toLowerCase() as "bsc" | "sol" | "rwa" | "eth";
 
       // Validate contract address format
@@ -143,8 +153,9 @@ export default function TokenPage() {
         return;
       }
 
-      // Get token metadata from registry
-      const metadata = getTokenByAddress(contractAddress);
+      // Get token metadata from the live registry. Tokens listed through /new-listing
+      // exist only in the database, so this must not fall back to the static array.
+      const metadata = findByAddress(registry, contractAddress);
       if (!metadata) {
         if (!isBackground) {
           router.push(
@@ -273,7 +284,7 @@ export default function TokenPage() {
         }
       }
     },
-    [chain, contractAddress, router],
+    [chain, contractAddress, router, registry, registryReady],
   );
 
   // Turn off loading once sessionStorage data has been hydrated into state.

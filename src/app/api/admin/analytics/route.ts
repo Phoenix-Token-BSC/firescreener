@@ -1,37 +1,17 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/adminSession';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-async function isAdmin(email: string): Promise<boolean> {
-  try {
-    const { data, error } = await supabase
-      .from('admin_users')
-      .select('id')
-      .eq('email', email)
-      .eq('is_active', true)
-      .maybeSingle();
-
-    if (error) {
-      console.error('Error checking admin status:', error);
-      return false;
-    }
-
-    return !!data;
-  } catch (err) {
-    console.error('Admin check error:', err);
-    return false;
-  }
-}
-
 export async function GET(request: NextRequest) {
   try {
-    const email = request.headers.get('x-user-email');
+    const email = await requireAdmin(request);
 
-    if (!email || !(await isAdmin(email))) {
+    if (!email) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }

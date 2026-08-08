@@ -2,6 +2,12 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import {
+  readActiveSession,
+  clearUserSession,
+  clearDevSession,
+  endAllSessions,
+} from '@/lib/session';
 
 interface AuthUser {
   id: string;
@@ -47,8 +53,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
         } else {
           console.log('User session invalid, clearing auth');
-          localStorage.removeItem('user');
-          localStorage.removeItem('auth_token');
+          // Goes through the shared helper so the auth_token cookie and the
+          // activeSession marker are cleared too, not just the localStorage entries.
+          await endAllSessions();
           setUser(null);
         }
       } catch (fetchError) {
@@ -57,39 +64,85 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
 
+    /**
+     * Resolves a Supabase Auth session into a developer account.
+     *
+     * Reads the real username from developer_accounts rather than guessing it from
+     * user_metadata or the email local-part, and confirms the account actually exists —
+     * a Supabase auth user with no developer_accounts row is not a developer.
+     */
+    const resolveDevSession = async (sessionUser: {
+      id: string;
+      email?: string;
+    }): Promise<AuthUser | null> => {
+      try {
+        const res = await fetch('/api/auth/user-type', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: sessionUser.id, email: sessionUser.email }),
+        });
+        if (!res.ok) return null;
+
+        const data = await res.json();
+        if (data.userType !== 'dev') return null;
+
+        return {
+          id: data.id ?? sessionUser.id,
+          username: data.username || sessionUser.email?.split('@')[0] || 'developer',
+          email: data.email || sessionUser.email || '',
+          userType: 'dev',
+        };
+      } catch {
+        return null;
+      }
+    };
+
     const initializeAuth = async () => {
       try {
-        // Regular user session: hydrate from localStorage immediately so the
-        // dashboard can render without waiting on any network round trip.
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        const supabase =
+          supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
+
         const storedUser = localStorage.getItem('user');
+        const { data: { session } = { session: null } } =
+          (await supabase?.auth.getSession()) ?? { data: { session: null } };
+
+        // Both present: only one may survive. Prefer whichever was established most
+        // recently; sessions predating the activeSession marker fall back to the
+        // regular user, which is what the old code did.
+        if (storedUser && session?.user) {
+          const active = readActiveSession();
+          if (active?.kind === 'dev') {
+            await clearUserSession();
+            const devUser = await resolveDevSession(session.user);
+            setUser(devUser);
+            if (!devUser) await clearDevSession();
+            return;
+          }
+          await clearDevSession();
+        }
+
+        // Regular user: hydrate from localStorage immediately so the dashboard can
+        // render without waiting on any network round trip.
         if (storedUser) {
-          const user = JSON.parse(storedUser);
-          const optimisticUser = { ...user, userType: user.userType || 'user' };
+          const parsed = JSON.parse(storedUser);
+          const optimisticUser = { ...parsed, userType: parsed.userType || 'user' };
           setUser(optimisticUser);
           setIsLoading(false);
           verifySessionInBackground(optimisticUser);
           return;
         }
 
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-        if (supabaseUrl && supabaseAnonKey) {
-          const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-          // Check for Supabase Auth session (developer)
-          const { data: { session } } = await supabase.auth.getSession();
-
-          if (session?.user) {
-            // Developer is logged in via Supabase Auth
-            console.log('✅ Dev session found:', session.user.email);
-            const username = session.user.user_metadata?.username || session.user.email?.split('@')[0] || 'dev';
-            setUser({
-              id: session.user.id,
-              username: username,
-              email: session.user.email || '',
-              userType: 'dev',
-            });
+        if (session?.user) {
+          const devUser = await resolveDevSession(session.user);
+          if (devUser) {
+            setUser(devUser);
+          } else {
+            // Authenticated with Supabase but not a developer — not a session this app
+            // recognises, so do not present it as one.
+            await clearDevSession();
+            setUser(null);
           }
         }
       } catch (error) {
@@ -112,25 +165,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
+    // Send the developer back to their own login page rather than the user one.
+    const destination = user?.userType === 'dev' ? '/dev/auth' : '/auth/login';
+
     try {
-      // Logout from regular user session
-      await fetch('/api/auth/logout', { method: 'POST' });
-
-      // Also logout from Supabase if dev is logged in
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-      if (supabaseUrl && supabaseAnonKey && user?.userType === 'dev') {
-        const supabase = createClient(supabaseUrl, supabaseAnonKey);
-        await supabase.auth.signOut();
-      }
+      // Both sessions are cleared regardless of which one is active. Previously the
+      // Supabase sign-out was skipped unless userType was 'dev', so logging out as a
+      // regular user left a developer session behind — and the next page load picked it
+      // up and signed you straight back in as the developer.
+      await endAllSessions();
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
       setUser(null);
-      localStorage.removeItem('user');
-      localStorage.removeItem('auth_token');
-      window.location.href = '/auth/login';
+      window.location.href = destination;
     }
   };
 

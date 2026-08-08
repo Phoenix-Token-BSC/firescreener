@@ -5,12 +5,8 @@ import Image from "next/image";
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { FiGlobe, FiLogOut, FiUser } from "react-icons/fi";
-import {
-    TOKEN_REGISTRY,
-    getTokenByAddress,
-    getTokensBySymbol,
-    isValidContractAddress,
-} from "@/lib/tokenRegistry";
+import { isValidContractAddress } from "@/lib/tokenRegistry";
+import { useRegistry, findByAddress } from "@/hooks/useRegistry";
 import { useAuth } from "@/contexts/AuthContext";
 
 // Format price with subscript zeros for very small numbers (matches page.tsx)
@@ -76,6 +72,7 @@ export default function Header() {
     const router = useRouter();
     const pathname = usePathname();
     const { user, isAuthenticated, logout, isLoading: authLoading } = useAuth();
+    const registry = useRegistry();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [isDesktopSearchFocused, setIsDesktopSearchFocused] = useState(false);
@@ -128,7 +125,7 @@ export default function Header() {
         const looksLikeRwa = isValidContractAddress(raw, "rwa");
         const looksLikeSol = isValidContractAddress(raw, "sol");
         if (looksLikeBscOrEth || looksLikeRwa || looksLikeSol) {
-            const match = getTokenByAddress(raw) || getTokenByAddress(q);
+            const match = findByAddress(registry, raw) || findByAddress(registry, q);
             if (match) {
                 router.push(`/${match.chain}/${match.address}`);
                 return;
@@ -148,11 +145,11 @@ export default function Header() {
 
         // Otherwise treat input as a symbol/name query using registry
         const active = (activeChain ?? undefined) as "bsc" | "sol" | "rwa" | "eth" | undefined;
-        let candidates = getTokensBySymbol(q);
+        let candidates = registry.filter(t => t.symbol.toLowerCase() === q);
 
         // Fallback: match by name contains query (within active chain if set)
         if (candidates.length === 0) {
-            const byName = TOKEN_REGISTRY.filter(t => t.name.toLowerCase().includes(q));
+            const byName = registry.filter(t => t.name.toLowerCase().includes(q));
             candidates = byName;
         }
 
@@ -198,7 +195,7 @@ export default function Header() {
         const q = value.trim().toLowerCase();
         const active = (activeChain ?? undefined) as "bsc" | "sol" | "rwa" | "eth" | undefined;
 
-        const filtered = TOKEN_REGISTRY
+        const filtered = registry
             .filter(t =>
                 t.symbol.toLowerCase().includes(q) ||
                 t.name.toLowerCase().includes(q) ||
@@ -493,29 +490,48 @@ export default function Header() {
                                     <>
                                         <div className="flex items-center gap-2 px-3 py-2 mb-2 bg-orange-50 rounded-md">
                                             <FiUser size={18} className="text-orange-500" />
-                                            <span className="text-sm font-medium text-neutral-900">{user.username}</span>
+                                            <div className="min-w-0">
+                                                <span className="block text-sm font-medium text-neutral-900 truncate">{user.username}</span>
+                                                {user.userType === 'dev' && (
+                                                    <span className="block text-[11px] text-orange-600">Developer account</span>
+                                                )}
+                                            </div>
                                         </div>
-                                        <Link
-                                            href="/dashboard"
-                                            className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
-                                            onClick={toggleMenu}
-                                        >
-                                            Dashboard
-                                        </Link>
-                                        <Link
-                                            href="/blaze-claim"
-                                            className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
-                                            onClick={toggleMenu}
-                                        >
-                                            Blaze claim
-                                        </Link>
-                                        <Link
-                                            href="/rewards"
-                                            className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
-                                            onClick={toggleMenu}
-                                        >
-                                            Rewards
-                                        </Link>
+                                        {/* Developers have their own dashboard; blaze and rewards belong to the
+                                            regular-user account system (auth_users). */}
+                                        {user.userType === 'dev' ? (
+                                            <Link
+                                                href="/dev/dashboard"
+                                                className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
+                                                onClick={toggleMenu}
+                                            >
+                                                Developer dashboard
+                                            </Link>
+                                        ) : (
+                                            <>
+                                                <Link
+                                                    href="/dashboard"
+                                                    className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
+                                                    onClick={toggleMenu}
+                                                >
+                                                    Dashboard
+                                                </Link>
+                                                <Link
+                                                    href="/blaze-claim"
+                                                    className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
+                                                    onClick={toggleMenu}
+                                                >
+                                                    Blaze claim
+                                                </Link>
+                                                <Link
+                                                    href="/rewards"
+                                                    className="block px-3 py-2 rounded-md text-base text-neutral-900 hover:text-neutral-700 hover:bg-neutral-100"
+                                                    onClick={toggleMenu}
+                                                >
+                                                    Rewards
+                                                </Link>
+                                            </>
+                                        )}
                                         <button
                                             onClick={() => {
                                                 logout();

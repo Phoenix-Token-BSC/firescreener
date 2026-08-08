@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { clearTokenCache, clearMultipleTokensCache, getTokenCacheInfo, getCacheHealth } from '@/lib/cache-manager';
-import { TOKEN_REGISTRY } from '@/lib/tokenRegistry';
+import { getAllTokens } from '@/lib/tokenRegistry.server';
 
 export async function GET(request: NextRequest) {
   try {
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
           }, { status: 200 });
         } else {
           // Clear all tokens
-          const addresses = TOKEN_REGISTRY.map(t => t.address);
+          const addresses = (await getAllTokens()).map(t => t.address);
           const cleared = await clearMultipleTokensCache(addresses);
           return NextResponse.json({
             message: 'Cache cleared for all tokens',
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
             error: 'Chain parameter required. Use ?action=clear-chain&chain=bsc',
           }, { status: 400 });
         }
-        const chainTokens = TOKEN_REGISTRY.filter(t => t.chain.toLowerCase() === chain.toLowerCase());
+        const chainTokens = (await getAllTokens()).filter(t => t.chain.toLowerCase() === chain.toLowerCase());
         const chainAddresses = chainTokens.map(t => t.address);
         const clearedChain = await clearMultipleTokensCache(chainAddresses);
         return NextResponse.json({

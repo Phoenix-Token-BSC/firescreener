@@ -1,10 +1,10 @@
 "use client";
 
 import Header from '@/components/Header';
-import { TOKEN_REGISTRY } from '@/lib/tokenRegistry';
+import { useRegistry, findBySymbol } from '@/hooks/useRegistry';
 import { toPng, toBlob } from 'html-to-image';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Image from 'next/image';
 
 // Define interfaces for our data structures
@@ -55,15 +55,6 @@ interface CoinGeckoCoinData {
 // Token list with chain mapping
 // Build TOKENS list from the central TOKEN_REGISTRY to avoid maintaining separate lists
 // We normalize to lower-case `id` to match previous usage (symbols like 'pht')
-const TOKENS = TOKEN_REGISTRY
-  .filter(t => t.chain === 'bsc' && t.symbol && t.symbol.trim().length > 0)
-  .map(t => ({
-    id: t.symbol.toLowerCase(),
-    symbol: t.symbol.toUpperCase(),
-    name: t.name || t.symbol.toUpperCase(),
-    chain: t.chain,
-  }));
-
 const formatMarketCap = (marketCap: string | undefined): string => {
   if (!marketCap) return '$0';
   const mc = parseFloat(marketCap);
@@ -80,6 +71,23 @@ const formatMarketCap = (marketCap: string | undefined): string => {
 };
 
 const PriceComparison = () => {
+  const registry = useRegistry();
+
+  // Derived from the live registry so newly listed BSC tokens are selectable without a
+  // redeploy. Normalized to lower-case `id` to match prior usage (symbols like 'pht').
+  const TOKENS = useMemo(
+    () =>
+      registry
+        .filter(t => t.chain === 'bsc' && t.symbol && t.symbol.trim().length > 0)
+        .map(t => ({
+          id: t.symbol.toLowerCase(),
+          symbol: t.symbol.toUpperCase(),
+          name: t.name || t.symbol.toUpperCase(),
+          chain: t.chain,
+        })),
+    [registry]
+  );
+
   const [cryptoA, setCryptoA] = useState<string>('pht');
   const [cryptoB, setCryptoB] = useState<string>('wkc');
   const [cryptoAData, setCryptoAData] = useState<TokenData | null>(null);
@@ -106,9 +114,7 @@ const PriceComparison = () => {
     const isPlatformToken = TOKENS.some(t => t.id === tokenId);
 
     if (isPlatformToken) {
-      const tokenMeta = TOKEN_REGISTRY.find(
-        t => t.symbol.toLowerCase() === tokenId.toLowerCase() && t.chain === 'bsc'
-      );
+      const tokenMeta = findBySymbol(registry, tokenId, 'bsc');
       if (!tokenMeta) return null;
 
       // ATH: CoinGecko only — DexScreener has no ATH data
@@ -822,9 +828,7 @@ const PriceComparison = () => {
           </div>
           <a
             href={(() => {
-              const meta = TOKEN_REGISTRY.find(
-                t => t.symbol.toLowerCase() === cryptoA && t.chain === 'bsc'
-              );
+              const meta = findBySymbol(registry, cryptoA, 'bsc');
               return meta ? `/bsc/${meta.address}` : '#';
             })()}
             target="_blank"

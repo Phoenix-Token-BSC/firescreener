@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { TOKEN_REGISTRY } from '@/lib/tokenRegistry';
+import { getAllTokens } from '@/lib/tokenRegistry.server';
 import { redis } from '@/lib/redis';
 
 const DEXSCREENER_API_URL = "https://api.dexscreener.com/latest/dex/tokens";
@@ -39,9 +39,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const allTokens = await getAllTokens();
+
   const stats: JobStats = {
     startTime: new Date().toISOString(),
-    totalTokens: TOKEN_REGISTRY.length,
+    totalTokens: allTokens.length,
     processed: 0,
     successful: 0,
     failed: 0,
@@ -54,8 +56,8 @@ export async function GET(request: NextRequest) {
   const BATCH_SIZE = 10;
   const DELAY_BETWEEN_BATCHES = 1000; // 1 second
 
-  for (let i = 0; i < TOKEN_REGISTRY.length; i += BATCH_SIZE) {
-    const batch = TOKEN_REGISTRY.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < allTokens.length; i += BATCH_SIZE) {
+    const batch = allTokens.slice(i, i + BATCH_SIZE);
     
     await Promise.allSettled(
       batch.map(async (token) => {
@@ -83,7 +85,7 @@ export async function GET(request: NextRequest) {
     );
 
     // Delay between batches to respect rate limits
-    if (i + BATCH_SIZE < TOKEN_REGISTRY.length) {
+    if (i + BATCH_SIZE < allTokens.length) {
       await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
     }
   }

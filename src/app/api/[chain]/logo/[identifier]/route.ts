@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { getTokenByAddress, getTokenBySymbol, isValidContractAddress } from "@/lib/tokenRegistry";
+import { isValidContractAddress } from "@/lib/tokenRegistry";
+import { getToken as getTokenByAddress, getTokenBySymbol } from "@/lib/tokenRegistry.server";
 
 type CacheHit = { buffer: ArrayBuffer; contentType: string; expiry: number };
 type CacheEntry = CacheHit; // ✅ Removed CacheMiss — misses are never cached now
@@ -157,9 +158,9 @@ export async function GET(
 
     // Use original-case identifier for validation — Solana base58 is case-sensitive
     if (isValidContractAddress(identifier, chainLower)) {
-      tokenMetadata = getTokenByAddress(identifier);
+      tokenMetadata = await getTokenByAddress(identifier);
     } else {
-      tokenMetadata = getTokenBySymbol(identifierLower, chainLower);
+      tokenMetadata = await getTokenBySymbol(identifierLower, chainLower);
     }
 
     if (!tokenMetadata) {

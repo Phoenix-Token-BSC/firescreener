@@ -1,12 +1,13 @@
 import { redis } from './redis';
 import { supabase } from './supabase';
-import { TOKEN_REGISTRY } from './tokenRegistry';
+import { getAllTokens } from './tokenRegistry.server';
 
 /**
  * Cache all token logos in Redis from Supabase Storage
  * This can be run as a cron job or manually to warm up the cache
  */
 export async function cacheAllLogos() {
+  const allTokens = await getAllTokens();
  // console.log('Starting logo caching process from Supabase Storage...');
   let foundCount = 0;
   let missingCount = 0;
@@ -14,7 +15,7 @@ export async function cacheAllLogos() {
 
   const fileExtensions = ['png', 'jpg', 'jpeg', 'webp'];
 
-  for (const token of TOKEN_REGISTRY) {
+  for (const token of allTokens) {
     const { address, chain, symbol } = token;
     const redisKey = `logo:${chain}:${address.toLowerCase()}`;
 
@@ -97,7 +98,7 @@ export async function cacheAllLogos() {
     found: foundCount,
     skipped: skipCount,
     missing: missingCount,
-    total: TOKEN_REGISTRY.length,
+    total: allTokens.length,
   };
 }
 
@@ -105,10 +106,11 @@ export async function cacheAllLogos() {
  * Clear all logo cache entries from Redis
  */
 export async function clearLogoCache() {
+  const allTokens = await getAllTokens();
   // console.log('Clearing logo cache from Redis...');
   let count = 0;
 
-  for (const token of TOKEN_REGISTRY) {
+  for (const token of allTokens) {
     const { address, chain } = token;
     const redisKey = `logo:${chain}:${address.toLowerCase()}`;
 
@@ -128,10 +130,11 @@ export async function clearLogoCache() {
  * Get cache statistics from Redis
  */
 export async function getLogoCacheStats() {
+  const allTokens = await getAllTokens();
   let cachedCount = 0;
   let uncachedCount = 0;
 
-  for (const token of TOKEN_REGISTRY) {
+  for (const token of allTokens) {
     const { address, chain } = token;
     const redisKey = `logo:${chain}:${address.toLowerCase()}`;
 
@@ -149,9 +152,9 @@ export async function getLogoCacheStats() {
   }
 
   return {
-    total: TOKEN_REGISTRY.length,
+    total: allTokens.length,
     cached: cachedCount,
     uncached: uncachedCount,
-    cacheRate: ((cachedCount / TOKEN_REGISTRY.length) * 100).toFixed(2) + '%',
+    cacheRate: ((cachedCount / allTokens.length) * 100).toFixed(2) + '%',
   };
 }
